@@ -1,6 +1,6 @@
 {
-  "name": "Калькулятор натяжных потолков",
-  "short_name": "Калькулятор",
+  "name": "Ceiling Calculator",
+  "short_name": "Calculator",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
