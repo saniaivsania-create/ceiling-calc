@@ -124,36 +124,11 @@
             border-radius: 10px;
             border: 1px solid var(--border);
             touch-action: none;
-            cursor: crosshair;
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 180px);
+            height: calc(100vh - 140px);
         }
-
-        .canvas-tools {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 6px;
-        }
-
-        .btn {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 9px 6px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: center;
-        }
-
-        .btn:active { transform: scale(0.96); }
-        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
-        .btn-warning { background: var(--warning-gradient); border: none; color: #0b0f19; }
-        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
-        .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: var(--success); }
 
         .section-card {
             background: var(--card-bg);
@@ -199,6 +174,24 @@
         }
 
         .input-field:focus { border-color: var(--accent); outline: none; }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 9px 6px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
+        .btn-warning { background: var(--warning-gradient); border: none; color: #0b0f19; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
+        .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: var(--success); }
 
         .item-row {
             display: grid;
@@ -282,34 +275,33 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Нажмите "Построить по цифрам" для точного чертежа</span>
+                <span class="action-hint" id="actionHint">Чертеж строится по точным цифрам и привязкам</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
-            <div class="canvas-tools">
-                <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn" onclick="undoPoint()">↩️ Отменить</button>
-            </div>
         </div>
 
         <div class="section-card" id="wallsCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="section-title">📏 Длины стен комнаты (м):</div>
-                <button class="btn btn-success" onclick="buildFromNumbers()" style="padding: 6px 10px; font-size: 11px;">📐 Построить по цифрам</button>
+                <button class="btn btn-success" onclick="updateDrawing()" style="padding: 6px 10px; font-size: 11px;">📐 Построить чертеж</button>
             </div>
             <div class="grid-inputs" id="wallsInputsContainer">
-                <div class="input-group"><label>Стена А-В (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1"></div>
-                <div class="input-group"><label>Стена В-С (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1"></div>
-                <div class="input-group"><label>Стена С-D (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1"></div>
-                <div class="input-group"><label>Стена D-A (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1"></div>
+                <div class="input-group"><label>Стена А-В (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена В-С (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена С-D (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена D-A (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1" oninput="updateDrawing()"></div>
             </div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами размеров и привязками -->
+        <!-- Блок внутренних фигур и кругов с двумя таблицами: размеры + привязка -->
         <div class="section-card" id="innerCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="section-title">🔶 Внутренние фигуры (острова):</div>
-                <button class="btn btn-warning" onclick="addInnerShapeConfig()" style="padding: 6px 10px; font-size: 11px;">➕ Добавить фигуру</button>
+                <div class="section-title">🔶 Острова, ниши и круги:</div>
+                <div style="display: flex; gap: 4px;">
+                    <button class="btn btn-warning" onclick="addShape('rect')" style="padding: 5px 8px; font-size: 10px;">+ Прямоугольник</button>
+                    <button class="btn btn-warning" onclick="addShape('circle')" style="padding: 5px 8px; font-size: 10px;">+ Круг</button>
+                </div>
             </div>
             <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 6px;"></div>
         </div>
@@ -404,7 +396,7 @@
         <div class="modal-content">
             <div style="font-size: 40px;">🔒</div>
             <div style="font-size: 18px; font-weight: 700;">Лимит бесплатных расчетов исчерпан</div>
-            <div style="font-size: 13px; color: var(--text-muted);">Для продолжения работы в RuStore разблокируйте полную версию приложения навсегда.</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Для продолжения работы разблокируйте полную версию приложения навсегда.</div>
             <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
             <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Разблокировать за 500 ₽</button>
             <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить попытки]</button>
@@ -412,7 +404,7 @@
     </div>
 
     <script>
-        let attempts = parseInt(localStorage.getItem('pro_calc_attempts'] || '5');
+        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') || '5');
         let isUnlocked = localStorage.getItem('pro_calc_unlocked') === 'true';
         updateAttemptsUI();
 
@@ -427,10 +419,6 @@
         }
 
         function performCalculation() {
-            if (points.length < 3) {
-                alert('Нажмите "Построить по цифрам" для создания чертежа!');
-                return;
-            }
             if (!isUnlocked) {
                 if (attempts <= 0) {
                     document.getElementById('paywallModal').style.display = 'flex';
@@ -444,7 +432,7 @@
         }
 
         function buyFullVersion() {
-            alert('Переход на оплату RuStore...');
+            alert('Переход на оплату...');
             isUnlocked = true;
             localStorage.setItem('pro_calc_unlocked', 'true');
             document.getElementById('paywallModal').style.display = 'none';
@@ -473,60 +461,76 @@
         function resizeCanvas() {
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
-            buildFromNumbers();
+            updateDrawing();
         }
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 100);
 
-        let points = []; 
-        let innerShapesConfig = []; // Хранит конфигурации внутренних фигур по цифрам
+        let innerShapes = [];
 
-        function addInnerShapeConfig() {
-            innerShapesConfig.push({
-                bindX: 1.0,
-                bindY: 1.0,
-                w: 2.0,
-                h: 1.5
+        function addShape(type) {
+            innerShapes.push({
+                type: type, // 'rect' или 'circle'
+                w: 1.5,
+                h: 1.5,
+                d: 1.0, // для круга (диаметр)
+                fromPoint: 'A',
+                distAB: 1.0, // расстояние по стене AB от выбранной точки
+                distBC: 1.0  // отступ внутрь комнаты
             });
             renderInnerInputs();
-            buildFromNumbers();
+            updateDrawing();
         }
 
-        function removeInnerShapeConfig(index) {
-            innerShapesConfig.splice(index, 1);
+        function removeShape(index) {
+            innerShapes.splice(index, 1);
             renderInnerInputs();
-            buildFromNumbers();
+            updateDrawing();
         }
 
         function renderInnerInputs() {
             const container = document.getElementById('innerInputsContainer');
             container.innerHTML = '';
 
-            innerShapesConfig.forEach((shape, idx) => {
+            innerShapes.forEach((shape, idx) => {
                 let box = document.createElement('div');
-                box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px;";
+                box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
                 
+                let title = shape.type === 'rect' ? `Прямоугольник #${idx+1}` : `Круг (Остров) #${idx+1}`;
+
+                let sizeInputs = shape.type === 'rect' ? `
+                    <div class="input-group"><label>Ширина (м)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" step="0.1" oninput="syncData()"></div>
+                    <div class="input-group"><label>Длина (м)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" step="0.1" oninput="syncData()"></div>
+                ` : `
+                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (м)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" step="0.1" oninput="syncData()"></div>
+                `;
+
                 box.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--warning);">
-                        <span>Остров / Ниша #${idx+1}</span> 
-                        <button class="btn btn-danger" onclick="removeInnerShapeConfig(${idx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>
+                        <span>${title}</span> 
+                        <button class="btn btn-danger" onclick="removeShape(${idx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>
                     </div>
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1. Размеры фигуры:</div>
+                    <div class="grid-inputs">${sizeInputs}</div>
+                    
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">2. Привязка к точкам/стенам:</div>
                     <div class="grid-inputs">
                         <div class="input-group">
-                            <label>Отступ от стенки X (м)</label>
-                            <input type="number" class="input-field" id="inner-bx-${idx}" value="${shape.bindX}" step="0.1" oninput="buildFromNumbers()">
+                            <label>От точки</label>
+                            <select class="input-field" id="s-pt-${idx}" onchange="syncData()">
+                                <option value="A" ${shape.fromPoint==='A'?'selected':''}>Точка А</option>
+                                <option value="B" ${shape.fromPoint==='B'?'selected':''}>Точка В</option>
+                                <option value="C" ${shape.fromPoint==='C'?'selected':''}>Точка С</option>
+                                <option value="D" ${shape.fromPoint==='D'?'selected':''}>Точка D</option>
+                            </select>
                         </div>
                         <div class="input-group">
-                            <label>Отступ от стенки Y (м)</label>
-                            <input type="number" class="input-field" id="inner-by-${idx}" value="${shape.bindY}" step="0.1" oninput="buildFromNumbers()">
+                            <label>По стене (м)</label>
+                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" step="0.1" oninput="syncData()">
                         </div>
-                        <div class="input-group">
-                            <label>Ширина фигуры (м)</label>
-                            <input type="number" class="input-field" id="inner-w-${idx}" value="${shape.w}" step="0.1" oninput="buildFromNumbers()">
-                        </div>
-                        <div class="input-group">
-                            <label>Длина фигуры (м)</label>
-                            <input type="number" class="input-field" id="inner-h-${idx}" value="${shape.h}" step="0.1" oninput="buildFromNumbers()">
+                        <div class="input-group" style="grid-column: span 2;">
+                            <label>Отступ вглубь комнаты (м)</label>
+                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" step="0.1" oninput="syncData()">
                         </div>
                     </div>
                 `;
@@ -534,45 +538,28 @@
             });
         }
 
-        // Строгое математическое построение комнаты и фигур по цифрам из таблиц
-        function buildFromNumbers() {
-            const inputs = document.querySelectorAll('.wall-len');
-            if (inputs.length < 4) return;
+        function syncData() {
+            innerShapes.forEach((shape, idx) => {
+                let w = document.getElementById(`s-w-${idx}`);
+                let h = document.getElementById(`s-h-${idx}`);
+                let d = document.getElementById(`s-d-${idx}`);
+                let pt = document.getElementById(`s-pt-${idx}`);
+                let dab = document.getElementById(`s-dab-${idx}`);
+                let dbc = document.getElementById(`s-dbc-${idx}`);
 
-            let ab = parseFloat(inputs[0].value) || 6.0; // Ширина
-            let bc = parseFloat(inputs[1].value) || 4.0; // Высота
-
-            let maxDim = Math.max(ab, bc);
-            let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
-
-            let drawW = ab * scale;
-            let drawH = bc * scale;
-
-            let startX = (canvas.width - drawW) / 2;
-            let startY = (canvas.height - drawH) / 2;
-
-            points = [
-                { x: startX, y: startY },                 // A
-                { x: startX + drawW, y: startY },         // B
-                { x: startX + drawW, y: startY + drawH }, // C
-                { x: startX, y: startY + drawH }          // D
-            ];
-
-            // Читаем параметры внутренних фигур
-            innerShapesConfig.forEach((shape, idx) => {
-                let bxInp = document.getElementById(`inner-bx-${idx}`);
-                let byInp = document.getElementById(`inner-by-${idx}`);
-                let wInp = document.getElementById(`inner-w-${idx}`);
-                let hInp = document.getElementById(`inner-h-${idx}`);
-
-                if (bxInp) shape.bindX = parseFloat(bxInp.value) || 1.0;
-                if (byInp) shape.bindY = parseFloat(byInp.value) || 1.0;
-                if (wInp) shape.w = parseFloat(wInp.value) || 2.0;
-                if (hInp) shape.h = parseFloat(hInp.value) || 1.5;
+                if (w) shape.w = parseFloat(w.value) || 1.0;
+                if (h) shape.h = parseFloat(h.value) || 1.0;
+                if (d) shape.d = parseFloat(d.value) || 1.0;
+                if (pt) shape.fromPoint = pt.value;
+                if (dab) shape.distAB = parseFloat(dab.value) || 0.5;
+                if (dbc) shape.distBC = parseFloat(dbc.value) || 0.5;
             });
+            updateDrawing();
+        }
 
+        function updateDrawing() {
+            syncData();
             drawSketch();
-            document.getElementById('actionHint').innerText = '✅ Чертеж и острова построены по цифрам!';
         }
 
         function drawSketch() {
@@ -587,61 +574,95 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
-            // Основной контур комнаты
-            if (points.length > 0) {
+            const inputs = document.querySelectorAll('.wall-len');
+            if (inputs.length < 4) return;
+
+            let ab = parseFloat(inputs[0].value) || 6.0;
+            let bc = parseFloat(inputs[1].value) || 4.0;
+
+            let maxDim = Math.max(ab, bc);
+            let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
+
+            let drawW = ab * scale;
+            let drawH = bc * scale;
+
+            let startX = (canvas.width - drawW) / 2;
+            let startY = (canvas.height - drawH) / 2;
+
+            // Координаты углов комнаты
+            let pts = {
+                A: { x: startX, y: startY },
+                B: { x: startX + drawW, y: startY },
+                C: { x: startX + drawW, y: startY + drawH },
+                D: { x: startX, y: startY + drawH }
+            };
+
+            // Отрисовка комнаты
+            ctx.beginPath();
+            ctx.moveTo(pts.A.x, pts.A.y);
+            ctx.lineTo(pts.B.x, pts.B.y);
+            ctx.lineTo(pts.C.x, pts.C.y);
+            ctx.lineTo(pts.D.x, pts.D.y);
+            ctx.closePath();
+            
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
+            ctx.fill();
+            ctx.strokeStyle = '#00d2ff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ['A', 'B', 'C', 'D'].forEach(k => {
+                ctx.fillStyle = '#00d2ff';
                 ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    ctx.lineTo(points[i].x, points[i].y);
-                }
-                ctx.closePath();
-                
-                ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
+                ctx.arc(pts[k].x, pts[k].y, 6, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.strokeStyle = '#00d2ff';
-                ctx.lineWidth = 2;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px Segoe UI';
+                ctx.fillText(k, pts[k].x + 8, pts[k].y - 8);
+            });
+
+            // Отрисовка внутренних фигур с защитой от вылета за пределы комнаты
+            innerShapes.forEach((shape, idx) => {
+                let base = pts[shape.fromPoint] || pts.A;
+                let sW = (shape.type === 'rect' ? shape.w : shape.d) * scale;
+                let sH = (shape.type === 'rect' ? shape.h : shape.d) * scale;
+                let shiftAB = shape.distAB * scale;
+                let shiftBC = shape.distBC * scale;
+
+                let sX = base.x;
+                let sY = base.y;
+
+                if (shape.fromPoint === 'A') {
+                    sX += shiftAB; sY += shiftBC;
+                    // Защита границ
+                    if (sX + sW > pts.B.x) sX = pts.B.x - sW;
+                    if (sY + sH > pts.D.y) sY = pts.D.y - sH;
+                } else if (shape.fromPoint === 'B') {
+                    sX -= (shiftAB + sW); sY += shiftBC;
+                    if (sX < pts.A.x) sX = pts.A.x;
+                    if (sY + sH > pts.C.y) sY = pts.C.y - sH;
+                } else if (shape.fromPoint === 'C') {
+                    sX -= (shiftAB + sW); sY -= (shiftBC + sH);
+                    if (sX < pts.D.x) sX = pts.D.x;
+                    if (sY < pts.B.y) sY = pts.B.y;
+                } else if (shape.fromPoint === 'D') {
+                    sX += shiftAB; sY -= (shiftBC + sH);
+                    if (sX + sW > pts.C.x) sX = pts.C.x - sW;
+                    if (sY < pts.A.y) sY = pts.A.y;
+                }
+
+                // Пунктир привязки
+                ctx.save();
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(base.x, base.y);
+                ctx.lineTo(sX, sY);
                 ctx.stroke();
+                ctx.restore();
 
-                points.forEach((p, index) => {
-                    ctx.fillStyle = '#00d2ff';
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '12px Segoe UI';
-                    let label = String.fromCharCode(65 + index);
-                    ctx.fillText(label, p.x + 8, p.y - 8);
-                });
-            }
-
-            // Рендер внутренних фигур по их размерам и привязкам
-            if (points.length === 4) {
-                let roomW = parseFloat(document.querySelectorAll('.wall-len')[0].value) || 6.0;
-                let roomH = parseFloat(document.querySelectorAll('.wall-len')[1].value) || 4.0;
-                let drawW = points[1].x - points[0].x;
-                let drawH = points[2].y - points[1].y;
-                let scaleX = drawW / roomW;
-                let scaleY = drawH / roomH;
-
-                innerShapesConfig.forEach((shape, sIdx) => {
-                    let sX = points[0].x + shape.bindX * scaleX;
-                    let sY = points[0].y + shape.bindY * scaleY;
-                    let sW = shape.w * scaleX;
-                    let sH = shape.h * scaleY;
-
-                    // Пунктир привязки от точки А
-                    ctx.save();
-                    ctx.strokeStyle = '#f59e0b';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(points[0].x, points[0].y);
-                    ctx.lineTo(sX, sY);
-                    ctx.stroke();
-                    ctx.restore();
-
-                    // Прямоугольник фигуры
+                if (shape.type === 'rect') {
                     ctx.beginPath();
                     ctx.rect(sX, sY, sW, sH);
                     ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
@@ -649,29 +670,17 @@
                     ctx.strokeStyle = '#f59e0b';
                     ctx.lineWidth = 2;
                     ctx.stroke();
-
-                    // Метки углов фигуры
-                    let corners = [
-                        {x: sX, y: sY}, {x: sX+sW, y: sY}, 
-                        {x: sX+sW, y: sY+sH}, {x: sX, y: sY+sH}
-                    ];
-                    corners.forEach((p, cIdx) => {
-                        ctx.fillStyle = '#f59e0b';
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.font = '10px Segoe UI';
-                        ctx.fillText(`Ф${sIdx+1}-${cIdx+1}`, p.x + 6, p.y - 6);
-                    });
-                });
-            }
-        }
-
-        function undoPoint() {}
-        function resetSketch() {
-            innerShapesConfig = [];
-            renderInnerInputs();
-            buildFromNumbers();
+                } else {
+                    let r = sW / 2;
+                    ctx.beginPath();
+                    ctx.arc(sX + r, sY + r, r, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
         }
 
         function calculate() {
@@ -683,11 +692,18 @@
             let area = roomPerimeter > 0 ? (roomPerimeter / 4) * (roomPerimeter / 4) * 1.15 : 0;
             let totalInnerPerimeter = 0;
 
-            innerShapesConfig.forEach(shape => {
-                let shapePerim = (shape.w + shape.h) * 2;
-                let shapeArea = shape.w * shape.h;
-                area -= shapeArea;
-                totalInnerPerimeter += shapePerim;
+            innerShapes.forEach(shape => {
+                if (shape.type === 'rect') {
+                    let shapePerim = (shape.w + shape.h) * 2;
+                    let shapeArea = shape.w * shape.h;
+                    area -= shapeArea;
+                    totalInnerPerimeter += shapePerim;
+                } else {
+                    let shapePerim = Math.PI * shape.d;
+                    let shapeArea = Math.PI * Math.pow(shape.d / 2, 2);
+                    area -= shapeArea;
+                    totalInnerPerimeter += shapePerim;
+                }
             });
 
             let totalBaget = roomPerimeter + totalInnerPerimeter;
@@ -748,9 +764,8 @@
             }
         }
 
-        // Автоматически строим при загрузке
         window.onload = () => {
-            buildFromNumbers();
+            updateDrawing();
         };
     </script>
 </body>
