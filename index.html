@@ -128,7 +128,7 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 160px);
+            height: calc(100vh - 140px);
         }
 
         .canvas-tools {
@@ -273,10 +273,16 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур -->
+        <!-- Меню выбора внутренних фигур -->
         <div class="section-card" id="innerCard" style="display: none;">
-            <div class="section-title">🔶 Внутренние фигуры (острова / ниши):</div>
-            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="section-title">🔶 Острова и круги (см):</div>
+                <div style="display: flex; gap: 4px;">
+                    <button class="btn btn-warning" onclick="addShape('rect')" style="padding: 5px 8px; font-size: 10px;">+ Прямоугольник</button>
+                    <button class="btn btn-warning" onclick="addShape('circle')" style="padding: 5px 8px; font-size: 10px;">+ Круг</button>
+                </div>
+            </div>
+            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 6px;"></div>
         </div>
 
         <div class="section-card">
@@ -318,6 +324,17 @@
                     <input type="number" id="countAngles" class="input-field" value="0">
                     <input type="number" id="priceAngle" class="input-field" value="150">
                 </div>
+            </div>
+        </div>
+
+        <!-- Возвращенный блок дополнительных работ -->
+        <div class="section-card">
+            <div class="section-title">➕ Дополнительные работы (свои)</div>
+            <div class="grid-inputs">
+                <input type="text" id="customName1" class="input-field" placeholder="Например: Брус под гардину" value="Брус под гардину">
+                <input type="number" id="customPrice1" class="input-field" placeholder="Цена ₽" value="0">
+                <input type="text" id="customName2" class="input-field" placeholder="Например: Обход короба" value="Обход короба">
+                <input type="number" id="customPrice2" class="input-field" placeholder="Цена ₽" value="0">
             </div>
         </div>
 
@@ -368,10 +385,15 @@
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 100);
 
+        function toggleFullscreen() {
+            document.getElementById('canvasCard').classList.toggle('fullscreen');
+            resizeCanvas();
+        }
+
         let points = []; 
         let innerShapes = []; 
-        let currentInnerPoints = [];
-        let mode = 'room'; // 'room' или 'shape'
+        let mode = 'room'; 
+        let draggedShape = null;
 
         function toggleMode() {
             if (mode === 'room') {
@@ -380,16 +402,12 @@
                     return;
                 }
                 mode = 'shape';
-                document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
-                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку острова';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Чертеж';
+                document.getElementById('actionHint').innerText = 'Добавьте фигуры кнопками ниже или двигайте их пальцем';
+                document.getElementById('innerCard').style.display = 'flex';
             } else {
-                if (currentInnerPoints.length >= 3) {
-                    innerShapes.push([...currentInnerPoints]);
-                    currentInnerPoints = [];
-                    updateInnerInputs();
-                }
                 mode = 'room';
-                document.getElementById('modeBtn').innerText = '✨ Режим: Комната';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
                 let nextLabel = String.fromCharCode(65 + points.length);
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             }
@@ -406,12 +424,96 @@
                 updateWallsInputs();
                 let nextLabel = String.fromCharCode(65 + points.length);
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
+                drawSketch();
             } else {
-                currentInnerPoints.push({ x, y });
-                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length}). Нажмите режим для сохранения.`;
+                // Проверяем, кликнули ли по какой-то внутренней фигуре для перетаскивания
+                innerShapes.forEach((shape) => {
+                    if (x >= shape.x && x <= shape.x + shape.w && y >= shape.y && y <= shape.y + shape.h) {
+                        draggedShape = shape;
+                        shape.startX = x - shape.x;
+                        shape.startY = y - shape.y;
+                    }
+                });
             }
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!draggedShape) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            draggedShape.x = x - draggedShape.startX;
+            draggedShape.y = y - draggedShape.startY;
             drawSketch();
         });
+
+        canvas.addEventListener('pointerup', () => {
+            draggedShape = null;
+        });
+
+        function addShape(type) {
+            innerShapes.push({
+                type: type,
+                x: canvas.width / 2 - 50,
+                y: canvas.height / 2 - 40,
+                w: 100,
+                h: 80,
+                d: 100,
+                wCm: '100',
+                hCm: '80',
+                dCm: '100'
+            });
+            renderInnerInputs();
+            drawSketch();
+        }
+
+        function removeShape(index) {
+            innerShapes.splice(index, 1);
+            renderInnerInputs();
+            drawSketch();
+            if (innerShapes.length === 0) document.getElementById('innerCard').style.display = 'none';
+        }
+
+        function renderInnerInputs() {
+            const container = document.getElementById('innerInputsContainer');
+            container.innerHTML = '';
+
+            innerShapes.forEach((shape, idx) => {
+                let box = document.createElement('div');
+                box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
+                
+                let title = shape.type === 'rect' ? `Прямоугольник #${idx+1}` : `Круг (Остров) #${idx+1}`;
+
+                let sizeInputs = shape.type === 'rect' ? `
+                    <div class="input-group"><label>Ширина (см)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.wCm}" step="1" oninput="syncShapeData(${idx})"></div>
+                    <div class="input-group"><label>Длина (см)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.hCm}" step="1" oninput="syncShapeData(${idx})"></div>
+                ` : `
+                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (см)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.dCm}" step="1" oninput="syncShapeData(${idx})"></div>
+                `;
+
+                box.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--warning);">
+                        <span>${title}</span> 
+                        <button class="btn btn-danger" onclick="removeShape(${idx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>
+                    </div>
+                    <div class="grid-inputs">${sizeInputs}</div>
+                `;
+                container.appendChild(box);
+            });
+        }
+
+        function syncShapeData(idx) {
+            let shape = innerShapes[idx];
+            let w = document.getElementById(`s-w-${idx}`);
+            let h = document.getElementById(`s-h-${idx}`);
+            let d = document.getElementById(`s-d-${idx}`);
+
+            if (w) { shape.wCm = w.value; shape.w = parseFloat(w.value) || 100; }
+            if (h) { shape.hCm = h.value; shape.h = parseFloat(h.value) || 80; }
+            if (d) { shape.dCm = d.value; shape.d = parseFloat(d.value) || 100; shape.w = shape.d; shape.h = shape.d; }
+            drawSketch();
+        }
 
         function drawSketch() {
             if (!canvas.width || !canvas.height) return;
@@ -456,64 +558,31 @@
 
             // Внутренние фигуры
             innerShapes.forEach((shape, sIdx) => {
-                if (shape.length > 0) {
+                if (shape.type === 'rect') {
                     ctx.beginPath();
-                    ctx.moveTo(shape[0].x, shape[0].y);
-                    for (let i = 1; i < shape.length; i++) {
-                        ctx.lineTo(shape[i].x, shape[i].y);
-                    }
-                    ctx.closePath();
-                    
+                    ctx.rect(shape.x, shape.y, shape.w, shape.h);
                     ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
                     ctx.fill();
                     ctx.strokeStyle = '#f59e0b';
                     ctx.lineWidth = 2;
                     ctx.stroke();
-
-                    shape.forEach((p, index) => {
-                        ctx.fillStyle = '#f59e0b';
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.font = '11px Segoe UI';
-                        ctx.fillText(`Ф${sIdx+1}-${index+1}`, p.x + 8, p.y - 8);
-                    });
+                } else {
+                    let r = shape.w / 2;
+                    ctx.beginPath();
+                    ctx.arc(shape.x + r, shape.y + r, r, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 }
             });
-
-            // Текущая рисуемая фигура
-            if (currentInnerPoints.length > 0) {
-                ctx.beginPath();
-                ctx.moveTo(currentInnerPoints[0].x, currentInnerPoints[0].y);
-                for (let i = 1; i < currentInnerPoints.length; i++) {
-                    ctx.lineTo(currentInnerPoints[i].x, currentInnerPoints[i].y);
-                }
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
-                ctx.fill();
-                ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                currentInnerPoints.forEach((p) => {
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                });
-            }
         }
 
         function undoPoint() {
             if (mode === 'room') {
                 points.pop();
                 updateWallsInputs();
-            } else {
-                if (currentInnerPoints.length > 0) {
-                    currentInnerPoints.pop();
-                } else if (innerShapes.length > 0) {
-                    innerShapes.pop();
-                    updateInnerInputs();
-                }
             }
             drawSketch();
         }
@@ -521,10 +590,10 @@
         function resetSketch() {
             points = [];
             innerShapes = [];
-            currentInnerPoints = [];
             mode = 'room';
-            document.getElementById('modeBtn').innerText = '✨ Режим: Комната';
+            document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
             document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
+            document.getElementById('innerCard').style.display = 'none';
             updateWallsInputs();
             updateInnerInputs();
             drawSketch();
@@ -556,42 +625,6 @@
             }
         }
 
-        function updateInnerInputs() {
-            const container = document.getElementById('innerInputsContainer');
-            const card = document.getElementById('innerCard');
-            container.innerHTML = '';
-
-            if (innerShapes.length === 0) {
-                card.style.display = 'none';
-                return;
-            }
-            card.style.display = 'flex';
-
-            innerShapes.forEach((shape, sIdx) => {
-                let box = document.createElement('div');
-                box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px;";
-                
-                box.innerHTML = `<div style="font-size: 12px; font-weight: 600; color: var(--warning);">Фигура #${sIdx+1} (${shape.length} сторон)</div>`;
-                
-                let grid = document.createElement('div');
-                grid.className = 'grid-inputs';
-
-                for (let i = 0; i < shape.length; i++) {
-                    let p1 = i + 1;
-                    let p2 = ((i + 1) % shape.length) + 1;
-                    let div = document.createElement('div');
-                    div.className = 'input-group';
-                    div.innerHTML = `
-                        <label>Сторона Ф${sIdx+1} (${p1}-${p2}) см</label>
-                        <input type="number" class="input-field inner-len-${sIdx}" value="150" step="1">
-                    `;
-                    grid.appendChild(div);
-                }
-                box.appendChild(grid);
-                container.appendChild(box);
-            });
-        }
-
         function calculate() {
             let roomPerimCm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
@@ -602,15 +635,21 @@
             let area = roomPerimeterM > 0 ? (roomPerimeterM / 4) * (roomPerimeterM / 4) * 1.15 : 0;
             let totalInnerPerimeterM = 0;
 
-            innerShapes.forEach((shape, sIdx) => {
-                let shapePerimCm = 0;
-                document.querySelectorAll(`.inner-len-${sIdx}`).forEach(input => {
-                    shapePerimCm += parseFloat(input.value) || 0;
-                });
-                let shapePerimM = shapePerimCm / 100;
-                let shapeArea = shapePerimM > 0 ? (shapePerimM / 4) * (shapePerimM / 4) * 0.8 : 1.5;
-                area -= shapeArea;
-                totalInnerPerimeterM += shapePerimM;
+            innerShapes.forEach((shape) => {
+                if (shape.type === 'rect') {
+                    let wM = (parseFloat(shape.wCm) || 0) / 100;
+                    let hM = (parseFloat(shape.hCm) || 0) / 100;
+                    let shapePerim = (wM + hM) * 2;
+                    let shapeArea = wM * hM;
+                    area -= shapeArea;
+                    totalInnerPerimeterM += shapePerim;
+                } else {
+                    let dM = (parseFloat(shape.dCm) || 0) / 100;
+                    let shapePerim = Math.PI * dM;
+                    let shapeArea = Math.PI * Math.pow(dM / 2, 2);
+                    area -= shapeArea;
+                    totalInnerPerimeterM += shapePerim;
+                }
             });
 
             let totalBaget = roomPerimeterM + totalInnerPerimeterM;
@@ -633,9 +672,12 @@
             let cAngles = parseFloat(document.getElementById('countAngles').value) || 0;
             let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
 
+            let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
+
             let canvasCost = area * pCanvas;
             let profileCost = totalBaget * pProfile;
-            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle);
+            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
