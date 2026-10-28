@@ -295,11 +295,14 @@
         </div>
 
         <div class="section-card" id="wallsCard" style="display: none;">
-            <div class="section-title">📏 Длины стен комнаты (м):</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="section-title">📏 Длины стен комнаты (м):</div>
+                <button class="btn btn-success" onclick="buildFromNumbers()" style="padding: 4px 8px; font-size: 10px;">📐 Построить по цифрам</button>
+            </div>
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами размеров и привязками от стен -->
+        <!-- Блок внутренних фигур с таблицами размеров и привязками -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div class="section-title">🔶 Внутренние фигуры (острова / ниши):</div>
             <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
@@ -363,8 +366,16 @@
                 <span id="resArea">—</span>
             </div>
             <div class="result-row">
-                <span>Общий багет:</span>
-                <span id="resPerimeter">—</span>
+                <span>Периметр комнаты:</span>
+                <span id="resRoomPerim">—</span>
+            </div>
+            <div class="result-row">
+                <span>Периметр фигур:</span>
+                <span id="resInnerPerim">—</span>
+            </div>
+            <div class="result-row" style="border-top: 1px solid var(--border); padding-top: 6px;">
+                <span>Общий багет (профиль):</span>
+                <span id="resPerimeter" style="color: var(--accent); font-weight: 700;">—</span>
             </div>
             <div class="result-row">
                 <span>Монтаж и комплектующие:</span>
@@ -489,7 +500,7 @@
             currentInnerPoints = [];
             updateInnerInputs();
             drawSketch();
-            document.getElementById('actionHint').innerText = '✅ Фигура сохранена! Задайте привязку от стен внизу.';
+            document.getElementById('actionHint').innerText = '✅ Фигура сохранена!';
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -508,6 +519,34 @@
             }
             drawSketch();
         });
+
+        // Функция построения чертежа по введенным цифрам (стенам)
+        function buildFromNumbers() {
+            const inputs = document.querySelectorAll('.wall-len');
+            if (inputs.length < 3) {
+                alert('Сначала добавьте минимум 3 стены комнаты!');
+                return;
+            }
+
+            let sides = [];
+            inputs.forEach(inp => sides.push(parseFloat(inp.value) || 3.0));
+
+            let cx = canvas.width / 2;
+            let cy = canvas.height / 2;
+            let radius = Math.min(cx, cy) * 0.65;
+            
+            points = [];
+            let n = sides.length;
+            for (let i = 0; i < n; i++) {
+                let angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+                let x = cx + radius * Math.cos(angle);
+                let y = cy + radius * Math.sin(angle);
+                points.push({ x, y });
+            }
+
+            drawSketch();
+            document.getElementById('actionHint').innerText = '✅ Чертеж перестроен по точным цифрам!';
+        }
 
         function drawSketch() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -549,10 +588,9 @@
                 });
             }
 
-            // Сохраненные внутренние фигуры с линией привязки к точке А комнаты
+            // Сохраненные внутренние фигуры с линией привязки к точке А
             innerShapes.forEach((shape, sIdx) => {
                 if (shape.length > 0) {
-                    // Пунктирная линия привязки от точки А комнаты (если она есть) к первой точке фигуры
                     if (points.length > 0) {
                         ctx.save();
                         ctx.strokeStyle = '#f59e0b';
@@ -640,6 +678,8 @@
             updateInnerInputs();
             document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
             document.getElementById('resArea').innerText = '—';
+            document.getElementById('resRoomPerim').innerText = '—';
+            document.getElementById('resInnerPerim').innerText = '—';
             document.getElementById('resPerimeter').innerText = '—';
             document.getElementById('resMounting').innerText = '—';
             document.getElementById('resTotal').innerText = '—';
@@ -691,7 +731,6 @@
                 header.innerHTML = `<span>Фигура #${sIdx+1} (${shape.length} сторон)</span> <button class="btn btn-danger" onclick="removeInnerShape(${sIdx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>`;
                 box.appendChild(header);
 
-                // Поле привязки от угла А комнаты
                 let bindDiv = document.createElement('div');
                 bindDiv.className = 'input-group';
                 bindDiv.style.marginBottom = '6px';
@@ -727,12 +766,12 @@
         }
 
         function calculate() {
-            let perimeter = 0;
+            let roomPerimeter = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
-                perimeter += parseFloat(input.value) || 0;
+                roomPerimeter += parseFloat(input.value) || 0;
             });
 
-            let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
+            let area = roomPerimeter > 0 ? (roomPerimeter / 4) * (roomPerimeter / 4) * 1.15 : 0;
             let totalInnerPerimeter = 0;
 
             innerShapes.forEach((shape, sIdx) => {
@@ -745,7 +784,7 @@
                 totalInnerPerimeter += shapePerim;
             });
 
-            let totalBaget = perimeter + totalInnerPerimeter;
+            let totalBaget = roomPerimeter + totalInnerPerimeter;
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
@@ -774,6 +813,8 @@
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
+            document.getElementById('resRoomPerim').innerText = roomPerimeter.toFixed(2) + ' м';
+            document.getElementById('resInnerPerim').innerText = totalInnerPerimeter.toFixed(2) + ' м';
             document.getElementById('resPerimeter').innerText = totalBaget.toFixed(2) + ' м';
             document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
