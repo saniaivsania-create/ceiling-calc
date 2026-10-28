@@ -275,7 +275,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Введите размеры в мм и нажмите построить</span>
+                <span class="action-hint" id="actionHint">Введите размеры стен в мм</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -294,7 +294,7 @@
             </div>
         </div>
 
-        <!-- Блок внутренних фигур и кругов с таблицами -->
+        <!-- Блок внутренних фигур и кругов с таблицами в мм -->
         <div class="section-card" id="innerCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="section-title">🔶 Острова, ниши и круги (мм):</div>
@@ -565,6 +565,7 @@
         function drawSketch() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -577,8 +578,11 @@
             const inputs = document.querySelectorAll('.wall-len');
             let ab = parseFloat(inputs[0].value) || 4000;
             let bc = parseFloat(inputs[1].value) || 3000;
+            let cd = parseFloat(inputs[2].value) || ab;
+            let da = parseFloat(inputs[3].value) || bc;
 
             let maxDim = Math.max(ab, bc);
+            if (maxDim <= 0) maxDim = 4000;
             let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
 
             let drawW = ab * scale;
@@ -594,7 +598,7 @@
                 D: { x: startX, y: startY + drawH }
             };
 
-            // Отрисовка комнаты
+            // Комната
             ctx.beginPath();
             ctx.moveTo(pts.A.x, pts.A.y);
             ctx.lineTo(pts.B.x, pts.B.y);
@@ -618,7 +622,7 @@
                 ctx.fillText(k, pts[k].x + 8, pts[k].y - 8);
             });
 
-            // Отрисовка внутренних фигур в мм с защитой от выхода за стены
+            // Фигуры с защитой от выхода за стены
             innerShapes.forEach((shape, idx) => {
                 let base = pts[shape.fromPoint] || pts.A;
                 let dimW = parseFloat(shape.type === 'rect' ? shape.w : shape.d) || 0;
