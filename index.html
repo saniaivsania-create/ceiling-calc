@@ -297,7 +297,7 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами длин и кнопкой сохранения -->
+        <!-- Блок внутренних фигур с таблицами размеров и кнопкой сохранения -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="section-title">🔶 Внутренние фигуры (острова):</div>
@@ -471,7 +471,7 @@
             if (drawingMode === 'main') {
                 drawingMode = 'inner';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
-                document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры';
+                document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры. Затем нажмите кнопку "+ Сохранить фигуру"';
             } else {
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Контур';
@@ -490,7 +490,7 @@
             currentInnerPoints = [];
             updateInnerInputs();
             drawSketch();
-            alert('Фигура успешно сохранена и добавлена в расчет!');
+            alert('Фигура успешно сохранена! Можете добавить еще или рассчитать смету.');
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -505,7 +505,7 @@
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             } else {
                 currentInnerPoints.push({ x, y });
-                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length})`;
+                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length}). Нажмите "+ Сохранить фигуру" внизу`;
             }
             drawSketch();
         });
@@ -653,7 +653,7 @@
                 div.className = 'input-group';
                 div.innerHTML = `
                     <label>Стена ${p1}-${p2} (м)</label>
-                    <input type="number" class="input-field wall-len" value="3.5">
+                    <input type="number" class="input-field wall-len" value="3.5" step="0.1">
                 `;
                 container.appendChild(div);
             }
