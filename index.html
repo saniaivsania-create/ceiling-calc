@@ -70,7 +70,6 @@
             border-radius: 6px;
         }
 
-        /* Canvas Card & Fullscreen */
         .canvas-card {
             background: var(--card-bg);
             border-radius: 16px;
@@ -80,7 +79,6 @@
             flex-direction: column;
             gap: 10px;
             position: relative;
-            transition: all 0.3s ease;
         }
 
         .canvas-card.fullscreen {
@@ -128,12 +126,12 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 140px);
+            height: calc(100vh - 150px);
         }
 
         .canvas-tools {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 6px;
         }
 
@@ -141,32 +139,18 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 8px 4px;
+            padding: 8px 6px;
             border-radius: 8px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
-            transition: 0.2s;
         }
 
-        .btn:active {
-            transform: scale(0.96);
-        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
 
-        .btn-primary {
-            background: var(--accent-gradient);
-            border: none;
-            color: #0b0f19;
-        }
-
-        .btn-danger {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: rgba(239, 68, 68, 0.3);
-            color: var(--danger);
-        }
-
-        /* Inputs & Sections */
         .section-card {
             background: var(--card-bg);
             border-radius: 16px;
@@ -181,9 +165,6 @@
             font-size: 14px;
             font-weight: 600;
             color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .grid-inputs {
@@ -213,12 +194,20 @@
             width: 100%;
         }
 
-        .input-field:focus {
-            border-color: var(--accent);
-            outline: none;
+        .input-field:focus { border-color: var(--accent); outline: none; }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 6px;
+            align-items: center;
         }
 
-        /* Result Card */
+        .item-row label {
+            font-size: 12px;
+            color: var(--text-main);
+        }
+
         .result-card {
             background: linear-gradient(145deg, #131b2e 0%, #1a2744 100%);
             border-radius: 16px;
@@ -236,10 +225,7 @@
             color: var(--text-muted);
         }
 
-        .result-row span:last-child {
-            color: white;
-            font-weight: 600;
-        }
+        .result-row span:last-child { color: white; font-weight: 600; }
 
         .total-price {
             display: flex;
@@ -250,15 +236,8 @@
             margin-top: 4px;
         }
 
-        .total-price span {
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        .total-price .price-value {
-            font-size: 22px;
-            color: var(--accent);
-        }
+        .total-price span { font-size: 15px; font-weight: 700; }
+        .total-price .price-value { font-size: 22px; color: var(--accent); }
 
         .action-buttons {
             display: grid;
@@ -266,13 +245,9 @@
             gap: 8px;
         }
 
-        /* Paywall Modal */
         .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(7, 10, 18, 0.85);
             backdrop-filter: blur(8px);
             z-index: 10000;
@@ -294,61 +269,46 @@
             flex-direction: column;
             gap: 16px;
         }
-
-        .modal-icon {
-            font-size: 40px;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .modal-text {
-            font-size: 13px;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-
-        .price-tag {
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--accent);
-        }
     </style>
 </head>
 <body>
 
-    <div class="container" id="appContainer">
-        <!-- Header -->
+    <div class="container">
         <header>
             <div class="logo-title">📐 PRO Замер</div>
             <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
         </header>
 
-        <!-- Canvas Card -->
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Нажмите на холст, чтобы поставить точку А</span>
+                <span class="action-hint" id="actionHint">Кликните, чтобы поставить точку А</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отменить</button>
-                <button class="btn" onclick="toggleMode()" id="modeBtn">Режим: Прямая</button>
             </div>
         </div>
 
-        <!-- Walls list / dimensions -->
+        <!-- Внутренние элементы (вырезы / люки / ниши) -->
+        <div class="section-card">
+            <div class="section-title">🕳️ Добавить внутрь (вырезы / люки):</div>
+            <div class="canvas-tools">
+                <button class="btn" onclick="addInnerElement('circle')">⭕ Окружность</button>
+                <button class="btn" onclick="addInnerElement('rect')">⬛ Прямоугольник</button>
+                <button class="btn" onclick="addInnerElement('triangle')">🔺 Треугольник</button>
+            </div>
+        </div>
+
         <div class="section-card" id="wallsCard" style="display: none;">
             <div class="section-title">📏 Длины стен (м):</div>
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Materials & Prices -->
+        <!-- Материалы и Базовые работы (как на скрире: количество + цена за ед) -->
         <div class="section-card">
-            <div class="section-title">⚙️ Цены и опции</div>
+            <div class="section-title">⚙️ Материалы и Базовые работы</div>
             <div class="grid-inputs">
                 <div class="input-group">
                     <label>Полотно (₽/м²)</label>
@@ -358,34 +318,48 @@
                     <label>Профиль (₽/м.п.)</label>
                     <input type="number" id="priceProfile" class="input-field" value="250">
                 </div>
-                <div class="input-group">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                <div class="item-row">
                     <label>Светильники (шт)</label>
                     <input type="number" id="countLights" class="input-field" value="4">
-                </div>
-                <div class="input-group">
-                    <label>Цена света (₽/шт)</label>
                     <input type="number" id="priceLight" class="input-field" value="450">
                 </div>
-                <div class="input-group">
+                <div class="item-row">
                     <label>Люстра (шт)</label>
                     <input type="number" id="countChandeliers" class="input-field" value="1">
+                    <input type="number" id="priceChandelier" class="input-field" value="600">
                 </div>
-                <div class="input-group">
+                <div class="item-row">
                     <label>Карниз (м.п.)</label>
                     <input type="number" id="countCornice" class="input-field" value="3.0">
+                    <input type="number" id="priceCornice" class="input-field" value="700">
                 </div>
-                <div class="input-group">
+                <div class="item-row">
                     <label>Обход труб (шт)</label>
                     <input type="number" id="countPipes" class="input-field" value="1">
+                    <input type="number" id="pricePipe" class="input-field" value="350">
                 </div>
-                <div class="input-group">
+                <div class="item-row">
                     <label>Доп. углы (&gt;4)</label>
-                    <input type="number" id="countExtraAngles" class="input-field" value="0">
+                    <input type="number" id="countAngles" class="input-field" value="0">
+                    <input type="number" id="priceAngle" class="input-field" value="150">
                 </div>
             </div>
         </div>
 
-        <!-- Result Card -->
+        <!-- Дополнительные работы (свои) -->
+        <div class="section-card">
+            <div class="section-title">➕ Дополнительные работы (свои)</div>
+            <div class="grid-inputs">
+                <input type="text" id="customName1" class="input-field" placeholder="Например: Брус под гардину">
+                <input type="number" id="customPrice1" class="input-field" placeholder="Цена ₽" value="0">
+                <input type="text" id="customName2" class="input-field" placeholder="Например: Обход короба">
+                <input type="number" id="customPrice2" class="input-field" placeholder="Цена ₽" value="0">
+            </div>
+        </div>
+
         <div class="result-card">
             <div class="result-row">
                 <span>Общая площадь:</span>
@@ -415,10 +389,10 @@
     <!-- Paywall Modal -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
-            <div class="modal-icon">🔒</div>
-            <div class="modal-title">Лимит бесплатных расчетов исчерпан</div>
-            <div class="modal-text">Для продолжения работы в RuStore разблокируйте полную версию приложения навсегда. Без ограничений.</div>
-            <div class="price-tag">500 ₽</div>
+            <div style="font-size: 40px;">🔒</div>
+            <div style="font-size: 18px; font-weight: 700;">Лимит бесплатных расчетов исчерпан</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Для продолжения работы в RuStore разблокируйте полную версию приложения навсегда.</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
             <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Разблокировать за 500 ₽</button>
             <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить попытки]</button>
         </div>
@@ -441,7 +415,7 @@
 
         function performCalculation() {
             if (points.length < 3) {
-                alert('Поставьте хотя бы 3 точки на чертеже!');
+                alert('Начертите комнату (поставьте минимум 3 точки на холсте)!');
                 return;
             }
             if (!isUnlocked) {
@@ -476,8 +450,7 @@
         }
 
         function toggleFullscreen() {
-            const card = document.getElementById('canvasCard');
-            card.classList.toggle('fullscreen');
+            document.getElementById('canvasCard').classList.toggle('fullscreen');
             resizeCanvas();
         }
 
@@ -493,27 +466,14 @@
         setTimeout(resizeCanvas, 100);
 
         let points = [];
-        let currentMode = 'straight'; // straight, arc, inner
-
-        function toggleMode() {
-            if (currentMode === 'straight') {
-                currentMode = 'arc';
-                document.getElementById('modeBtn').innerText = 'Режим: Радиус';
-            } else if (currentMode === 'arc') {
-                currentMode = 'inner';
-                document.getElementById('modeBtn').innerText = 'Режим: Внутрь';
-            } else {
-                currentMode = 'straight';
-                document.getElementById('modeBtn').innerText = 'Режим: Прямая';
-            }
-        }
+        let innerElements = [];
 
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            points.push({ x, y, type: currentMode });
+            points.push({ x, y });
             drawSketch();
             updateWallsInputs();
 
@@ -521,10 +481,15 @@
             document.getElementById('actionHint').innerText = `Поставьте точку ${nextLabel}`;
         });
 
+        function addInnerElement(type) {
+            innerElements.push({ type, x: canvas.width / 2 + (Math.random() * 40 - 20), y: canvas.height / 2 + (Math.random() * 40 - 20) });
+            drawSketch();
+            alert('Добавлен внутренний элемент: ' + (type === 'circle' ? 'Окружность' : type === 'rect' ? 'Прямоугольник' : 'Треугольник'));
+        }
+
         function drawSketch() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -534,37 +499,51 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
-            if (points.length === 0) return;
-
-            // Контур
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 1; i < points.length; i++) {
-                if (points[i].type === 'arc') {
-                    ctx.quadraticCurveTo(points[i].x - 15, points[i].y - 15, points[i].x, points[i].y);
-                } else {
+            if (points.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
                     ctx.lineTo(points[i].x, points[i].y);
                 }
-            }
-            if (points.length > 2) ctx.closePath();
-            
-            ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
-            ctx.fill();
-            ctx.strokeStyle = '#00d2ff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Точки
-            points.forEach((p, index) => {
-                ctx.fillStyle = '#00d2ff';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                if (points.length > 2) ctx.closePath();
+                
+                ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
                 ctx.fill();
+                ctx.strokeStyle = '#00d2ff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
 
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '12px Segoe UI';
-                let label = String.fromCharCode(65 + index);
-                ctx.fillText(label, p.x + 8, p.y - 8);
+                points.forEach((p, index) => {
+                    ctx.fillStyle = '#00d2ff';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '12px Segoe UI';
+                    let label = String.fromCharCode(65 + index);
+                    ctx.fillText(label, p.x + 8, p.y - 8);
+                });
+            }
+
+            // Рисуем внутренние элементы (люки/вырезы)
+            innerElements.forEach(el => {
+                ctx.strokeStyle = '#ef4444';
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                if (el.type === 'circle') {
+                    ctx.arc(el.x, el.y, 15, 0, Math.PI * 2);
+                } else if (el.type === 'rect') {
+                    ctx.rect(el.x - 15, el.y - 12, 30, 24);
+                } else {
+                    ctx.moveTo(el.x, el.y - 15);
+                    ctx.lineTo(el.x + 15, el.y + 15);
+                    ctx.lineTo(el.x - 15, el.y + 15);
+                    ctx.closePath();
+                }
+                ctx.fill();
+                ctx.stroke();
             });
         }
 
@@ -573,15 +552,16 @@
             drawSketch();
             updateWallsInputs();
             if (points.length === 0) {
-                document.getElementById('actionHint').innerText = 'Нажмите на холст, чтобы поставить точку А';
+                document.getElementById('actionHint').innerText = 'Кликните, чтобы поставить точку А';
             }
         }
 
         function resetSketch() {
             points = [];
+            innerElements = [];
             drawSketch();
             updateWallsInputs();
-            document.getElementById('actionHint').innerText = 'Нажмите на холст, чтобы поставить точку А';
+            document.getElementById('actionHint').innerText = 'Кликните, чтобы поставить точку А';
             document.getElementById('resArea').innerText = '—';
             document.getElementById('resPerimeter').innerText = '—';
             document.getElementById('resMounting').innerText = '—';
@@ -621,31 +601,46 @@
             });
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
+            if (innerElements.length > 0) {
+                area -= innerElements.length * 0.5; // вычитаем площадь люков/вырезов
+            }
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
+
             let cLights = parseFloat(document.getElementById('countLights').value) || 0;
             let pLight = parseFloat(document.getElementById('priceLight').value) || 0;
+
             let cChandeliers = parseFloat(document.getElementById('countChandeliers').value) || 0;
+            let pChandelier = parseFloat(document.getElementById('priceChandelier').value) || 0;
+
             let cCornice = parseFloat(document.getElementById('countCornice').value) || 0;
+            let pCornice = parseFloat(document.getElementById('priceCornice').value) || 0;
+
             let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
-            let cAngles = parseFloat(document.getElementById('countExtraAngles').value) || 0;
+            let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
+
+            let cAngles = parseFloat(document.getElementById('countAngles').value) || 0;
+            let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
+
+            let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
             let canvasCost = area * pCanvas;
             let profileCost = perimeter * pProfile;
-            let lightsCost = (cLights * pLight) + (cChandeliers * 600) + (cCornice * 700) + (cPipes * 350) + (cAngles * 150);
-            let total = canvasCost + profileCost + lightsCost;
+            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
+            let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
             document.getElementById('resPerimeter').innerText = perimeter.toFixed(2) + ' м';
-            document.getElementById('resMounting').innerText = lightsCost.toLocaleString() + ' ₽';
+            document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
 
         function shareEstimate() {
             let total = document.getElementById('resTotal').innerText;
             if (total === '—') {
-                alert('Сначала выполните расчет!');
+                alert('Сначала выполните расчет кнопкой «Рассчитать»!');
                 return;
             }
             let area = document.getElementById('resArea').innerText;
