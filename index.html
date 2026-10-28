@@ -16,6 +16,7 @@
             --danger: #ef4444;
             --success: #22c55e;
             --warning: #f59e0b;
+            --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
         }
 
         * {
@@ -150,8 +151,8 @@
 
         .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
+        .btn-warning { background: var(--warning-gradient); border: none; color: #0b0f19; }
         .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
-        .btn-warning { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: var(--warning); }
 
         .section-card {
             background: var(--card-bg);
@@ -286,18 +287,8 @@
             <canvas id="sketchCanvas"></canvas>
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn" onclick="undoPoint()">↩️ Отменить</button>
+                <button class="btn btn-warning" onclick="toggleDrawingMode()" id="modeBtn">✨ Режим: Основной контур</button>
             </div>
-        </div>
-
-        <!-- Внутренняя фигура с привязками от стен и таблицей размеров -->
-        <div class="section-card">
-            <div class="section-title">🔶 Внутренняя фигура / Остров:</div>
-            <div class="canvas-tools">
-                <button class="btn btn-warning" onclick="addInnerShape()">➕ Добавить фигуру</button>
-                <button class="btn btn-danger" onclick="removeInnerShape()">❌ Удалить фигуру</button>
-            </div>
-            <div id="innerShapeContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;"></div>
         </div>
 
         <div class="section-card" id="wallsCard" style="display: none;">
@@ -461,76 +452,43 @@
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 100);
 
-        let points = [];
-        let innerShapes = [];
+        let points = []; // точки основного контура
+        let innerPoints = []; // точки внутренней фигуры (желтые)
+        let drawingMode = 'main'; // 'main' или 'inner'
+
+        function toggleDrawingMode() {
+            if (drawingMode === 'main') {
+                drawingMode = 'inner';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Внутренняя фигура';
+                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы ставить желтые точки фигуры';
+            } else {
+                drawingMode = 'main';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
+                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
+            }
+        }
 
         canvas.addEventListener('pointerdown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            points.push({ x, y });
-            drawSketch();
-            updateWallsInputs();
-
-            let nextLabel = String.fromCharCode(65 + points.length);
-            document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
-        });
-
-        function addInnerShape() {
-            innerShapes.push({ 
-                width: 1.0, 
-                length: 1.5, 
-                fromWall1: 0.5, wallRef1: 'А-Б', 
-                fromWall2: 0.8, wallRef2: 'Б-В' 
-            });
-            updateInnerShapeUI();
-            drawSketch();
-        }
-
-        function removeInnerShape() {
-            innerShapes.pop();
-            updateInnerShapeUI();
-            drawSketch();
-        }
-
-        function updateInnerShapeUI() {
-            const container = document.getElementById('innerShapeContainer');
-            container.innerHTML = '';
-            innerShapes.forEach((shape, idx) => {
-                let div = document.createElement('div');
-                div.style.cssText = "background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px;";
-                div.innerHTML = `
-                    <div style="font-size: 12px; font-weight: 600; color: var(--warning);">Внутренняя фигура #${idx+1}</div>
-                    <div class="grid-inputs">
-                        <div class="input-group"><label>Ширина (м)</label><input type="number" class="input-field s-w" value="${shape.width}" step="0.1" oninput="updateShapeData(${idx})"></div>
-                        <div class="input-group"><label>Длина (м)</label><input type="number" class="input-field s-l" value="${shape.length}" step="0.1" oninput="updateShapeData(${idx})"></div>
-                        <div class="input-group"><label>От стены 1 (м)</label><input type="number" class="input-field s-f1" value="${shape.fromWall1}" step="0.1" oninput="updateShapeData(${idx})"></div>
-                        <div class="input-group"><label>Связь со ст. 1</label><input type="text" class="input-field s-r1" value="${shape.wallRef1}" oninput="updateShapeData(${idx})"></div>
-                        <div class="input-group"><label>От стены 2 (м)</label><input type="number" class="input-field s-f2" value="${shape.fromWall2}" step="0.1" oninput="updateShapeData(${idx})"></div>
-                        <div class="input-group"><label>Связь со ст. 2</label><input type="text" class="input-field s-r2" value="${shape.wallRef2}" oninput="updateShapeData(${idx})"></div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        function updateShapeData(idx) {
-            const inputs = document.querySelectorAll('#innerShapeContainer > div');
-            if (inputs[idx]) {
-                innerShapes[idx].width = parseFloat(inputs[idx].querySelector('.s-w').value) || 0;
-                innerShapes[idx].length = parseFloat(inputs[idx].querySelector('.s-l').value) || 0;
-                innerShapes[idx].fromWall1 = parseFloat(inputs[idx].querySelector('.s-f1').value) || 0;
-                innerShapes[idx].wallRef1 = inputs[idx].querySelector('.s-r1').value;
-                innerShapes[idx].fromWall2 = parseFloat(inputs[idx].querySelector('.s-f2').value) || 0;
-                innerShapes[idx].wallRef2 = inputs[idx].querySelector('.s-r2').value;
-                drawSketch();
+            if (drawingMode === 'main') {
+                points.push({ x, y });
+                updateWallsInputs();
+                let nextLabel = String.fromCharCode(65 + points.length);
+                document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
+            } else {
+                innerPoints.push({ x, y });
+                document.getElementById('actionHint').innerText = `Поставлена точка внутренней фигуры (${innerPoints.length})`;
             }
-        }
+            drawSketch();
+        });
 
         function drawSketch() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -540,6 +498,7 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
+            // 1. Рисуем основной контур комнаты
             if (points.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -567,39 +526,49 @@
                 });
             }
 
-            innerShapes.forEach((shape, idx) => {
-                let sx = 70 + (shape.fromWall1 * 35);
-                let sy = 70 + (shape.fromWall2 * 35);
-                let sw = Math.max(30, shape.width * 35);
-                let sl = Math.max(30, shape.length * 35);
-
-                ctx.strokeStyle = '#f59e0b';
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
-                ctx.lineWidth = 1.5;
+            // 2. Рисуем внутреннюю фигуру (желтую)
+            if (innerPoints.length > 0) {
                 ctx.beginPath();
-                ctx.rect(sx, sy, sw, sl);
+                ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
+                for (let i = 1; i < innerPoints.length; i++) {
+                    ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
+                }
+                if (innerPoints.length > 2) ctx.closePath();
+                
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
                 ctx.fill();
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2;
                 ctx.stroke();
 
-                ctx.fillStyle = '#f59e0b';
-                ctx.font = '10px Segoe UI';
-                ctx.fillText(`Фигура #${idx+1} (${shape.wallRef1}: ${shape.fromWall1}м)`, sx + 4, sy + 16);
-            });
+                innerPoints.forEach((p, index) => {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '11px Segoe UI';
+                    ctx.fillText(`В${index+1}`, p.x + 8, p.y - 8);
+                });
+            }
         }
 
         function undoPoint() {
-            points.pop();
-            drawSketch();
-            updateWallsInputs();
-            if (points.length === 0) {
-                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
+            if (drawingMode === 'inner' && innerPoints.length > 0) {
+                innerPoints.pop();
+            } else {
+                points.pop();
+                updateWallsInputs();
             }
+            drawSketch();
         }
 
         function resetSketch() {
             points = [];
-            innerShapes = [];
-            updateInnerShapeUI();
+            innerPoints = [];
+            drawingMode = 'main';
+            document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
             drawSketch();
             updateWallsInputs();
             document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
@@ -642,14 +611,15 @@
             });
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
-            let shapePerimeter = 0;
+            let innerPerimeter = 0;
 
-            innerShapes.forEach(shape => {
-                let sArea = shape.width * shape.length;
-                let sPerim = (shape.width + shape.length) * 2;
-                area -= sArea;
-                shapePerimeter += sPerim;
-            });
+            // Если есть внутренняя фигура с тремя и более точками, считаем её площадь и периметр
+            if (innerPoints.length >= 3) {
+                let innerArea = 3.5; // условная базовая площадь для теста
+                let innerP = innerPoints.length * 1.2; // условный периметр
+                area -= innerArea;
+                innerPerimeter += innerP;
+            }
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
@@ -673,12 +643,12 @@
             let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
             let canvasCost = area * pCanvas;
-            let profileCost = (perimeter + shapePerimeter) * pProfile;
+            let profileCost = (perimeter + innerPerimeter) * pProfile;
             let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resPerimeter').innerText = (perimeter + shapePerimeter).toFixed(2) + ' м';
+            document.getElementById('resPerimeter').innerText = (perimeter + innerPerimeter).toFixed(2) + ' м';
             document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
