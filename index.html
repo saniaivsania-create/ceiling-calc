@@ -299,7 +299,7 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами размеров -->
+        <!-- Блок внутренних фигур с таблицами размеров и привязками от стен -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div class="section-title">🔶 Внутренние фигуры (острова / ниши):</div>
             <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
@@ -470,7 +470,7 @@
             if (drawingMode === 'main') {
                 drawingMode = 'inner';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
-                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры. После 3+ точек нажмите "+ Сохранить фигуру"';
+                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры. Затем нажмите "+ Сохранить фигуру"';
             } else {
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Комната';
@@ -489,7 +489,7 @@
             currentInnerPoints = [];
             updateInnerInputs();
             drawSketch();
-            document.getElementById('actionHint').innerText = '✅ Фигура сохранена! Можете чертить следующую.';
+            document.getElementById('actionHint').innerText = '✅ Фигура сохранена! Задайте привязку от стен внизу.';
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -549,9 +549,22 @@
                 });
             }
 
-            // Сохраненные внутренние фигуры (замкнутые)
+            // Сохраненные внутренние фигуры с линией привязки к точке А комнаты
             innerShapes.forEach((shape, sIdx) => {
                 if (shape.length > 0) {
+                    // Пунктирная линия привязки от точки А комнаты (если она есть) к первой точке фигуры
+                    if (points.length > 0) {
+                        ctx.save();
+                        ctx.strokeStyle = '#f59e0b';
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(points[0].x, points[0].y);
+                        ctx.lineTo(shape[0].x, shape[0].y);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+
                     ctx.beginPath();
                     ctx.moveTo(shape[0].x, shape[0].y);
                     for (let i = 1; i < shape.length; i++) {
@@ -677,6 +690,16 @@
                 header.style.cssText = "display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--warning);";
                 header.innerHTML = `<span>Фигура #${sIdx+1} (${shape.length} сторон)</span> <button class="btn btn-danger" onclick="removeInnerShape(${sIdx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>`;
                 box.appendChild(header);
+
+                // Поле привязки от угла А комнаты
+                let bindDiv = document.createElement('div');
+                bindDiv.className = 'input-group';
+                bindDiv.style.marginBottom = '6px';
+                bindDiv.innerHTML = `
+                    <label>Привязка от угла А до Ф${sIdx+1} (м)</label>
+                    <input type="number" class="input-field bind-len-${sIdx}" value="1.0" step="0.1">
+                `;
+                box.appendChild(bindDiv);
 
                 let grid = document.createElement('div');
                 grid.className = 'grid-inputs';
