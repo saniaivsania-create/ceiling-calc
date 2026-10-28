@@ -2,11 +2,10 @@
   "background_color": "#ffffff",
   "dir": "ltr",
   "display": "standalone",
-  "name": "Ceiling Calculator",
+  "name": "saniaivsania-create.github",
   "orientation": "any",
   "scope": "/",
-  "short_name": "Calculator",
+  "short_name": "saniaivsania-create.github",
   "start_url": "/",
   "theme_color": "#ffffff"
 }
-
