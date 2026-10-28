@@ -128,12 +128,12 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 140px);
+            height: calc(100vh - 160px);
         }
 
         .canvas-tools {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 6px;
         }
 
@@ -141,9 +141,9 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 8px 6px;
+            padding: 8px 4px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
@@ -287,7 +287,8 @@
             <canvas id="sketchCanvas"></canvas>
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-warning" onclick="toggleDrawingMode()" id="modeBtn">✨ Режим: Основной контур</button>
+                <button class="btn" onclick="undoPoint()">↩️ Отменить</button>
+                <button class="btn btn-warning" onclick="toggleDrawingMode()" id="modeBtn">✨ Контур</button>
             </div>
         </div>
 
@@ -296,10 +297,13 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок для настройки внутренних фигур с таблицами длин -->
+        <!-- Управление и таблицы внутренних фигур -->
         <div class="section-card" id="innerCard" style="display: none;">
-            <div class="section-title">🔶 Длины сторон внутренних фигур (м):</div>
-            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="section-title">🔶 Внутренние фигуры (острова):</div>
+                <button class="btn btn-warning" onclick="finishCurrentInnerShape()" style="padding: 4px 8px;">+ Сохранить фигуру</button>
+            </div>
+            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;"></div>
         </div>
 
         <div class="section-card">
@@ -459,30 +463,39 @@
         setTimeout(resizeCanvas, 100);
 
         let points = []; 
-        let innerShapes = []; // массив внутренних фигур (каждая со своими точками)
+        let innerShapes = []; 
         let currentInnerPoints = [];
         let drawingMode = 'main'; // 'main' или 'inner'
 
         function toggleDrawingMode() {
             if (drawingMode === 'main') {
-                if (currentInnerPoints.length > 0) {
-                    innerShapes.push([...currentInnerPoints]);
-                    currentInnerPoints = [];
-                }
                 drawingMode = 'inner';
-                document.getElementById('modeBtn').innerText = '✨ Режим: Рисуем фигуру';
-                document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры (нажмите еще раз для сохранения)';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
+                document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры';
             } else {
                 if (currentInnerPoints.length >= 3) {
                     innerShapes.push([...currentInnerPoints]);
                     currentInnerPoints = [];
+                    updateInnerInputs();
                 }
                 drawingMode = 'main';
-                document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
-                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
-                updateInnerInputs();
+                document.getElementById('modeBtn').innerText = '✨ Режим: Контур';
+                let nextLabel = String.fromCharCode(65 + points.length);
+                document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             }
             drawSketch();
+        }
+
+        function finishCurrentInnerShape() {
+            if (currentInnerPoints.length >= 3) {
+                innerShapes.push([...currentInnerPoints]);
+                currentInnerPoints = [];
+                updateInnerInputs();
+                drawSketch();
+                alert('Фигура сохранена! Можете добавить еще или рассчитать смету.');
+            } else {
+                alert('Поставьте минимум 3 точки для внутренней фигуры!');
+            }
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -497,7 +510,7 @@
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             } else {
                 currentInnerPoints.push({ x, y });
-                document.getElementById('actionHint').innerText = `Точка внутренней фигуры (${currentInnerPoints.length})`;
+                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length})`;
             }
             drawSketch();
         });
@@ -542,7 +555,7 @@
                 });
             }
 
-            // Сохраненные внутренние фигуры
+            // Сохраненные внутренние фигуры (замкнутые)
             innerShapes.forEach((shape, sIdx) => {
                 if (shape.length > 0) {
                     ctx.beginPath();
@@ -550,7 +563,7 @@
                     for (let i = 1; i < shape.length; i++) {
                         ctx.lineTo(shape[i].x, shape[i].y);
                     }
-                    if (shape.length > 2) ctx.closePath();
+                    ctx.closePath();
                     
                     ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
                     ctx.fill();
@@ -577,6 +590,10 @@
                 for (let i = 1; i < currentInnerPoints.length; i++) {
                     ctx.lineTo(currentInnerPoints[i].x, currentInnerPoints[i].y);
                 }
+                if (currentInnerPoints.length > 2) ctx.closePath();
+                
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+                ctx.fill();
                 ctx.strokeStyle = '#f59e0b';
                 ctx.lineWidth = 2;
                 ctx.stroke();
@@ -591,8 +608,13 @@
         }
 
         function undoPoint() {
-            if (drawingMode === 'inner' && currentInnerPoints.length > 0) {
-                currentInnerPoints.pop();
+            if (drawingMode === 'inner') {
+                if (currentInnerPoints.length > 0) {
+                    currentInnerPoints.pop();
+                } else if (innerShapes.length > 0) {
+                    innerShapes.pop();
+                    updateInnerInputs();
+                }
             } else {
                 points.pop();
                 updateWallsInputs();
@@ -605,7 +627,7 @@
             innerShapes = [];
             currentInnerPoints = [];
             drawingMode = 'main';
-            document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
+            document.getElementById('modeBtn').innerText = '✨ Контур';
             drawSketch();
             updateWallsInputs();
             updateInnerInputs();
