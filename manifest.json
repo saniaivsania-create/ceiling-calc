@@ -1,16 +1,11 @@
 {
-  "name": "Ceiling Calculator",
-  "short_name": "Calculator",
-  "description": "Удобный калькулятор для расчета натяжных потолков",
-  "start_url": "./index.html",
-  "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
-  "icons": [
-    {
-      "src": "https://img.icons8.com/color/512/calculator.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Ceiling Calculator",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Calculator",
+  "start_url": "/",
+  "theme_color": "#ffffff"
 }
