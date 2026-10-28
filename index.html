@@ -275,7 +275,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Введите размеры стен в мм</span>
+                <span class="action-hint" id="actionHint">Чертеж строится автоматически по мм</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -287,10 +287,10 @@
                 <button class="btn btn-success" onclick="updateDrawing()" style="padding: 6px 10px; font-size: 11px;">📐 Построить чертеж</button>
             </div>
             <div class="grid-inputs" id="wallsInputsContainer">
-                <div class="input-group"><label>Стена А-В (мм)</label><input type="number" class="input-field wall-len" id="w-ab" placeholder="например: 4000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена В-С (мм)</label><input type="number" class="input-field wall-len" id="w-bc" placeholder="например: 3000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена С-D (мм)</label><input type="number" class="input-field wall-len" id="w-cd" placeholder="например: 4000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена D-A (мм)</label><input type="number" class="input-field wall-len" id="w-da" placeholder="например: 3000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена А-В (мм)</label><input type="number" class="input-field wall-len" id="w-ab" value="4000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена В-С (мм)</label><input type="number" class="input-field wall-len" id="w-bc" value="3000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена С-D (мм)</label><input type="number" class="input-field wall-len" id="w-cd" value="4000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена D-A (мм)</label><input type="number" class="input-field wall-len" id="w-da" value="3000" step="10" oninput="updateDrawing()"></div>
             </div>
         </div>
 
@@ -470,13 +470,13 @@
 
         function addShape(type) {
             innerShapes.push({
-                type: type, // 'rect' или 'circle'
-                w: '',
-                h: '',
-                d: '',
+                type: type,
+                w: '1000',
+                h: '800',
+                d: '1000',
                 fromPoint: 'A',
-                distAB: '',
-                distBC: ''
+                distAB: '500',
+                distBC: '500'
             });
             renderInnerInputs();
             updateDrawing();
@@ -499,10 +499,10 @@
                 let title = shape.type === 'rect' ? `Прямоугольник #${idx+1}` : `Круг (Остров) #${idx+1}`;
 
                 let sizeInputs = shape.type === 'rect' ? `
-                    <div class="input-group"><label>Ширина (мм)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" placeholder="мм" step="10" oninput="syncData()"></div>
-                    <div class="input-group"><label>Длина (мм)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" placeholder="мм" step="10" oninput="syncData()"></div>
+                    <div class="input-group"><label>Ширина (мм)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" step="10" oninput="syncData()"></div>
+                    <div class="input-group"><label>Длина (мм)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" step="10" oninput="syncData()"></div>
                 ` : `
-                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (мм)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" placeholder="мм" step="10" oninput="syncData()"></div>
+                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (мм)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" step="10" oninput="syncData()"></div>
                 `;
 
                 box.innerHTML = `
@@ -526,11 +526,11 @@
                         </div>
                         <div class="input-group">
                             <label>По стене (мм)</label>
-                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" placeholder="мм" step="10" oninput="syncData()">
+                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" step="10" oninput="syncData()">
                         </div>
                         <div class="input-group" style="grid-column: span 2;">
                             <label>Отступ вглубь комнаты (мм)</label>
-                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" placeholder="мм" step="10" oninput="syncData()">
+                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" step="10" oninput="syncData()">
                         </div>
                     </div>
                 `;
@@ -563,6 +563,7 @@
         }
 
         function drawSketch() {
+            if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Сетка
@@ -773,7 +774,7 @@
         }
 
         window.onload = () => {
-            updateDrawing();
+            resizeCanvas();
         };
     </script>
 </body>
