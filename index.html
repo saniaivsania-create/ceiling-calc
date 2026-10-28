@@ -282,7 +282,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Коснитесь экрана, чтобы поставить точку А</span>
+                <span class="action-hint" id="actionHint">Коснитесь экрана или постройте по цифрам</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -422,7 +422,7 @@
 
         function performCalculation() {
             if (points.length < 3) {
-                alert('Начертите комнату (поставьте минимум 3 точки на холсте)!');
+                alert('Начертите комнату или постройте по цифрам!');
                 return;
             }
             if (!isUnlocked) {
@@ -475,7 +475,7 @@
         let points = []; 
         let innerShapes = []; 
         let currentInnerPoints = [];
-        let drawingMode = 'main'; // 'main' или 'inner'
+        let drawingMode = 'main';
 
         function toggleDrawingMode() {
             if (drawingMode === 'main') {
@@ -520,7 +520,7 @@
             drawSketch();
         });
 
-        // Функция построения чертежа по введенным цифрам (стенам)
+        // Строгое математическое построение по введенным цифрам из таблицы стен
         function buildFromNumbers() {
             const inputs = document.querySelectorAll('.wall-len');
             if (inputs.length < 3) {
@@ -531,21 +531,44 @@
             let sides = [];
             inputs.forEach(inp => sides.push(parseFloat(inp.value) || 3.0));
 
-            let cx = canvas.width / 2;
-            let cy = canvas.height / 2;
-            let radius = Math.min(cx, cy) * 0.65;
-            
-            points = [];
-            let n = sides.length;
-            for (let i = 0; i < n; i++) {
-                let angle = (i * 2 * Math.PI) / n - Math.PI / 2;
-                let x = cx + radius * Math.cos(angle);
-                let y = cy + radius * Math.sin(angle);
-                points.push({ x, y });
+            // Если 4 стены (прямоугольник / квадрат) — строим строго по пропорциям сторон
+            if (sides.length === 4) {
+                let w = sides[0]; // стена А-В
+                let h = sides[1]; // стена В-С
+                
+                let maxDim = Math.max(w, h);
+                let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
+
+                let drawW = w * scale;
+                let drawH = h * scale;
+
+                let startX = (canvas.width - drawW) / 2;
+                let startY = (canvas.height - drawH) / 2;
+
+                points = [
+                    { x: startX, y: startY },                 // A
+                    { x: startX + drawW, y: startY },         // B
+                    { x: startX + drawW, y: startY + drawH }, // C
+                    { x: startX, y: startY + drawH }          // D
+                ];
+            } else {
+                // Для треугольников и других многоугольников
+                let cx = canvas.width / 2;
+                let cy = canvas.height / 2;
+                let radius = Math.min(cx, cy) * 0.6;
+                
+                points = [];
+                let n = sides.length;
+                for (let i = 0; i < n; i++) {
+                    let angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+                    let x = cx + radius * Math.cos(angle);
+                    let y = cy + radius * Math.sin(angle);
+                    points.push({ x, y });
+                }
             }
 
             drawSketch();
-            document.getElementById('actionHint').innerText = '✅ Чертеж перестроен по точным цифрам!';
+            document.getElementById('actionHint').innerText = '✅ Чертеж построен по точным цифрам из таблицы!';
         }
 
         function drawSketch() {
@@ -676,7 +699,7 @@
             drawSketch();
             updateWallsInputs();
             updateInnerInputs();
-            document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
+            document.getElementById('actionHint').innerText = 'Коснитесь экрана или постройте по цифрам';
             document.getElementById('resArea').innerText = '—';
             document.getElementById('resRoomPerim').innerText = '—';
             document.getElementById('resInnerPerim').innerText = '—';
