@@ -290,13 +290,14 @@
             </div>
         </div>
 
+        <!-- Внутренняя фигура с привязками от стен и таблицей размеров -->
         <div class="section-card">
-            <div class="section-title">🧱 Короба из ГКЛ / Ниши (с привязкой):</div>
+            <div class="section-title">🔶 Внутренняя фигура / Остров:</div>
             <div class="canvas-tools">
-                <button class="btn btn-warning" onclick="addDrywallBox()">➕ Добавить короб</button>
-                <button class="btn btn-danger" onclick="removeLastBox()">❌ Удалить короб</button>
+                <button class="btn btn-warning" onclick="addInnerShape()">➕ Добавить фигуру</button>
+                <button class="btn btn-danger" onclick="removeInnerShape()">❌ Удалить фигуру</button>
             </div>
-            <div id="drywallContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;"></div>
+            <div id="innerShapeContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;"></div>
         </div>
 
         <div class="section-card" id="wallsCard" style="display: none;">
@@ -461,7 +462,7 @@
         setTimeout(resizeCanvas, 100);
 
         let points = [];
-        let drywallBoxes = [];
+        let innerShapes = [];
 
         canvas.addEventListener('pointerdown', (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -476,44 +477,53 @@
             document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
         });
 
-        function addDrywallBox() {
-            drywallBoxes.push({ width: 0.5, length: 2.0, fromWallA: 0.3, fromWallB: 0.5 });
-            updateDrywallUI();
+        function addInnerShape() {
+            innerShapes.push({ 
+                width: 1.0, 
+                length: 1.5, 
+                fromWall1: 0.5, wallRef1: 'А-Б', 
+                fromWall2: 0.8, wallRef2: 'Б-В' 
+            });
+            updateInnerShapeUI();
             drawSketch();
         }
 
-        function removeLastBox() {
-            drywallBoxes.pop();
-            updateDrywallUI();
+        function removeInnerShape() {
+            innerShapes.pop();
+            updateInnerShapeUI();
             drawSketch();
         }
 
-        function updateDrywallUI() {
-            const container = document.getElementById('drywallContainer');
+        function updateInnerShapeUI() {
+            const container = document.getElementById('innerShapeContainer');
             container.innerHTML = '';
-            drywallBoxes.forEach((box, idx) => {
+            innerShapes.forEach((shape, idx) => {
                 let div = document.createElement('div');
                 div.style.cssText = "background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px;";
                 div.innerHTML = `
-                    <div style="font-size: 12px; font-weight: 600; color: var(--warning);">Короб #${idx+1} (ГКЛ)</div>
+                    <div style="font-size: 12px; font-weight: 600; color: var(--warning);">Внутренняя фигура #${idx+1}</div>
                     <div class="grid-inputs">
-                        <div class="input-group"><label>Ширина (м)</label><input type="number" class="input-field box-w" value="${box.width}" step="0.1" oninput="updateBoxData(${idx})"></div>
-                        <div class="input-group"><label>Длина (м)</label><input type="number" class="input-field box-l" value="${box.length}" step="0.1" oninput="updateBoxData(${idx})"></div>
-                        <div class="input-group"><label>От стены А (м)</label><input type="number" class="input-field box-fa" value="${box.fromWallA}" step="0.1" oninput="updateBoxData(${idx})"></div>
-                        <div class="input-group"><label>От стены Б (м)</label><input type="number" class="input-field box-fb" value="${box.fromWallB}" step="0.1" oninput="updateBoxData(${idx})"></div>
+                        <div class="input-group"><label>Ширина (м)</label><input type="number" class="input-field s-w" value="${shape.width}" step="0.1" oninput="updateShapeData(${idx})"></div>
+                        <div class="input-group"><label>Длина (м)</label><input type="number" class="input-field s-l" value="${shape.length}" step="0.1" oninput="updateShapeData(${idx})"></div>
+                        <div class="input-group"><label>От стены 1 (м)</label><input type="number" class="input-field s-f1" value="${shape.fromWall1}" step="0.1" oninput="updateShapeData(${idx})"></div>
+                        <div class="input-group"><label>Связь со ст. 1</label><input type="text" class="input-field s-r1" value="${shape.wallRef1}" oninput="updateShapeData(${idx})"></div>
+                        <div class="input-group"><label>От стены 2 (м)</label><input type="number" class="input-field s-f2" value="${shape.fromWall2}" step="0.1" oninput="updateShapeData(${idx})"></div>
+                        <div class="input-group"><label>Связь со ст. 2</label><input type="text" class="input-field s-r2" value="${shape.wallRef2}" oninput="updateShapeData(${idx})"></div>
                     </div>
                 `;
                 container.appendChild(div);
             });
         }
 
-        function updateBoxData(idx) {
-            const inputs = document.querySelectorAll('#drywallContainer > div');
+        function updateShapeData(idx) {
+            const inputs = document.querySelectorAll('#innerShapeContainer > div');
             if (inputs[idx]) {
-                drywallBoxes[idx].width = parseFloat(inputs[idx].querySelector('.box-w').value) || 0;
-                drywallBoxes[idx].length = parseFloat(inputs[idx].querySelector('.box-l').value) || 0;
-                drywallBoxes[idx].fromWallA = parseFloat(inputs[idx].querySelector('.box-fa').value) || 0;
-                drywallBoxes[idx].fromWallB = parseFloat(inputs[idx].querySelector('.box-fb').value) || 0;
+                innerShapes[idx].width = parseFloat(inputs[idx].querySelector('.s-w').value) || 0;
+                innerShapes[idx].length = parseFloat(inputs[idx].querySelector('.s-l').value) || 0;
+                innerShapes[idx].fromWall1 = parseFloat(inputs[idx].querySelector('.s-f1').value) || 0;
+                innerShapes[idx].wallRef1 = inputs[idx].querySelector('.s-r1').value;
+                innerShapes[idx].fromWall2 = parseFloat(inputs[idx].querySelector('.s-f2').value) || 0;
+                innerShapes[idx].wallRef2 = inputs[idx].querySelector('.s-r2').value;
                 drawSketch();
             }
         }
@@ -557,24 +567,23 @@
                 });
             }
 
-            // Отрисовка коробов по размерам
-            drywallBoxes.forEach((box, idx) => {
-                let bx = 60 + (box.fromWallA * 40);
-                let by = 60 + (box.fromWallB * 40);
-                let bw = Math.max(30, box.width * 40);
-                let bl = Math.max(30, box.length * 40);
+            innerShapes.forEach((shape, idx) => {
+                let sx = 70 + (shape.fromWall1 * 35);
+                let sy = 70 + (shape.fromWall2 * 35);
+                let sw = Math.max(30, shape.width * 35);
+                let sl = Math.max(30, shape.length * 35);
 
                 ctx.strokeStyle = '#f59e0b';
                 ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                ctx.rect(bx, by, bw, bl);
+                ctx.rect(sx, sy, sw, sl);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.fillStyle = '#f59e0b';
                 ctx.font = '10px Segoe UI';
-                ctx.fillText(`Короб #${idx+1} (${box.width}x${box.length}м)`, bx + 4, by + 16);
+                ctx.fillText(`Фигура #${idx+1} (${shape.wallRef1}: ${shape.fromWall1}м)`, sx + 4, sy + 16);
             });
         }
 
@@ -589,8 +598,8 @@
 
         function resetSketch() {
             points = [];
-            drywallBoxes = [];
-            updateDrywallUI();
+            innerShapes = [];
+            updateInnerShapeUI();
             drawSketch();
             updateWallsInputs();
             document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
@@ -633,13 +642,13 @@
             });
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
-            let drywallPerimeter = 0;
+            let shapePerimeter = 0;
 
-            drywallBoxes.forEach(box => {
-                let boxArea = box.width * box.length;
-                let boxPerim = (box.width + box.length) * 2;
-                area -= boxArea; // вычитаем площадь короба из полотна
-                drywallPerimeter += boxPerim; // добавляем периметр примыкания короба к смете профиля
+            innerShapes.forEach(shape => {
+                let sArea = shape.width * shape.length;
+                let sPerim = (shape.width + shape.length) * 2;
+                area -= sArea;
+                shapePerimeter += sPerim;
             });
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
@@ -664,12 +673,12 @@
             let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
             let canvasCost = area * pCanvas;
-            let profileCost = (perimeter + drywallPerimeter) * pProfile;
+            let profileCost = (perimeter + shapePerimeter) * pProfile;
             let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resPerimeter').innerText = (perimeter + drywallPerimeter).toFixed(2) + ' м';
+            document.getElementById('resPerimeter').innerText = (perimeter + shapePerimeter).toFixed(2) + ' м';
             document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
