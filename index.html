@@ -70,7 +70,6 @@
             border-radius: 6px;
         }
 
-        /* Полноэкранный режим черчения */
         .canvas-card {
             background: var(--card-bg);
             border-radius: 16px;
@@ -125,6 +124,7 @@
             background: #070a12;
             border-radius: 10px;
             border: 1px solid var(--border);
+            touch-action: none;
             cursor: crosshair;
         }
 
@@ -282,10 +282,9 @@
             <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
         </header>
 
-        <!-- Холст и инструменты (работает и в обычном, и в полноэкранном режиме) -->
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Кликните, чтобы поставить точку А</span>
+                <span class="action-hint" id="actionHint">Коснитесь экрана, чтобы поставить точку А</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -295,7 +294,6 @@
             </div>
         </div>
 
-        <!-- Блок внутренних элементов из гипсокартона / коробов -->
         <div class="section-card">
             <div class="section-title">🧱 Внутренний короб / Ниша из ГКЛ:</div>
             <div class="canvas-tools">
@@ -310,7 +308,6 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Материалы и Базовые работы -->
         <div class="section-card">
             <div class="section-title">⚙️ Материалы и Базовые работы</div>
             <div class="grid-inputs">
@@ -353,7 +350,6 @@
             </div>
         </div>
 
-        <!-- Дополнительные работы (свои) -->
         <div class="section-card">
             <div class="section-title">➕ Дополнительные работы (свои)</div>
             <div class="grid-inputs">
@@ -390,7 +386,6 @@
         </div>
     </div>
 
-    <!-- Paywall Modal -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
             <div style="font-size: 40px;">🔒</div>
@@ -472,7 +467,8 @@
         let points = [];
         let drywallBoxes = [];
 
-        canvas.addEventListener('click', (e) => {
+        // Исправленный универсальный обработчик нажатий для телефонов
+        canvas.addEventListener('pointerdown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -482,7 +478,7 @@
             updateWallsInputs();
 
             let nextLabel = String.fromCharCode(65 + points.length);
-            document.getElementById('actionHint').innerText = `Поставьте точку ${nextLabel}`;
+            document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
         });
 
         function addDrywallBox(type) {
@@ -496,7 +492,7 @@
             if (drywallBoxes.length > 0) {
                 info.style.display = 'block';
                 let totalSides = drywallBoxes.reduce((acc, box) => acc + (box.width + box.length) * 2, 0);
-                info.innerText = `Добавлено коробов: ${drywallBoxes.length} | Сторон примыкания (периметр коробов): ~${totalSides.toFixed(1)} м.п.`;
+                info.innerText = `Добавлено коробов: ${drywallBoxes.length} | Сторон примыкания: ~${totalSides.toFixed(1)} м.п.`;
             } else {
                 info.style.display = 'none';
             }
@@ -531,7 +527,7 @@
                 points.forEach((p, index) => {
                     ctx.fillStyle = '#00d2ff';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
                     ctx.fill();
 
                     ctx.fillStyle = '#ffffff';
@@ -541,7 +537,6 @@
                 });
             }
 
-            // Отрисовка коробов из ГКЛ внутри контура
             drywallBoxes.forEach((box, idx) => {
                 let bx = canvas.width / 2 + (idx * 25) - 30;
                 let by = canvas.height / 2 + (idx * 25) - 20;
@@ -555,7 +550,7 @@
 
                 ctx.fillStyle = '#f59e0b';
                 ctx.font = '10px Segoe UI';
-                ctx.fillText(`Короб ГКЛ #${idx+1}`, bx + 4, by + 20);
+                ctx.fillText(`Короб #${idx+1}`, bx + 4, by + 20);
             });
         }
 
@@ -564,7 +559,7 @@
             drawSketch();
             updateWallsInputs();
             if (points.length === 0) {
-                document.getElementById('actionHint').innerText = 'Кликните, чтобы поставить точку А';
+                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
             }
         }
 
@@ -574,7 +569,7 @@
             drawSketch();
             updateWallsInputs();
             updateDrywallInfo();
-            document.getElementById('actionHint').innerText = 'Кликните, чтобы поставить точку А';
+            document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
             document.getElementById('resArea').innerText = '—';
             document.getElementById('resPerimeter').innerText = '—';
             document.getElementById('resMounting').innerText = '—';
@@ -615,8 +610,67 @@
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
             
-            // Учитываем короба из ГКЛ (вычитаем их площадь из полотна или добавляем периметр примыканий)
             let drywallPerimeter = 0;
             if (drywallBoxes.length > 0) {
                 drywallBoxes.forEach(() => {
-                    area -= 0.6; // уменьшаем площадь поло
+                    area -= 0.6;
+                    drywallPerimeter += 3.2;
+                });
+            }
+
+            let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
+            let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
+
+            let cLights = parseFloat(document.getElementById('countLights').value) || 0;
+            let pLight = parseFloat(document.getElementById('priceLight').value) || 0;
+
+            let cChandeliers = parseFloat(document.getElementById('countChandeliers').value) || 0;
+            let pChandelier = parseFloat(document.getElementById('priceChandelier').value) || 0;
+
+            let cCornice = parseFloat(document.getElementById('countCornice').value) || 0;
+            let pCornice = parseFloat(document.getElementById('priceCornice').value) || 0;
+
+            let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
+            let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
+
+            let cAngles = parseFloat(document.getElementById('countAngles').value) || 0;
+            let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
+
+            let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
+
+            let canvasCost = area * pCanvas;
+            let profileCost = (perimeter + drywallPerimeter) * pProfile;
+            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
+            let total = canvasCost + profileCost + mountingCost;
+
+            document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
+            document.getElementById('resPerimeter').innerText = (perimeter + drywallPerimeter).toFixed(2) + ' м';
+            document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
+            document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
+        }
+
+        function shareEstimate() {
+            let total = document.getElementById('resTotal').innerText;
+            if (total === '—') {
+                alert('Сначала выполните расчет кнопкой «Рассчитать»!');
+                return;
+            }
+            let area = document.getElementById('resArea').innerText;
+            let perimeter = document.getElementById('resPerimeter').innerText;
+
+            let text = `📋 Смета на натяжной потолок:%0A` +
+                       `• Площадь: ${area}%0A` +
+                       `• Периметр и примыкания: ${perimeter}%0A` +
+                       `• Итого к оплате: ${total}%0A%0A` +
+                       `Рассчитано в приложении PRO Замер`;
+
+            if (navigator.share) {
+                navigator.share({ title: 'Смета потолка', text: decodeURIComponent(text.replace(/%0A/g, '\n')) }).catch(() => {});
+            } else {
+                window.open(`https://wa.me/?text=${text}`, '_blank');
+            }
+        }
+    </script>
+</body>
+</html>
