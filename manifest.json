@@ -2,10 +2,11 @@
   "background_color": "#ffffff",
   "dir": "ltr",
   "display": "standalone",
-  "name": "saniaivsania-create.github",
+  "name": "Ceiling Calculator",
   "orientation": "any",
   "scope": "/",
-  "short_name": "saniaivsania-create.github",
+  "short_name": "Calculator",
   "start_url": "/",
-  "theme_color": "#ffffff"
+  "theme_color": "#ffffff",
+  "description": "Удобный калькулятор для расчета натяжных потолков"
 }
