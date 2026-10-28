@@ -70,6 +70,7 @@
             border-radius: 6px;
         }
 
+        /* Fullscreen Canvas Styling */
         .canvas-card {
             background: var(--card-bg);
             border-radius: 16px;
@@ -79,6 +80,7 @@
             flex-direction: column;
             gap: 10px;
             position: relative;
+            transition: all 0.3s ease;
         }
 
         .canvas-card.fullscreen {
@@ -90,8 +92,9 @@
             z-index: 9999;
             border-radius: 0;
             max-width: none;
-            padding: 20px;
+            padding: 16px;
             background: #070a12;
+            justify-content: space-between;
         }
 
         .canvas-header {
@@ -126,7 +129,7 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 150px);
+            height: calc(100vh - 130px);
         }
 
         .canvas-tools {
@@ -279,6 +282,7 @@
             <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
         </header>
 
+        <!-- Canvas Card с поддержкой полноэкранного режима черчения -->
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
                 <span class="action-hint" id="actionHint">Кликните, чтобы поставить точку А</span>
@@ -291,9 +295,9 @@
             </div>
         </div>
 
-        <!-- Внутренние элементы (вырезы / люки / ниши) -->
+        <!-- Добавление элементов внутрь полотна (вырезы / люки / колонны) -->
         <div class="section-card">
-            <div class="section-title">🕳️ Добавить внутрь (вырезы / люки):</div>
+            <div class="section-title">🕳️ Внутренние вырезы (внутрь полотна):</div>
             <div class="canvas-tools">
                 <button class="btn" onclick="addInnerElement('circle')">⭕ Окружность</button>
                 <button class="btn" onclick="addInnerElement('rect')">⬛ Прямоугольник</button>
@@ -306,7 +310,7 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Материалы и Базовые работы (как на скрире: количество + цена за ед) -->
+        <!-- Материалы и Базовые работы (количество + своя цена) -->
         <div class="section-card">
             <div class="section-title">⚙️ Материалы и Базовые работы</div>
             <div class="grid-inputs">
@@ -353,9 +357,9 @@
         <div class="section-card">
             <div class="section-title">➕ Дополнительные работы (свои)</div>
             <div class="grid-inputs">
-                <input type="text" id="customName1" class="input-field" placeholder="Например: Брус под гардину">
+                <input type="text" id="customName1" class="input-field" placeholder="Например: Брус под гардину" value="Брус под гардину">
                 <input type="number" id="customPrice1" class="input-field" placeholder="Цена ₽" value="0">
-                <input type="text" id="customName2" class="input-field" placeholder="Например: Обход короба">
+                <input type="text" id="customName2" class="input-field" placeholder="Например: Обход короба" value="Обход короба">
                 <input type="number" id="customPrice2" class="input-field" placeholder="Цена ₽" value="0">
             </div>
         </div>
@@ -484,7 +488,6 @@
         function addInnerElement(type) {
             innerElements.push({ type, x: canvas.width / 2 + (Math.random() * 40 - 20), y: canvas.height / 2 + (Math.random() * 40 - 20) });
             drawSketch();
-            alert('Добавлен внутренний элемент: ' + (type === 'circle' ? 'Окружность' : type === 'rect' ? 'Прямоугольник' : 'Треугольник'));
         }
 
         function drawSketch() {
@@ -526,20 +529,20 @@
                 });
             }
 
-            // Рисуем внутренние элементы (люки/вырезы)
+            // Отрисовка внутренних элементов прямо внутри контура
             innerElements.forEach(el => {
                 ctx.strokeStyle = '#ef4444';
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 if (el.type === 'circle') {
-                    ctx.arc(el.x, el.y, 15, 0, Math.PI * 2);
+                    ctx.arc(el.x, el.y, 16, 0, Math.PI * 2);
                 } else if (el.type === 'rect') {
-                    ctx.rect(el.x - 15, el.y - 12, 30, 24);
+                    ctx.rect(el.x - 16, el.y - 12, 32, 24);
                 } else {
-                    ctx.moveTo(el.x, el.y - 15);
-                    ctx.lineTo(el.x + 15, el.y + 15);
-                    ctx.lineTo(el.x - 15, el.y + 15);
+                    ctx.moveTo(el.x, el.y - 16);
+                    ctx.lineTo(el.x + 16, el.y + 16);
+                    ctx.lineTo(el.x - 16, el.y + 16);
                     ctx.closePath();
                 }
                 ctx.fill();
@@ -602,7 +605,7 @@
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
             if (innerElements.length > 0) {
-                area -= innerElements.length * 0.5; // вычитаем площадь люков/вырезов
+                area -= innerElements.length * 0.4; // вычитаем площадь внутренних вырезов
             }
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
