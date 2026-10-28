@@ -275,7 +275,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Чертеж строится автоматически по мм</span>
+                <span class="action-hint" id="actionHint">Чертеж строится автоматически по см</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -283,21 +283,21 @@
 
         <div class="section-card" id="wallsCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="section-title">📏 Длины стен комнаты (мм):</div>
+                <div class="section-title">📏 Длины стен комнаты (см):</div>
                 <button class="btn btn-success" onclick="updateDrawing()" style="padding: 6px 10px; font-size: 11px;">📐 Построить чертеж</button>
             </div>
             <div class="grid-inputs" id="wallsInputsContainer">
-                <div class="input-group"><label>Стена А-В (мм)</label><input type="number" class="input-field wall-len" id="w-ab" value="4000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена В-С (мм)</label><input type="number" class="input-field wall-len" id="w-bc" value="3000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена С-D (мм)</label><input type="number" class="input-field wall-len" id="w-cd" value="4000" step="10" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена D-A (мм)</label><input type="number" class="input-field wall-len" id="w-da" value="3000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена А-В (см)</label><input type="number" class="input-field wall-len" id="w-ab" value="400" step="1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена В-С (см)</label><input type="number" class="input-field wall-len" id="w-bc" value="300" step="1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена С-D (см)</label><input type="number" class="input-field wall-len" id="w-cd" value="400" step="1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена D-A (см)</label><input type="number" class="input-field wall-len" id="w-da" value="300" step="1" oninput="updateDrawing()"></div>
             </div>
         </div>
 
-        <!-- Блок внутренних фигур и кругов с таблицами в мм -->
+        <!-- Блок внутренних фигур и кругов с таблицами в см -->
         <div class="section-card" id="innerCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="section-title">🔶 Острова, ниши и круги (мм):</div>
+                <div class="section-title">🔶 Острова, ниши и круги (см):</div>
                 <div style="display: flex; gap: 4px;">
                     <button class="btn btn-warning" onclick="addShape('rect')" style="padding: 5px 8px; font-size: 10px;">+ Прямоугольник</button>
                     <button class="btn btn-warning" onclick="addShape('circle')" style="padding: 5px 8px; font-size: 10px;">+ Круг</button>
@@ -471,12 +471,12 @@
         function addShape(type) {
             innerShapes.push({
                 type: type,
-                w: '1000',
-                h: '800',
-                d: '1000',
+                w: '100',
+                h: '80',
+                d: '100',
                 fromPoint: 'A',
-                distAB: '500',
-                distBC: '500'
+                distAB: '50',
+                distBC: '50'
             });
             renderInnerInputs();
             updateDrawing();
@@ -499,10 +499,10 @@
                 let title = shape.type === 'rect' ? `Прямоугольник #${idx+1}` : `Круг (Остров) #${idx+1}`;
 
                 let sizeInputs = shape.type === 'rect' ? `
-                    <div class="input-group"><label>Ширина (мм)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" step="10" oninput="syncData()"></div>
-                    <div class="input-group"><label>Длина (мм)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" step="10" oninput="syncData()"></div>
+                    <div class="input-group"><label>Ширина (см)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" step="1" oninput="syncData()"></div>
+                    <div class="input-group"><label>Длина (см)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" step="1" oninput="syncData()"></div>
                 ` : `
-                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (мм)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" step="10" oninput="syncData()"></div>
+                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (см)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" step="1" oninput="syncData()"></div>
                 `;
 
                 box.innerHTML = `
@@ -510,10 +510,10 @@
                         <span>${title}</span> 
                         <button class="btn btn-danger" onclick="removeShape(${idx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>
                     </div>
-                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1. Размеры фигуры (в мм):</div>
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1. Размеры фигуры (в см):</div>
                     <div class="grid-inputs">${sizeInputs}</div>
                     
-                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">2. Привязка к точкам (в мм):</div>
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">2. Привязка к точкам (в см):</div>
                     <div class="grid-inputs">
                         <div class="input-group">
                             <label>От точки</label>
@@ -525,12 +525,12 @@
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>По стене (мм)</label>
-                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" step="10" oninput="syncData()">
+                            <label>По стене (см)</label>
+                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" step="1" oninput="syncData()">
                         </div>
                         <div class="input-group" style="grid-column: span 2;">
-                            <label>Отступ вглубь комнаты (мм)</label>
-                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" step="10" oninput="syncData()">
+                            <label>Отступ вглубь комнаты (см)</label>
+                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" step="1" oninput="syncData()">
                         </div>
                     </div>
                 `;
@@ -577,13 +577,13 @@
             }
 
             const inputs = document.querySelectorAll('.wall-len');
-            let ab = parseFloat(inputs[0].value) || 4000;
-            let bc = parseFloat(inputs[1].value) || 3000;
+            let ab = parseFloat(inputs[0].value) || 400;
+            let bc = parseFloat(inputs[1].value) || 300;
             let cd = parseFloat(inputs[2].value) || ab;
             let da = parseFloat(inputs[3].value) || bc;
 
             let maxDim = Math.max(ab, bc);
-            if (maxDim <= 0) maxDim = 4000;
+            if (maxDim <= 0) maxDim = 400;
             let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
 
             let drawW = ab * scale;
@@ -623,7 +623,7 @@
                 ctx.fillText(k, pts[k].x + 8, pts[k].y - 8);
             });
 
-            // Фигуры с защитой от выхода за стены
+            // Фигуры с защитой от выхода за стены (в см)
             innerShapes.forEach((shape, idx) => {
                 let base = pts[shape.fromPoint] || pts.A;
                 let dimW = parseFloat(shape.type === 'rect' ? shape.w : shape.d) || 0;
@@ -689,25 +689,25 @@
         }
 
         function calculate() {
-            let roomPerimMm = 0;
+            let roomPerimCm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
-                roomPerimMm += parseFloat(input.value) || 0;
+                roomPerimCm += parseFloat(input.value) || 0;
             });
 
-            let roomPerimeterM = roomPerimMm / 1000;
+            let roomPerimeterM = roomPerimCm / 100;
             let area = roomPerimeterM > 0 ? (roomPerimeterM / 4) * (roomPerimeterM / 4) * 1.15 : 0;
             let totalInnerPerimeterM = 0;
 
             innerShapes.forEach(shape => {
                 if (shape.type === 'rect') {
-                    let wM = (parseFloat(shape.w) || 0) / 1000;
-                    let hM = (parseFloat(shape.h) || 0) / 1000;
+                    let wM = (parseFloat(shape.w) || 0) / 100;
+                    let hM = (parseFloat(shape.h) || 0) / 100;
                     let shapePerim = (wM + hM) * 2;
                     let shapeArea = wM * hM;
                     area -= shapeArea;
                     totalInnerPerimeterM += shapePerim;
                 } else {
-                    let dM = (parseFloat(shape.d) || 0) / 1000;
+                    let dM = (parseFloat(shape.d) || 0) / 100;
                     let shapePerim = Math.PI * dM;
                     let shapeArea = Math.PI * Math.pow(dM / 2, 2);
                     area -= shapeArea;
