@@ -66,10 +66,11 @@
 
         .attempts-counter {
             font-size: 13px;
-            color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--success);
+            background: rgba(34, 197, 94, 0.1);
             padding: 4px 8px;
             border-radius: 6px;
+            font-weight: 600;
         }
 
         .canvas-card {
@@ -81,7 +82,6 @@
             flex-direction: column;
             gap: 10px;
             position: relative;
-            transition: all 0.3s ease;
         }
 
         .canvas-card.fullscreen {
@@ -238,31 +238,6 @@
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(7, 10, 18, 0.85);
-            backdrop-filter: blur(8px);
-            z-index: 10000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .modal-content {
-            background: var(--card-bg);
-            border: 1px solid #2a3b5e;
-            border-radius: 20px;
-            padding: 24px;
-            max-width: 380px;
-            width: 100%;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
     </style>
 </head>
 <body>
@@ -270,7 +245,7 @@
     <div class="container">
         <header>
             <div class="logo-title">📐 PRO Замер</div>
-            <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
+            <div class="attempts-counter" id="attemptsCounter">PRO Версия активна ✨</div>
         </header>
 
         <div class="canvas-card" id="canvasCard">
@@ -386,85 +361,23 @@
             </div>
 
             <div class="action-buttons">
-                <button class="btn btn-primary" onclick="performCalculation()" style="padding: 12px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
+                <button class="btn btn-primary" onclick="calculate()" style="padding: 12px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
                 <button class="btn" onclick="shareEstimate()" style="padding: 12px; font-size: 14px;">📤 Отправить смету</button>
             </div>
         </div>
     </div>
 
-    <div class="modal-overlay" id="paywallModal">
-        <div class="modal-content">
-            <div style="font-size: 40px;">🔒</div>
-            <div style="font-size: 18px; font-weight: 700;">Лимит бесплатных расчетов исчерпан</div>
-            <div style="font-size: 13px; color: var(--text-muted);">Для продолжения работы разблокируйте полную версию приложения навсегда.</div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
-            <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Разблокировать за 500 ₽</button>
-            <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить попытки]</button>
-        </div>
-    </div>
-
     <script>
-        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') || '5');
-        let isUnlocked = localStorage.getItem('pro_calc_unlocked') === 'true';
-        updateAttemptsUI();
-
-        function updateAttemptsUI() {
-            const counter = document.getElementById('attemptsCounter');
-            if (isUnlocked) {
-                counter.innerText = 'PRO Версия активна ✨';
-                counter.style.color = 'var(--success)';
-            } else {
-                counter.innerText = `Осталось попыток: ${attempts}`;
-            }
-        }
-
-        function performCalculation() {
-            if (!isUnlocked) {
-                if (attempts <= 0) {
-                    document.getElementById('paywallModal').style.display = 'flex';
-                    return;
-                }
-                attempts--;
-                localStorage.setItem('pro_calc_attempts', attempts);
-                updateAttemptsUI();
-            }
-            calculate();
-        }
-
-        function buyFullVersion() {
-            alert('Переход на оплату...');
-            isUnlocked = true;
-            localStorage.setItem('pro_calc_unlocked', 'true');
-            document.getElementById('paywallModal').style.display = 'none';
-            updateAttemptsUI();
-            calculate();
-        }
-
-        function resetForTesting() {
-            attempts = 5;
-            isUnlocked = false;
-            localStorage.setItem('pro_calc_attempts', '5');
-            localStorage.removeItem('pro_calc_unlocked');
-            document.getElementById('paywallModal').style.display = 'none';
-            updateAttemptsUI();
-            alert('Попытки сброшены до 5!');
-        }
-
-        function toggleFullscreen() {
-            document.getElementById('canvasCard').classList.toggle('fullscreen');
-            resizeCanvas();
-        }
-
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
         function resizeCanvas() {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
+            canvas.width = canvas.clientWidth || 350;
+            canvas.height = canvas.clientHeight || 240;
             updateDrawing();
         }
+
         window.addEventListener('resize', resizeCanvas);
-        setTimeout(resizeCanvas, 100);
 
         let innerShapes = [];
 
@@ -554,7 +467,6 @@
                 if (dab) shape.distAB = dab.value;
                 if (dbc) shape.distBC = dbc.value;
             });
-            updateDrawing();
         }
 
         function updateDrawing() {
@@ -579,8 +491,6 @@
             const inputs = document.querySelectorAll('.wall-len');
             let ab = parseFloat(inputs[0].value) || 400;
             let bc = parseFloat(inputs[1].value) || 300;
-            let cd = parseFloat(inputs[2].value) || ab;
-            let da = parseFloat(inputs[3].value) || bc;
 
             let maxDim = Math.max(ab, bc);
             if (maxDim <= 0) maxDim = 400;
@@ -623,7 +533,7 @@
                 ctx.fillText(k, pts[k].x + 8, pts[k].y - 8);
             });
 
-            // Фигуры с защитой от выхода за стены (в см)
+            // Фигуры с защитой от вылета за стены (в см)
             innerShapes.forEach((shape, idx) => {
                 let base = pts[shape.fromPoint] || pts.A;
                 let dimW = parseFloat(shape.type === 'rect' ? shape.w : shape.d) || 0;
@@ -689,6 +599,7 @@
         }
 
         function calculate() {
+            syncData();
             let roomPerimCm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
                 roomPerimCm += parseFloat(input.value) || 0;
