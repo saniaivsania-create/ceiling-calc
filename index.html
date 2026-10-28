@@ -299,7 +299,7 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами размеров и отрезков -->
+        <!-- Блок внутренних фигур с таблицами размеров -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div class="section-title">🔶 Внутренние фигуры (острова / ниши):</div>
             <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
@@ -470,7 +470,7 @@
             if (drawingMode === 'main') {
                 drawingMode = 'inner';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
-                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры, затем нажмите "+ Сохранить фигуру"';
+                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры. После 3+ точек нажмите "+ Сохранить фигуру"';
             } else {
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Комната';
@@ -482,14 +482,14 @@
 
         function saveCurrentInnerShape() {
             if (currentInnerPoints.length < 3) {
-                alert('Поставьте минимум 3 точки для внутренней фигуры!');
+                document.getElementById('actionHint').innerText = '⚠️ Сначала поставьте минимум 3 точки фигуры на экране!';
                 return;
             }
             innerShapes.push([...currentInnerPoints]);
             currentInnerPoints = [];
             updateInnerInputs();
             drawSketch();
-            alert('Фигура успешно сохранена! Появилась таблица размеров для неё.');
+            document.getElementById('actionHint').innerText = '✅ Фигура сохранена! Можете чертить следующую.';
         }
 
         canvas.addEventListener('pointerdown', (e) => {
