@@ -297,13 +297,13 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Управление и таблицы внутренних фигур -->
+        <!-- Блок внутренних фигур с таблицами длин и кнопкой сохранения -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="section-title">🔶 Внутренние фигуры (острова):</div>
-                <button class="btn btn-warning" onclick="finishCurrentInnerShape()" style="padding: 4px 8px;">+ Сохранить фигуру</button>
+                <button class="btn btn-warning" onclick="saveCurrentInnerShape()" style="padding: 6px 10px;">+ Сохранить фигуру</button>
             </div>
-            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;"></div>
+            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 6px;"></div>
         </div>
 
         <div class="section-card">
@@ -473,11 +473,6 @@
                 document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
                 document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры';
             } else {
-                if (currentInnerPoints.length >= 3) {
-                    innerShapes.push([...currentInnerPoints]);
-                    currentInnerPoints = [];
-                    updateInnerInputs();
-                }
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Контур';
                 let nextLabel = String.fromCharCode(65 + points.length);
@@ -486,16 +481,16 @@
             drawSketch();
         }
 
-        function finishCurrentInnerShape() {
-            if (currentInnerPoints.length >= 3) {
-                innerShapes.push([...currentInnerPoints]);
-                currentInnerPoints = [];
-                updateInnerInputs();
-                drawSketch();
-                alert('Фигура сохранена! Можете добавить еще или рассчитать смету.');
-            } else {
+        function saveCurrentInnerShape() {
+            if (currentInnerPoints.length < 3) {
                 alert('Поставьте минимум 3 точки для внутренней фигуры!');
+                return;
             }
+            innerShapes.push([...currentInnerPoints]);
+            currentInnerPoints = [];
+            updateInnerInputs();
+            drawSketch();
+            alert('Фигура успешно сохранена и добавлена в расчет!');
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -678,8 +673,12 @@
             innerShapes.forEach((shape, sIdx) => {
                 let box = document.createElement('div');
                 box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px;";
-                box.innerHTML = `<div style="font-size: 12px; font-weight: 600; color: var(--warning);">Фигура #${sIdx+1}</div>`;
                 
+                let header = document.createElement('div');
+                header.style.cssText = "display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--warning);";
+                header.innerHTML = `<span>Фигура #${sIdx+1}</span> <button class="btn btn-danger" onclick="removeInnerShape(${sIdx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>`;
+                box.appendChild(header);
+
                 let grid = document.createElement('div');
                 grid.className = 'grid-inputs';
 
@@ -697,6 +696,12 @@
                 box.appendChild(grid);
                 container.appendChild(box);
             });
+        }
+
+        function removeInnerShape(sIdx) {
+            innerShapes.splice(sIdx, 1);
+            updateInnerInputs();
+            drawSketch();
         }
 
         function calculate() {
