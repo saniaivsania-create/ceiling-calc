@@ -292,8 +292,14 @@
         </div>
 
         <div class="section-card" id="wallsCard" style="display: none;">
-            <div class="section-title">📏 Длины стен (м):</div>
+            <div class="section-title">📏 Длины стен комнаты (м):</div>
             <div class="grid-inputs" id="wallsInputsContainer"></div>
+        </div>
+
+        <!-- Блок для настройки внутренних фигур с таблицами длин -->
+        <div class="section-card" id="innerCard" style="display: none;">
+            <div class="section-title">🔶 Длины сторон внутренних фигур (м):</div>
+            <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
         </div>
 
         <div class="section-card">
@@ -304,7 +310,7 @@
                     <input type="number" id="priceCanvas" class="input-field" value="650">
                 </div>
                 <div class="input-group">
-                    <label>Профиль (₽/м.п.)</label>
+                    <label>Багет (₽/м.п.)</label>
                     <input type="number" id="priceProfile" class="input-field" value="250">
                 </div>
             </div>
@@ -354,7 +360,7 @@
                 <span id="resArea">—</span>
             </div>
             <div class="result-row">
-                <span>Периметр стен:</span>
+                <span>Общий багет:</span>
                 <span id="resPerimeter">—</span>
             </div>
             <div class="result-row">
@@ -452,20 +458,31 @@
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 100);
 
-        let points = []; // точки основного контура
-        let innerPoints = []; // точки внутренней фигуры (желтые)
+        let points = []; 
+        let innerShapes = []; // массив внутренних фигур (каждая со своими точками)
+        let currentInnerPoints = [];
         let drawingMode = 'main'; // 'main' или 'inner'
 
         function toggleDrawingMode() {
             if (drawingMode === 'main') {
+                if (currentInnerPoints.length > 0) {
+                    innerShapes.push([...currentInnerPoints]);
+                    currentInnerPoints = [];
+                }
                 drawingMode = 'inner';
-                document.getElementById('modeBtn').innerText = '✨ Режим: Внутренняя фигура';
-                document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы ставить желтые точки фигуры';
+                document.getElementById('modeBtn').innerText = '✨ Режим: Рисуем фигуру';
+                document.getElementById('actionHint').innerText = 'Ставьте точки внутренней фигуры (нажмите еще раз для сохранения)';
             } else {
+                if (currentInnerPoints.length >= 3) {
+                    innerShapes.push([...currentInnerPoints]);
+                    currentInnerPoints = [];
+                }
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
                 document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
+                updateInnerInputs();
             }
+            drawSketch();
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -479,8 +496,8 @@
                 let nextLabel = String.fromCharCode(65 + points.length);
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             } else {
-                innerPoints.push({ x, y });
-                document.getElementById('actionHint').innerText = `Поставлена точка внутренней фигуры (${innerPoints.length})`;
+                currentInnerPoints.push({ x, y });
+                document.getElementById('actionHint').innerText = `Точка внутренней фигуры (${currentInnerPoints.length})`;
             }
             drawSketch();
         });
@@ -488,7 +505,6 @@
         function drawSketch() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -498,7 +514,7 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
-            // 1. Рисуем основной контур комнаты
+            // Основной контур
             if (points.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -526,37 +542,57 @@
                 });
             }
 
-            // 2. Рисуем внутреннюю фигуру (желтую)
-            if (innerPoints.length > 0) {
-                ctx.beginPath();
-                ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
-                for (let i = 1; i < innerPoints.length; i++) {
-                    ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
+            // Сохраненные внутренние фигуры
+            innerShapes.forEach((shape, sIdx) => {
+                if (shape.length > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(shape[0].x, shape[0].y);
+                    for (let i = 1; i < shape.length; i++) {
+                        ctx.lineTo(shape[i].x, shape[i].y);
+                    }
+                    if (shape.length > 2) ctx.closePath();
+                    
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    shape.forEach((p, index) => {
+                        ctx.fillStyle = '#f59e0b';
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#f59e0b';
+                        ctx.font = '11px Segoe UI';
+                        ctx.fillText(`Ф${sIdx+1}-${index+1}`, p.x + 8, p.y - 8);
+                    });
                 }
-                if (innerPoints.length > 2) ctx.closePath();
-                
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
-                ctx.fill();
+            });
+
+            // Текущая рисуемая внутренняя фигура
+            if (currentInnerPoints.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(currentInnerPoints[0].x, currentInnerPoints[0].y);
+                for (let i = 1; i < currentInnerPoints.length; i++) {
+                    ctx.lineTo(currentInnerPoints[i].x, currentInnerPoints[i].y);
+                }
                 ctx.strokeStyle = '#f59e0b';
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                innerPoints.forEach((p, index) => {
+                currentInnerPoints.forEach((p, index) => {
                     ctx.fillStyle = '#f59e0b';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
                     ctx.fill();
-
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.font = '11px Segoe UI';
-                    ctx.fillText(`В${index+1}`, p.x + 8, p.y - 8);
                 });
             }
         }
 
         function undoPoint() {
-            if (drawingMode === 'inner' && innerPoints.length > 0) {
-                innerPoints.pop();
+            if (drawingMode === 'inner' && currentInnerPoints.length > 0) {
+                currentInnerPoints.pop();
             } else {
                 points.pop();
                 updateWallsInputs();
@@ -566,11 +602,13 @@
 
         function resetSketch() {
             points = [];
-            innerPoints = [];
+            innerShapes = [];
+            currentInnerPoints = [];
             drawingMode = 'main';
             document.getElementById('modeBtn').innerText = '✨ Режим: Основной контур';
             drawSketch();
             updateWallsInputs();
+            updateInnerInputs();
             document.getElementById('actionHint').innerText = 'Коснитесь экрана, чтобы поставить точку А';
             document.getElementById('resArea').innerText = '—';
             document.getElementById('resPerimeter').innerText = '—';
@@ -604,6 +642,41 @@
             }
         }
 
+        function updateInnerInputs() {
+            const container = document.getElementById('innerInputsContainer');
+            const card = document.getElementById('innerCard');
+            container.innerHTML = '';
+
+            if (innerShapes.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = 'flex';
+
+            innerShapes.forEach((shape, sIdx) => {
+                let box = document.createElement('div');
+                box.style.cssText = "background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px;";
+                box.innerHTML = `<div style="font-size: 12px; font-weight: 600; color: var(--warning);">Фигура #${sIdx+1}</div>`;
+                
+                let grid = document.createElement('div');
+                grid.className = 'grid-inputs';
+
+                for (let i = 0; i < shape.length; i++) {
+                    let p1 = i + 1;
+                    let p2 = ((i + 1) % shape.length) + 1;
+                    let div = document.createElement('div');
+                    div.className = 'input-group';
+                    div.innerHTML = `
+                        <label>Сторона Ф${sIdx+1} (${p1}-${p2}) м</label>
+                        <input type="number" class="input-field inner-len-${sIdx}" value="1.5" step="0.1">
+                    `;
+                    grid.appendChild(div);
+                }
+                box.appendChild(grid);
+                container.appendChild(box);
+            });
+        }
+
         function calculate() {
             let perimeter = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
@@ -611,15 +684,19 @@
             });
 
             let area = perimeter > 0 ? (perimeter / 4) * (perimeter / 4) * 1.15 : 0;
-            let innerPerimeter = 0;
+            let totalInnerPerimeter = 0;
 
-            // Если есть внутренняя фигура с тремя и более точками, считаем её площадь и периметр
-            if (innerPoints.length >= 3) {
-                let innerArea = 3.5; // условная базовая площадь для теста
-                let innerP = innerPoints.length * 1.2; // условный периметр
-                area -= innerArea;
-                innerPerimeter += innerP;
-            }
+            innerShapes.forEach((shape, sIdx) => {
+                let shapePerim = 0;
+                document.querySelectorAll(`.inner-len-${sIdx}`).forEach(input => {
+                    shapePerim += parseFloat(input.value) || 0;
+                });
+                let shapeArea = shapePerim > 0 ? (shapePerim / 4) * (shapePerim / 4) * 0.8 : 2.0;
+                area -= shapeArea;
+                totalInnerPerimeter += shapePerim;
+            });
+
+            let totalBaget = perimeter + totalInnerPerimeter;
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
@@ -643,12 +720,12 @@
             let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
             let canvasCost = area * pCanvas;
-            let profileCost = (perimeter + innerPerimeter) * pProfile;
+            let profileCost = totalBaget * pProfile;
             let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resPerimeter').innerText = (perimeter + innerPerimeter).toFixed(2) + ' м';
+            document.getElementById('resPerimeter').innerText = totalBaget.toFixed(2) + ' м';
             document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
@@ -660,11 +737,11 @@
                 return;
             }
             let area = document.getElementById('resArea').innerText;
-            let perimeter = document.getElementById('resPerimeter').innerText;
+            let baget = document.getElementById('resPerimeter').innerText;
 
             let text = `📋 Смета на натяжной потолок:%0A` +
-                       `• Площадь: ${area}%0A` +
-                       `• Периметр и примыкания: ${perimeter}%0A` +
+                       `• Площадь полотна: ${area}%0A` +
+                       `• Общий багет: ${baget}%0A` +
                        `• Итого к оплате: ${total}%0A%0A` +
                        `Рассчитано в приложении PRO Замер`;
 
