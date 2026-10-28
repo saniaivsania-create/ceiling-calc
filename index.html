@@ -128,7 +128,7 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 160px);
+            height: calc(100vh - 180px);
         }
 
         .canvas-tools {
@@ -143,7 +143,7 @@
             color: var(--text-main);
             padding: 9px 6px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
@@ -290,7 +290,7 @@
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отменить</button>
                 <button class="btn btn-warning" onclick="toggleDrawingMode()" id="modeBtn">✨ Режим: Комната</button>
-                <button class="btn btn-success" onclick="saveCurrentInnerShape()">💾 Сохранить фигуру</button>
+                <button class="btn btn-success" onclick="saveCurrentInnerShape()">➕ Сохранить фигуру</button>
             </div>
         </div>
 
@@ -299,7 +299,7 @@
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
-        <!-- Блок внутренних фигур с таблицами размеров -->
+        <!-- Блок внутренних фигур с таблицами размеров и отрезков -->
         <div class="section-card" id="innerCard" style="display: none;">
             <div class="section-title">🔶 Внутренние фигуры (острова / ниши):</div>
             <div id="innerInputsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
@@ -470,7 +470,7 @@
             if (drawingMode === 'main') {
                 drawingMode = 'inner';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Фигура';
-                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры. Затем нажмите кнопку "Сохранить фигуру"';
+                document.getElementById('actionHint').innerText = 'Ставьте точки фигуры, затем нажмите "+ Сохранить фигуру"';
             } else {
                 drawingMode = 'main';
                 document.getElementById('modeBtn').innerText = '✨ Режим: Комната';
@@ -489,7 +489,7 @@
             currentInnerPoints = [];
             updateInnerInputs();
             drawSketch();
-            alert('Фигура успешно сохранена! Можете чертить следующую фигуру.');
+            alert('Фигура успешно сохранена! Появилась таблица размеров для неё.');
         }
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -504,7 +504,7 @@
                 document.getElementById('actionHint').innerText = `Коснитесь экрана, чтобы поставить точку ${nextLabel}`;
             } else {
                 currentInnerPoints.push({ x, y });
-                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length}). Нажмите "Сохранить фигуру" снизу`;
+                document.getElementById('actionHint').innerText = `Точка фигуры (${currentInnerPoints.length}). Нажмите "+ Сохранить фигуру"`;
             }
             drawSketch();
         });
@@ -675,7 +675,7 @@
                 
                 let header = document.createElement('div');
                 header.style.cssText = "display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--warning);";
-                header.innerHTML = `<span>Фигура #${sIdx+1} (${shape. углов || shape.length} углов)</span> <button class="btn btn-danger" onclick="removeInnerShape(${sIdx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>`;
+                header.innerHTML = `<span>Фигура #${sIdx+1} (${shape.length} сторон)</span> <button class="btn btn-danger" onclick="removeInnerShape(${sIdx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>`;
                 box.appendChild(header);
 
                 let grid = document.createElement('div');
