@@ -275,7 +275,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Чертеж строится по точным цифрам и привязкам</span>
+                <span class="action-hint" id="actionHint">Введите размеры в мм и нажмите построить</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -283,21 +283,21 @@
 
         <div class="section-card" id="wallsCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="section-title">📏 Длины стен комнаты (м):</div>
+                <div class="section-title">📏 Длины стен комнаты (мм):</div>
                 <button class="btn btn-success" onclick="updateDrawing()" style="padding: 6px 10px; font-size: 11px;">📐 Построить чертеж</button>
             </div>
             <div class="grid-inputs" id="wallsInputsContainer">
-                <div class="input-group"><label>Стена А-В (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена В-С (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена С-D (м)</label><input type="number" class="input-field wall-len" value="6.0" step="0.1" oninput="updateDrawing()"></div>
-                <div class="input-group"><label>Стена D-A (м)</label><input type="number" class="input-field wall-len" value="4.0" step="0.1" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена А-В (мм)</label><input type="number" class="input-field wall-len" id="w-ab" placeholder="например: 4000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена В-С (мм)</label><input type="number" class="input-field wall-len" id="w-bc" placeholder="например: 3000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена С-D (мм)</label><input type="number" class="input-field wall-len" id="w-cd" placeholder="например: 4000" step="10" oninput="updateDrawing()"></div>
+                <div class="input-group"><label>Стена D-A (мм)</label><input type="number" class="input-field wall-len" id="w-da" placeholder="например: 3000" step="10" oninput="updateDrawing()"></div>
             </div>
         </div>
 
-        <!-- Блок внутренних фигур и кругов с двумя таблицами: размеры + привязка -->
+        <!-- Блок внутренних фигур и кругов с таблицами -->
         <div class="section-card" id="innerCard">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="section-title">🔶 Острова, ниши и круги:</div>
+                <div class="section-title">🔶 Острова, ниши и круги (мм):</div>
                 <div style="display: flex; gap: 4px;">
                     <button class="btn btn-warning" onclick="addShape('rect')" style="padding: 5px 8px; font-size: 10px;">+ Прямоугольник</button>
                     <button class="btn btn-warning" onclick="addShape('circle')" style="padding: 5px 8px; font-size: 10px;">+ Круг</button>
@@ -471,12 +471,12 @@
         function addShape(type) {
             innerShapes.push({
                 type: type, // 'rect' или 'circle'
-                w: 1.5,
-                h: 1.5,
-                d: 1.0, // для круга (диаметр)
+                w: '',
+                h: '',
+                d: '',
                 fromPoint: 'A',
-                distAB: 1.0, // расстояние по стене AB от выбранной точки
-                distBC: 1.0  // отступ внутрь комнаты
+                distAB: '',
+                distBC: ''
             });
             renderInnerInputs();
             updateDrawing();
@@ -499,10 +499,10 @@
                 let title = shape.type === 'rect' ? `Прямоугольник #${idx+1}` : `Круг (Остров) #${idx+1}`;
 
                 let sizeInputs = shape.type === 'rect' ? `
-                    <div class="input-group"><label>Ширина (м)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" step="0.1" oninput="syncData()"></div>
-                    <div class="input-group"><label>Длина (м)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" step="0.1" oninput="syncData()"></div>
+                    <div class="input-group"><label>Ширина (мм)</label><input type="number" class="input-field" id="s-w-${idx}" value="${shape.w}" placeholder="мм" step="10" oninput="syncData()"></div>
+                    <div class="input-group"><label>Длина (мм)</label><input type="number" class="input-field" id="s-h-${idx}" value="${shape.h}" placeholder="мм" step="10" oninput="syncData()"></div>
                 ` : `
-                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (м)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" step="0.1" oninput="syncData()"></div>
+                    <div class="input-group" style="grid-column: span 2;"><label>Диаметр круга (мм)</label><input type="number" class="input-field" id="s-d-${idx}" value="${shape.d}" placeholder="мм" step="10" oninput="syncData()"></div>
                 `;
 
                 box.innerHTML = `
@@ -510,10 +510,10 @@
                         <span>${title}</span> 
                         <button class="btn btn-danger" onclick="removeShape(${idx})" style="padding: 2px 6px; font-size: 10px;">Удалить</button>
                     </div>
-                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1. Размеры фигуры:</div>
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1. Размеры фигуры (в мм):</div>
                     <div class="grid-inputs">${sizeInputs}</div>
                     
-                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">2. Привязка к точкам/стенам:</div>
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">2. Привязка к точкам (в мм):</div>
                     <div class="grid-inputs">
                         <div class="input-group">
                             <label>От точки</label>
@@ -525,12 +525,12 @@
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>По стене (м)</label>
-                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" step="0.1" oninput="syncData()">
+                            <label>По стене (мм)</label>
+                            <input type="number" class="input-field" id="s-dab-${idx}" value="${shape.distAB}" placeholder="мм" step="10" oninput="syncData()">
                         </div>
                         <div class="input-group" style="grid-column: span 2;">
-                            <label>Отступ вглубь комнаты (м)</label>
-                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" step="0.1" oninput="syncData()">
+                            <label>Отступ вглубь комнаты (мм)</label>
+                            <input type="number" class="input-field" id="s-dbc-${idx}" value="${shape.distBC}" placeholder="мм" step="10" oninput="syncData()">
                         </div>
                     </div>
                 `;
@@ -547,12 +547,12 @@
                 let dab = document.getElementById(`s-dab-${idx}`);
                 let dbc = document.getElementById(`s-dbc-${idx}`);
 
-                if (w) shape.w = parseFloat(w.value) || 1.0;
-                if (h) shape.h = parseFloat(h.value) || 1.0;
-                if (d) shape.d = parseFloat(d.value) || 1.0;
+                if (w) shape.w = w.value;
+                if (h) shape.h = h.value;
+                if (d) shape.d = d.value;
                 if (pt) shape.fromPoint = pt.value;
-                if (dab) shape.distAB = parseFloat(dab.value) || 0.5;
-                if (dbc) shape.distBC = parseFloat(dbc.value) || 0.5;
+                if (dab) shape.distAB = dab.value;
+                if (dbc) shape.distBC = dbc.value;
             });
             updateDrawing();
         }
@@ -575,10 +575,8 @@
             }
 
             const inputs = document.querySelectorAll('.wall-len');
-            if (inputs.length < 4) return;
-
-            let ab = parseFloat(inputs[0].value) || 6.0;
-            let bc = parseFloat(inputs[1].value) || 4.0;
+            let ab = parseFloat(inputs[0].value) || 4000;
+            let bc = parseFloat(inputs[1].value) || 3000;
 
             let maxDim = Math.max(ab, bc);
             let scale = (Math.min(canvas.width, canvas.height) * 0.65) / maxDim;
@@ -589,7 +587,6 @@
             let startX = (canvas.width - drawW) / 2;
             let startY = (canvas.height - drawH) / 2;
 
-            // Координаты углов комнаты
             let pts = {
                 A: { x: startX, y: startY },
                 B: { x: startX + drawW, y: startY },
@@ -621,37 +618,40 @@
                 ctx.fillText(k, pts[k].x + 8, pts[k].y - 8);
             });
 
-            // Отрисовка внутренних фигур с защитой от вылета за пределы комнаты
+            // Отрисовка внутренних фигур в мм с защитой от выхода за стены
             innerShapes.forEach((shape, idx) => {
                 let base = pts[shape.fromPoint] || pts.A;
-                let sW = (shape.type === 'rect' ? shape.w : shape.d) * scale;
-                let sH = (shape.type === 'rect' ? shape.h : shape.d) * scale;
-                let shiftAB = shape.distAB * scale;
-                let shiftBC = shape.distBC * scale;
+                let dimW = parseFloat(shape.type === 'rect' ? shape.w : shape.d) || 0;
+                let dimH = parseFloat(shape.type === 'rect' ? shape.h : shape.d) || 0;
+                let shiftAB = parseFloat(shape.distAB) || 0;
+                let shiftBC = parseFloat(shape.distBC) || 0;
+
+                let sW = dimW * scale;
+                let sH = dimH * scale;
+                let dAB = shiftAB * scale;
+                let dBC = shiftBC * scale;
 
                 let sX = base.x;
                 let sY = base.y;
 
                 if (shape.fromPoint === 'A') {
-                    sX += shiftAB; sY += shiftBC;
-                    // Защита границ
+                    sX += dAB; sY += dBC;
                     if (sX + sW > pts.B.x) sX = pts.B.x - sW;
                     if (sY + sH > pts.D.y) sY = pts.D.y - sH;
                 } else if (shape.fromPoint === 'B') {
-                    sX -= (shiftAB + sW); sY += shiftBC;
+                    sX -= (dAB + sW); sY += dBC;
                     if (sX < pts.A.x) sX = pts.A.x;
                     if (sY + sH > pts.C.y) sY = pts.C.y - sH;
                 } else if (shape.fromPoint === 'C') {
-                    sX -= (shiftAB + sW); sY -= (shiftBC + sH);
+                    sX -= (dAB + sW); sY -= (dBC + sH);
                     if (sX < pts.D.x) sX = pts.D.x;
                     if (sY < pts.B.y) sY = pts.B.y;
                 } else if (shape.fromPoint === 'D') {
-                    sX += shiftAB; sY -= (shiftBC + sH);
+                    sX += dAB; sY -= (dBC + sH);
                     if (sX + sW > pts.C.x) sX = pts.C.x - sW;
                     if (sY < pts.A.y) sY = pts.A.y;
                 }
 
-                // Пунктир привязки
                 ctx.save();
                 ctx.strokeStyle = '#f59e0b';
                 ctx.lineWidth = 1.5;
@@ -684,29 +684,33 @@
         }
 
         function calculate() {
-            let roomPerimeter = 0;
+            let roomPerimMm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
-                roomPerimeter += parseFloat(input.value) || 0;
+                roomPerimMm += parseFloat(input.value) || 0;
             });
 
-            let area = roomPerimeter > 0 ? (roomPerimeter / 4) * (roomPerimeter / 4) * 1.15 : 0;
-            let totalInnerPerimeter = 0;
+            let roomPerimeterM = roomPerimMm / 1000;
+            let area = roomPerimeterM > 0 ? (roomPerimeterM / 4) * (roomPerimeterM / 4) * 1.15 : 0;
+            let totalInnerPerimeterM = 0;
 
             innerShapes.forEach(shape => {
                 if (shape.type === 'rect') {
-                    let shapePerim = (shape.w + shape.h) * 2;
-                    let shapeArea = shape.w * shape.h;
+                    let wM = (parseFloat(shape.w) || 0) / 1000;
+                    let hM = (parseFloat(shape.h) || 0) / 1000;
+                    let shapePerim = (wM + hM) * 2;
+                    let shapeArea = wM * hM;
                     area -= shapeArea;
-                    totalInnerPerimeter += shapePerim;
+                    totalInnerPerimeterM += shapePerim;
                 } else {
-                    let shapePerim = Math.PI * shape.d;
-                    let shapeArea = Math.PI * Math.pow(shape.d / 2, 2);
+                    let dM = (parseFloat(shape.d) || 0) / 1000;
+                    let shapePerim = Math.PI * dM;
+                    let shapeArea = Math.PI * Math.pow(dM / 2, 2);
                     area -= shapeArea;
-                    totalInnerPerimeter += shapePerim;
+                    totalInnerPerimeterM += shapePerim;
                 }
             });
 
-            let totalBaget = roomPerimeter + totalInnerPerimeter;
+            let totalBaget = roomPerimeterM + totalInnerPerimeterM;
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
@@ -735,8 +739,8 @@
             let total = canvasCost + profileCost + mountingCost;
 
             document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resRoomPerim').innerText = roomPerimeter.toFixed(2) + ' м';
-            document.getElementById('resInnerPerim').innerText = totalInnerPerimeter.toFixed(2) + ' м';
+            document.getElementById('resRoomPerim').innerText = roomPerimeterM.toFixed(2) + ' м';
+            document.getElementById('resInnerPerim').innerText = totalInnerPerimeterM.toFixed(2) + ' м';
             document.getElementById('resPerimeter').innerText = totalBaget.toFixed(2) + ' м';
             document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
