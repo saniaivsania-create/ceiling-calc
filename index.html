@@ -287,7 +287,6 @@
             <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
         </header>
 
-        <!-- Блок клиента и сохранения -->
         <div class="section-card">
             <div class="section-title">👤 Данные клиента и объекта</div>
             <div class="grid-inputs">
@@ -409,7 +408,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно оплаты для RuStore -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
             <div style="font-size: 40px;">🔒</div>
@@ -488,6 +486,7 @@
         let points = [];
         let historyState = [];
         let draggedPoint = null;
+        let baseCmScale = 400; // Базовый размер для масштабирования пикселей в см
 
         function saveState() {
             historyState.push(points.map(p => ({ x: p.x, y: p.y, label: p.label })));
@@ -516,6 +515,7 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
+            // Проверяем захват существующей точки
             for (let p of points) {
                 if (Math.hypot(p.x - x, p.y - y) < 35) {
                     saveState();
@@ -524,6 +524,7 @@
                 }
             }
 
+            // Добавление новой точки с правильной маркировкой (A, B, C, D, E...)
             saveState();
             let labelCharCode = 65 + points.length;
             let label = String.fromCharCode(labelCharCode);
@@ -577,21 +578,20 @@
             }
             card.style.display = 'flex';
 
-            // Автоматический подсчет доп. углов (>4)
+            // Автоматический подсчет дополнительных углов (>4)
             let extraAngles = points.length > 4 ? points.length - 4 : 0;
             document.getElementById('countAngles').value = extraAngles;
 
-            let pixelLen0 = points.length >= 2 ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 150;
+            let pixelLen0 = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
             if (pixelLen0 === 0) pixelLen0 = 150;
 
             for (let i = 0; i < points.length; i++) {
                 let p1 = points[i].label;
                 let p2 = points[(i + 1) % points.length].label;
-                if (i === points.length - 1 && points.length < 3) break;
 
                 let nextP = points[(i + 1) % points.length];
                 let pxDist = Math.hypot(nextP.x - points[i].x, nextP.y - points[i].y);
-                let cmVal = Math.round(pxDist * (400 / pixelLen0));
+                let cmVal = Math.round(pxDist * (baseCmScale / pixelLen0));
 
                 let div = document.createElement('div');
                 div.className = 'input-group';
@@ -623,6 +623,7 @@
                 return;
             }
 
+            // Полупрозрачные диагонали (если точек 4 и более)
             if (points.length >= 4) {
                 ctx.save();
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -641,6 +642,7 @@
                 ctx.restore();
             }
 
+            // Контур комнаты
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             for (let i = 1; i < points.length; i++) {
@@ -654,14 +656,15 @@
             ctx.lineWidth = 2.5;
             ctx.stroke();
 
+            // Отрисовка отрезков и размеров
             points.forEach((p, index) => {
                 let nextP = points[(index + 1) % points.length];
-                if (points.length < 3 && index === points.length - 1) return;
+                if (points.length < 2) return;
 
                 let inputField = document.querySelector(`.wall-len[data-index="${index}"]`);
                 let lenCm = inputField ? inputField.value : '';
 
-                if (lenCm) {
+                if (lenCm && points.length >= 2) {
                     let midX = (p.x + nextP.x) / 2;
                     let midY = (p.y + nextP.y) / 2;
 
@@ -681,7 +684,6 @@
             });
         }
 
-        // Сохранение и Загрузка проектов в localStorage
         function saveProject() {
             let name = document.getElementById('clientName').value.trim();
             let address = document.getElementById('clientAddress').value.trim();
