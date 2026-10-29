@@ -90,7 +90,7 @@
             z-index: 9999;
             border-radius: 0;
             max-width: none;
-            padding: 12px;
+            padding: 16px;
             background: #070a12;
             justify-content: space-between;
         }
@@ -128,20 +128,20 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 120px);
+            height: calc(100vh - 160px);
         }
 
-        /* Полупрозрачная панель управления для полноэкранного режима */
+        /* Плавающая полупрозрачная панель чуть выше в полноэкранном режиме */
         .floating-tools {
             position: absolute;
-            bottom: 24px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
             gap: 8px;
-            background: rgba(19, 27, 46, 0.85);
+            background: rgba(19, 27, 46, 0.9);
             backdrop-filter: blur(6px);
-            padding: 8px 12px;
+            padding: 10px 14px;
             border-radius: 12px;
             border: 1px solid var(--border);
             z-index: 10000;
@@ -276,8 +276,8 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Удерживайте и тащите углы (A, B, C, D) пальцем</span>
-                <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
+                <span class="action-hint" id="actionHint">Тащите углы (A, B, C, D) или введите цифры ниже</span>
+                <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fsBtnText">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
             
@@ -285,14 +285,15 @@
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
-                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить чертеж</button>
+                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить</button>
             </div>
 
-            <!-- Плавающая полупрозрачная панель для полноэкранного режима -->
+            <!-- Плавающая полупрозрачная панель чуть выше для полноэкранного режима -->
             <div class="floating-tools">
                 <button class="btn" onclick="undoPoint()" style="background: rgba(255,255,255,0.15); color:white;">↩️ Отмена</button>
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-success" onclick="toggleFullscreen()">✖ Закрыть</button>
+                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить</button>
+                <button class="btn btn-primary" onclick="toggleFullscreen()">✖ Закрыть</button>
             </div>
         </div>
 
@@ -301,19 +302,19 @@
             <div class="grid-inputs" id="wallsInputsContainer">
                 <div class="input-group">
                     <label>Стена А-В (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-0" value="400" step="1" oninput="buildFromNumbers()">
+                    <input type="number" class="input-field wall-len" id="len-0" value="" placeholder="например: 400" step="1" oninput="buildFromNumbers()">
                 </div>
                 <div class="input-group">
                     <label>Стена В-С (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-1" value="300" step="1" oninput="buildFromNumbers()">
+                    <input type="number" class="input-field wall-len" id="len-1" value="" placeholder="например: 300" step="1" oninput="buildFromNumbers()">
                 </div>
                 <div class="input-group">
                     <label>Стена С-D (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-2" value="400" step="1" oninput="buildFromNumbers()">
+                    <input type="number" class="input-field wall-len" id="len-2" value="" placeholder="например: 400" step="1" oninput="buildFromNumbers()">
                 </div>
                 <div class="input-group">
                     <label>Стена D-A (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-3" value="300" step="1" oninput="buildFromNumbers()">
+                    <input type="number" class="input-field wall-len" id="len-3" value="" placeholder="например: 300" step="1" oninput="buildFromNumbers()">
                 </div>
             </div>
         </div>
@@ -403,7 +404,7 @@
         function resizeCanvas() {
             canvas.width = canvas.clientWidth || 350;
             canvas.height = canvas.clientHeight || 260;
-            buildFromNumbers();
+            drawSketch();
         }
 
         window.addEventListener('resize', resizeCanvas);
@@ -414,13 +415,8 @@
             resizeCanvas();
         }
 
-        let points = [
-            { x: 80, y: 60, label: 'A' },
-            { x: 270, y: 60, label: 'B' },
-            { x: 270, y: 200, label: 'C' },
-            { x: 80, y: 200, label: 'D' }
-        ];
-
+        // Изначально пустой массив точек (чистый лист)
+        let points = [];
         let historyState = [];
         let draggedPoint = null;
 
@@ -429,13 +425,19 @@
             if (historyState.length > 20) historyState.shift();
         }
 
-        // Построение по цифрам из таблицы
+        // Построение чертежа по введенным цифрам в таблице
         function buildFromNumbers() {
             let inputs = document.querySelectorAll('.wall-len');
-            if (inputs.length < 4) return;
+            let ab = parseFloat(inputs[0].value) || 0;
+            let bc = parseFloat(inputs[1].value) || 0;
+            let cd = parseFloat(inputs[2].value) || ab;
+            let da = parseFloat(inputs[3].value) || bc;
 
-            let ab = parseFloat(inputs[0].value) || 400;
-            let bc = parseFloat(inputs[1].value) || 300;
+            if (ab <= 0 || bc <= 0) {
+                points = [];
+                drawSketch();
+                return;
+            }
 
             let maxDim = Math.max(ab, bc);
             let scale = (Math.min(canvas.width, canvas.height) * 0.55) / maxDim;
@@ -446,10 +448,12 @@
             let startX = (canvas.width - drawW) / 2;
             let startY = (canvas.height - drawH) / 2;
 
-            points[0] = { x: startX, y: startY, label: 'A' };
-            points[1] = { x: startX + drawW, y: startY, label: 'B' };
-            points[2] = { x: startX + drawW, y: startY + drawH, label: 'C' };
-            points[3] = { x: startX, y: startY + drawH, label: 'D' };
+            points = [
+                { x: startX, y: startY, label: 'A' },
+                { x: startX + drawW, y: startY, label: 'B' },
+                { x: startX + drawW, y: startY + drawH, label: 'C' },
+                { x: startX, y: startY + drawH, label: 'D' }
+            ];
 
             drawSketch();
         }
@@ -460,9 +464,24 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
+            if (points.length === 0) {
+                // Если точек нет, первая точка ставится по клику
+                saveState();
+                points.push({ x, y, label: 'A' });
+                drawSketch();
+                return;
+            } else if (points.length < 4) {
+                saveState();
+                let labels = ['B', 'C', 'D'];
+                points.push({ x, y, label: labels[points.length - 1] });
+                updateTableFromDrawing();
+                drawSketch();
+                return;
+            }
+
             points.forEach((p) => {
                 let dist = Math.hypot(p.x - x, p.y - y);
-                if (dist < 30) {
+                if (dist < 35) {
                     saveState();
                     draggedPoint = p;
                 }
@@ -487,15 +506,20 @@
         function undoPoint() {
             if (historyState.length > 0) {
                 points = historyState.pop();
-                updateTableFromDrawing();
+                if (points.length >= 4) {
+                    updateTableFromDrawing();
+                }
                 drawSketch();
             } else {
-                alert('Нечего отменять!');
+                points = [];
+                document.querySelectorAll('.wall-len').forEach(input => input.value = '');
+                drawSketch();
             }
         }
 
-        // Обновление цифр в таблице при растягивании чертежа
+        // Синхронизация таблицы при ручном перетаскивании углов
         function updateTableFromDrawing() {
+            if (points.length < 4) return;
             let pixelLen0 = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
             let pixelLen1 = Math.hypot(points[2].x - points[1].x, points[2].y - points[1].y);
             let pixelLen2 = Math.hypot(points[3].x - points[2].x, points[3].y - points[2].y);
@@ -525,13 +549,57 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
+            if (points.length === 0) {
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '13px Segoe UI';
+                ctx.fillText('Нажмите на экран, чтобы поставить точку А', 20, 30);
+                return;
+            }
+
+            // Рисуем полупрозрачные диагонали (если 4 точки)
+            if (points.length === 4) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+
+                // Диагональ A-C
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                ctx.lineTo(points[2].x, points[2].y);
+                ctx.stroke();
+
+                // Диагональ B-D
+                ctx.beginPath();
+                ctx.moveTo(points[1].x, points[1].y);
+                ctx.lineTo(points[3].x, points[3].y);
+                ctx.stroke();
+
+                // Расчет длин диагоналей в см
+                let inputs = document.querySelectorAll('.wall-len');
+                let px0 = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+                let cm0 = parseFloat(inputs[0].value) || 400;
+                let ratio = px0 > 0 ? cm0 / px0 : 1;
+
+                let diagAC = Math.hypot(points[2].x - points[0].x, points[2].y - points[0].y) * ratio;
+                let diagBD = Math.hypot(points[3].x - points[1].x, points[3].y - points[1].y) * ratio;
+
+                // Подписи диагоналей
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.font = '10px Segoe UI';
+                ctx.fillText(`д: ${Math.round(diagAC)} см`, (points[0].x + points[2].x)/2 + 5, (points[0].y + points[2].y)/2);
+                ctx.fillText(`д: ${Math.round(diagBD)} см`, (points[1].x + points[3].x)/2 + 5, (points[1].y + points[3].y)/2);
+
+                ctx.restore();
+            }
+
             // Комната
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             for (let i = 1; i < points.length; i++) {
                 ctx.lineTo(points[i].x, points[i].y);
             }
-            ctx.closePath();
+            if (points.length === 4) ctx.closePath();
             
             ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
             ctx.fill();
@@ -544,14 +612,18 @@
             // Отрисовка точек, букв и размеров на отрезках
             points.forEach((p, index) => {
                 let nextP = points[(index + 1) % points.length];
-                let lenCm = inputs[index] ? inputs[index].value : '0';
+                if (points.length < 4 && index === points.length - 1) return;
 
-                let midX = (p.x + nextP.x) / 2;
-                let midY = (p.y + nextP.y) / 2;
+                let lenCm = inputs[index] ? inputs[index].value : '';
 
-                ctx.fillStyle = '#f59e0b';
-                ctx.font = 'bold 12px Segoe UI';
-                ctx.fillText(`${lenCm} см`, midX - 15, midY - 6);
+                if (lenCm) {
+                    let midX = (p.x + nextP.x) / 2;
+                    let midY = (p.y + nextP.y) / 2;
+
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = 'bold 12px Segoe UI';
+                    ctx.fillText(`${lenCm} см`, midX - 15, midY - 6);
+                }
 
                 ctx.fillStyle = '#00d2ff';
                 ctx.beginPath();
@@ -566,11 +638,9 @@
 
         function resetSketch() {
             saveState();
-            document.getElementById('len-0').value = 400;
-            document.getElementById('len-1').value = 300;
-            document.getElementById('len-2').value = 400;
-            document.getElementById('len-3').value = 300;
-            buildFromNumbers();
+            points = [];
+            document.querySelectorAll('.wall-len').forEach(input => input.value = '');
+            drawSketch();
         }
 
         function calculate() {
@@ -578,6 +648,11 @@
             document.querySelectorAll('.wall-len').forEach(input => {
                 roomPerimCm += parseFloat(input.value) || 0;
             });
+
+            if (roomPerimCm <= 0) {
+                alert('Введите размеры стен или постройте чертеж!');
+                return;
+            }
 
             let roomPerimeterM = roomPerimCm / 100;
             let ab = (parseFloat(document.getElementById('len-0').value) || 400) / 100;
