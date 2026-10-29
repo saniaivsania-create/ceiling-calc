@@ -514,6 +514,7 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
+            // Проверяем захват существующих точек для перемещения
             for (let p of points) {
                 if (Math.hypot(p.x - x, p.y - y) < 35) {
                     saveState();
@@ -522,6 +523,7 @@
                 }
             }
 
+            // Добавляем новую точку только если кликнули на свободное место
             saveState();
             let labelCharCode = 65 + points.length;
             let label = String.fromCharCode(labelCharCode);
