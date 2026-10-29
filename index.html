@@ -65,11 +65,10 @@
 
         .attempts-counter {
             font-size: 13px;
-            color: var(--success);
-            background: rgba(34, 197, 94, 0.1);
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
             padding: 4px 8px;
             border-radius: 6px;
-            font-weight: 600;
         }
 
         .canvas-card {
@@ -83,7 +82,6 @@
             position: relative;
         }
 
-        /* Полноэкранный режим */
         .canvas-card.fullscreen {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -131,7 +129,6 @@
             height: calc(100vh - 160px);
         }
 
-        /* Плавающая полупрозрачная панель чуть выше в полноэкранном режиме */
         .floating-tools {
             position: absolute;
             bottom: 40px;
@@ -219,15 +216,6 @@
         .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
         .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
 
-        .item-row {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .item-row label { font-size: 12px; color: var(--text-main); }
-
         .result-card {
             background: linear-gradient(145deg, #131b2e 0%, #1a2744 100%);
             border-radius: 16px;
@@ -264,6 +252,31 @@
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(7, 10, 18, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid #2a3b5e;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
     </style>
 </head>
 <body>
@@ -271,52 +284,32 @@
     <div class="container">
         <header>
             <div class="logo-title">📐 PRO Замер</div>
-            <div class="attempts-counter" id="attemptsCounter">PRO Версия активна ✨</div>
+            <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
         </header>
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Тащите углы (A, B, C, D) или введите цифры ниже</span>
-                <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fsBtnText">⛶ На весь экран</button>
+                <span class="action-hint" id="actionHint">Тапайте по экрану, чтобы ставить точки (A, B, C...)</span>
+                <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
             
-            <!-- Панель управления на обычном экране -->
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
-                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить</button>
+                <button class="btn btn-success" onclick="autoGenerateRect()">🔲 Прямоугольник</button>
             </div>
 
-            <!-- Плавающая полупрозрачная панель чуть выше для полноэкранного режима -->
             <div class="floating-tools">
                 <button class="btn" onclick="undoPoint()" style="background: rgba(255,255,255,0.15); color:white;">↩️ Отмена</button>
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить</button>
                 <button class="btn btn-primary" onclick="toggleFullscreen()">✖ Закрыть</button>
             </div>
         </div>
 
-        <div class="section-card" id="wallsCard">
+        <div class="section-card" id="wallsCard" style="display: none;">
             <div class="section-title">📏 Длины стен комнаты (см):</div>
-            <div class="grid-inputs" id="wallsInputsContainer">
-                <div class="input-group">
-                    <label>Стена А-В (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-0" value="" placeholder="например: 400" step="1" oninput="buildFromNumbers()">
-                </div>
-                <div class="input-group">
-                    <label>Стена В-С (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-1" value="" placeholder="например: 300" step="1" oninput="buildFromNumbers()">
-                </div>
-                <div class="input-group">
-                    <label>Стена С-D (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-2" value="" placeholder="например: 400" step="1" oninput="buildFromNumbers()">
-                </div>
-                <div class="input-group">
-                    <label>Стена D-A (см)</label>
-                    <input type="number" class="input-field wall-len" id="len-3" value="" placeholder="например: 300" step="1" oninput="buildFromNumbers()">
-                </div>
-            </div>
+            <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
         <div class="section-card">
@@ -391,13 +384,70 @@
             </div>
 
             <div class="action-buttons">
-                <button class="btn btn-primary" onclick="calculate()" style="padding: 12px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
+                <button class="btn btn-primary" onclick="performCalculation()" style="padding: 12px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
                 <button class="btn" onclick="shareEstimate()" style="padding: 12px; font-size: 14px;">📤 Отправить смету</button>
             </div>
         </div>
     </div>
 
+    <div class="modal-overlay" id="paywallModal">
+        <div class="modal-content">
+            <div style="font-size: 40px;">🔒</div>
+            <div style="font-size: 18px; font-weight: 700;">Лимит бесплатной версии исчерпан</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Для продолжения профессиональных заемов и расчета смет приобретите полную версию PRO Замер навсегда.</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
+            <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Разблокировать PRO версию</button>
+            <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить попытки]</button>
+        </div>
+    </div>
+
     <script>
+        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') || '5');
+        let isUnlocked = localStorage.getItem('pro_calc_unlocked') === 'true';
+        updateAttemptsUI();
+
+        function updateAttemptsUI() {
+            const counter = document.getElementById('attemptsCounter');
+            if (isUnlocked) {
+                counter.innerText = 'PRO Версия активна ✨';
+                counter.style.color = 'var(--success)';
+            } else {
+                counter.innerText = `Осталось попыток: ${attempts}`;
+            }
+        }
+
+        function performCalculation() {
+            if (!isUnlocked) {
+                if (attempts <= 0) {
+                    document.getElementById('paywallModal').style.display = 'flex';
+                    return;
+                }
+                attempts--;
+                localStorage.setItem('pro_calc_attempts', attempts);
+                updateAttemptsUI();
+            }
+            calculate();
+        }
+
+        function buyFullVersion() {
+            alert('Переход на оплату в RuStore...');
+            isUnlocked = true;
+            localStorage.setItem('pro_calc_unlocked', 'true');
+            document.getElementById('paywallModal').style.display = 'none';
+            updateAttemptsUI();
+            calculate();
+        }
+
+        function resetForTesting() {
+            attempts = 5;
+            isUnlocked = false;
+            localStorage.setItem('pro_calc_attempts', '5');
+            localStorage.removeItem('pro_calc_unlocked');
+            document.getElementById('paywallModal').style.display = 'none';
+            updateAttemptsUI();
+            alert('Попытки сброшены до 5!');
+        }
+
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -415,7 +465,6 @@
             resizeCanvas();
         }
 
-        // Изначально пустой массив точек (чистый лист)
         let points = [];
         let historyState = [];
         let draggedPoint = null;
@@ -425,67 +474,46 @@
             if (historyState.length > 20) historyState.shift();
         }
 
-        // Построение чертежа по введенным цифрам в таблице
-        function buildFromNumbers() {
-            let inputs = document.querySelectorAll('.wall-len');
-            let ab = parseFloat(inputs[0].value) || 0;
-            let bc = parseFloat(inputs[1].value) || 0;
-            let cd = parseFloat(inputs[2].value) || ab;
-            let da = parseFloat(inputs[3].value) || bc;
-
-            if (ab <= 0 || bc <= 0) {
-                points = [];
-                drawSketch();
-                return;
-            }
-
-            let maxDim = Math.max(ab, bc);
-            let scale = (Math.min(canvas.width, canvas.height) * 0.55) / maxDim;
-
-            let drawW = ab * scale;
-            let drawH = bc * scale;
-
-            let startX = (canvas.width - drawW) / 2;
-            let startY = (canvas.height - drawH) / 2;
+        // Быстрое создание прямоугольника по умолчанию
+        function autoGenerateRect() {
+            saveState();
+            let w = canvas.width * 0.6;
+            let h = canvas.height * 0.6;
+            let startX = (canvas.width - w) / 2;
+            let startY = (canvas.height - h) / 2;
 
             points = [
                 { x: startX, y: startY, label: 'A' },
-                { x: startX + drawW, y: startY, label: 'B' },
-                { x: startX + drawW, y: startY + drawH, label: 'C' },
-                { x: startX, y: startY + drawH, label: 'D' }
+                { x: startX + w, y: startY, label: 'B' },
+                { x: startX + w, y: startY + h, label: 'C' },
+                { x: startX, y: startY + h, label: 'D' }
             ];
-
+            updateWallsInputs();
             drawSketch();
         }
 
-        // Перетаскивание точек пальцем
+        // Добавление точек или перетаскивание пальцем
         canvas.addEventListener('pointerdown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            if (points.length === 0) {
-                // Если точек нет, первая точка ставится по клику
-                saveState();
-                points.push({ x, y, label: 'A' });
-                drawSketch();
-                return;
-            } else if (points.length < 4) {
-                saveState();
-                let labels = ['B', 'C', 'D'];
-                points.push({ x, y, label: labels[points.length - 1] });
-                updateTableFromDrawing();
-                drawSketch();
-                return;
-            }
-
-            points.forEach((p) => {
-                let dist = Math.hypot(p.x - x, p.y - y);
-                if (dist < 35) {
+            // Проверяем, не схватили ли существующую точку для перетаскивания
+            for (let p of points) {
+                if (Math.hypot(p.x - x, p.y - y) < 35) {
                     saveState();
                     draggedPoint = p;
+                    return;
                 }
-            });
+            }
+
+            // Если не схватили, добавляем новую точку
+            saveState();
+            let labelCharCode = 65 + points.length;
+            let label = String.fromCharCode(labelCharCode);
+            points.push({ x, y, label });
+            updateWallsInputs();
+            drawSketch();
         });
 
         canvas.addEventListener('pointermove', (e) => {
@@ -494,7 +522,7 @@
             draggedPoint.x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
             draggedPoint.y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
 
-            updateTableFromDrawing();
+            updateWallsInputs();
             drawSketch();
         });
 
@@ -502,37 +530,57 @@
             draggedPoint = null;
         });
 
-        // Кнопка отмены (возврат на шаг назад)
         function undoPoint() {
             if (historyState.length > 0) {
                 points = historyState.pop();
-                if (points.length >= 4) {
-                    updateTableFromDrawing();
-                }
+                updateWallsInputs();
                 drawSketch();
             } else {
                 points = [];
-                document.querySelectorAll('.wall-len').forEach(input => input.value = '');
+                updateWallsInputs();
                 drawSketch();
             }
         }
 
-        // Синхронизация таблицы при ручном перетаскивании углов
-        function updateTableFromDrawing() {
-            if (points.length < 4) return;
-            let pixelLen0 = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
-            let pixelLen1 = Math.hypot(points[2].x - points[1].x, points[2].y - points[1].y);
-            let pixelLen2 = Math.hypot(points[3].x - points[2].x, points[3].y - points[2].y);
-            let pixelLen3 = Math.hypot(points[0].x - points[3].x, points[0].y - points[3].y);
+        function resetSketch() {
+            saveState();
+            points = [];
+            updateWallsInputs();
+            drawSketch();
+        }
 
-            let baseCm = parseFloat(document.getElementById('len-0').value) || 400;
-            let basePx = pixelLen0 > 0 ? pixelLen0 : 150;
-            let ratio = baseCm / basePx;
+        // Динамическое создание полей ввода для стен в зависимости от количества точек
+        function updateWallsInputs() {
+            const container = document.getElementById('wallsInputsContainer');
+            const card = document.getElementById('wallsCard');
+            container.innerHTML = '';
 
-            document.getElementById('len-0').value = Math.round(pixelLen0 * ratio);
-            document.getElementById('len-1').value = Math.round(pixelLen1 * ratio);
-            document.getElementById('len-2').value = Math.round(pixelLen2 * ratio);
-            document.getElementById('len-3').value = Math.round(pixelLen3 * ratio);
+            if (points.length < 2) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = 'flex';
+
+            let pixelLen0 = points.length >= 2 ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 150;
+            if (pixelLen0 === 0) pixelLen0 = 150;
+
+            for (let i = 0; i < points.length; i++) {
+                let p1 = points[i].label;
+                let p2 = points[(i + 1) % points.length].label;
+                if (i === points.length - 1 && points.length < 3) break;
+
+                let nextP = points[(i + 1) % points.length];
+                let pxDist = Math.hypot(nextP.x - points[i].x, nextP.y - points[i].y);
+                let cmVal = Math.round(pxDist * (400 / pixelLen0));
+
+                let div = document.createElement('div');
+                div.className = 'input-group';
+                div.innerHTML = `
+                    <label>Стена ${p1}-${p2} (см)</label>
+                    <input type="number" class="input-field wall-len" data-index="${i}" value="${cmVal}" step="1" oninput="drawSketch()">
+                `;
+                container.appendChild(div);
+            }
         }
 
         function drawSketch() {
@@ -552,54 +600,36 @@
             if (points.length === 0) {
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '13px Segoe UI';
-                ctx.fillText('Нажмите на экран, чтобы поставить точку А', 20, 30);
+                ctx.fillText('Тапайте по экрану для расстановки углов комнаты', 20, 30);
                 return;
             }
 
-            // Рисуем полупрозрачные диагонали (если 4 точки)
-            if (points.length === 4) {
+            // Полупрозрачные диагонали (если точек 4 и более)
+            if (points.length >= 4) {
                 ctx.save();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([4, 4]);
 
-                // Диагональ A-C
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                ctx.lineTo(points[2].x, points[2].y);
-                ctx.stroke();
-
-                // Диагональ B-D
-                ctx.beginPath();
-                ctx.moveTo(points[1].x, points[1].y);
-                ctx.lineTo(points[3].x, points[3].y);
-                ctx.stroke();
-
-                // Расчет длин диагоналей в см
-                let inputs = document.querySelectorAll('.wall-len');
-                let px0 = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
-                let cm0 = parseFloat(inputs[0].value) || 400;
-                let ratio = px0 > 0 ? cm0 / px0 : 1;
-
-                let diagAC = Math.hypot(points[2].x - points[0].x, points[2].y - points[0].y) * ratio;
-                let diagBD = Math.hypot(points[3].x - points[1].x, points[3].y - points[1].y) * ratio;
-
-                // Подписи диагоналей
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.font = '10px Segoe UI';
-                ctx.fillText(`д: ${Math.round(diagAC)} см`, (points[0].x + points[2].x)/2 + 5, (points[0].y + points[2].y)/2);
-                ctx.fillText(`д: ${Math.round(diagBD)} см`, (points[1].x + points[3].x)/2 + 5, (points[1].y + points[3].y)/2);
-
+                for (let i = 0; i < points.length; i++) {
+                    for (let j = i + 2; j < points.length; j++) {
+                        if (i === 0 && j === points.length - 1) continue;
+                        ctx.beginPath();
+                        ctx.moveTo(points[i].x, points[i].y);
+                        ctx.lineTo(points[j].x, points[j].y);
+                        ctx.stroke();
+                    }
+                }
                 ctx.restore();
             }
 
-            // Комната
+            // Контур комнаты
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             for (let i = 1; i < points.length; i++) {
                 ctx.lineTo(points[i].x, points[i].y);
             }
-            if (points.length === 4) ctx.closePath();
+            if (points.length > 2) ctx.closePath();
             
             ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
             ctx.fill();
@@ -609,12 +639,13 @@
 
             let inputs = document.querySelectorAll('.wall-len');
 
-            // Отрисовка точек, букв и размеров на отрезках
+            // Отрисовка отрезков с размерами
             points.forEach((p, index) => {
                 let nextP = points[(index + 1) % points.length];
-                if (points.length < 4 && index === points.length - 1) return;
+                if (points.length < 3 && index === points.length - 1) return;
 
-                let lenCm = inputs[index] ? inputs[index].value : '';
+                let inputField = document.querySelector(`.wall-len[data-index="${index}"]`);
+                let lenCm = inputField ? inputField.value : '';
 
                 if (lenCm) {
                     let midX = (p.x + nextP.x) / 2;
@@ -636,13 +667,6 @@
             });
         }
 
-        function resetSketch() {
-            saveState();
-            points = [];
-            document.querySelectorAll('.wall-len').forEach(input => input.value = '');
-            drawSketch();
-        }
-
         function calculate() {
             let roomPerimCm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
@@ -650,14 +674,13 @@
             });
 
             if (roomPerimCm <= 0) {
-                alert('Введите размеры стен или постройте чертеж!');
+                alert('Начертите комнату или введите размеры стен!');
                 return;
             }
 
             let roomPerimeterM = roomPerimCm / 100;
-            let ab = (parseFloat(document.getElementById('len-0').value) || 400) / 100;
-            let bc = (parseFloat(document.getElementById('len-1').value) || 300) / 100;
-            let area = ab * bc;
+            // Приближенный расчет площади по периметру
+            let area = (roomPerimeterM / 4) * (roomPerimeterM / 4) * 1.15;
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
