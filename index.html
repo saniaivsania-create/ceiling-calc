@@ -126,22 +126,23 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 160px);
+            height: calc(100vh - 150px);
         }
 
         .floating-tools {
             position: absolute;
-            bottom: 40px;
+            bottom: 35px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
             gap: 8px;
-            background: rgba(19, 27, 46, 0.9);
+            background: rgba(19, 27, 46, 0.92);
             backdrop-filter: blur(6px);
             padding: 10px 14px;
             border-radius: 12px;
             border: 1px solid var(--border);
             z-index: 10000;
+            width: max-content;
         }
 
         .canvas-card.fullscreen .floating-tools {
@@ -199,11 +200,23 @@
 
         .input-field:focus { border-color: var(--accent); outline: none; }
 
+        .item-row {
+            display: grid;
+            grid-template-columns: 1.8fr 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .item-row label {
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
         .btn {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 9px 6px;
+            padding: 9px 10px;
             border-radius: 8px;
             font-size: 11px;
             font-weight: 600;
@@ -215,6 +228,7 @@
         .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
         .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
         .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
+        .btn-warning { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; }
 
         .result-card {
             background: linear-gradient(145deg, #131b2e 0%, #1a2744 100%);
@@ -307,7 +321,7 @@
 
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Тапайте по экрану для расстановки углов</span>
+                <span class="action-hint" id="actionHint">Коснитесь экрана, чтобы поставить точку А</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
@@ -315,13 +329,14 @@
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
-                <button class="btn btn-success" onclick="autoGenerateRect()">🔲 Прямоугольник</button>
+                <button class="btn btn-success" onclick="autoGenerateRect()">📐 Построить чертеж</button>
             </div>
 
             <div class="floating-tools">
                 <button class="btn" onclick="undoPoint()" style="background: rgba(255,255,255,0.15); color:white;">↩️ Отмена</button>
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-primary" onclick="toggleFullscreen()">✖ Закрыть</button>
+                <button class="btn btn-success" onclick="autoGenerateRect()">📐 Построить</button>
+                <button class="btn btn-primary" onclick="toggleFullscreen()">✖ Свернуть</button>
             </div>
         </div>
 
@@ -366,7 +381,7 @@
                 </div>
                 <div class="item-row">
                     <label>Доп. углы (&gt;4)</label>
-                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="opacity: 0.8;">
+                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="opacity: 0.8; background: #111827;">
                     <input type="number" id="priceAngle" class="input-field" value="150">
                 </div>
             </div>
@@ -392,6 +407,10 @@
                 <span id="resPerimeter" style="color: var(--accent); font-weight: 700;">—</span>
             </div>
             <div class="result-row">
+                <span>Всего углов:</span>
+                <span id="resAnglesCount">0 шт.</span>
+            </div>
+            <div class="result-row">
                 <span>Монтаж и комплектующие:</span>
                 <span id="resMounting">—</span>
             </div>
@@ -411,16 +430,18 @@
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
             <div style="font-size: 40px;">🔒</div>
-            <div style="font-size: 18px; font-weight: 700;">Лимит бесплатных расчетов исчерпан</div>
-            <div style="font-size: 13px; color: var(--text-muted);">Для полноценного использования приложения и расчета неограниченного числа смет приобретите полную PRO-версию.</div>
+            <div style="font-size: 18px; font-weight: 700;">Пробный период завершен</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Вы использовали 5 бесплатных расчетов. Разблокируйте полную PRO-версию в RuStore для снятия всех ограничений навсегда.</div>
             <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
-            <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Разблокировать в RuStore</button>
-            <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить попытки]</button>
+            <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Купить полную версию</button>
+            <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить 5 попыток]</button>
         </div>
     </div>
 
     <script>
-        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') || '5');
+        const CM_PER_PIXEL = 2.5; // Фиксированный масштаб: 20px (одна клетка) = 50 см
+
+        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') ?? '5');
         let isUnlocked = localStorage.getItem('pro_calc_unlocked') === 'true';
         updateAttemptsUI();
 
@@ -431,10 +452,15 @@
                 counter.style.color = 'var(--success)';
             } else {
                 counter.innerText = `Осталось попыток: ${attempts}`;
+                counter.style.color = attempts === 0 ? 'var(--danger)' : 'var(--text-muted)';
             }
         }
 
         function performCalculation() {
+            if (points.length < 3) {
+                alert('Поставьте минимум 3 точки на чертеже, чтобы замкнуть комнату!');
+                return;
+            }
             if (!isUnlocked) {
                 if (attempts <= 0) {
                     document.getElementById('paywallModal').style.display = 'flex';
@@ -448,7 +474,7 @@
         }
 
         function buyFullVersion() {
-            alert('Переход на безопасную оплату через RuStore SDK...');
+            alert('Вызов окна оплаты RuStore Billing SDK...');
             isUnlocked = true;
             localStorage.setItem('pro_calc_unlocked', 'true');
             document.getElementById('paywallModal').style.display = 'none';
@@ -463,7 +489,6 @@
             localStorage.removeItem('pro_calc_unlocked');
             document.getElementById('paywallModal').style.display = 'none';
             updateAttemptsUI();
-            alert('Попытки сброшены до 5!');
         }
 
         const canvas = document.getElementById('sketchCanvas');
@@ -480,131 +505,193 @@
 
         function toggleFullscreen() {
             document.getElementById('canvasCard').classList.toggle('fullscreen');
-            resizeCanvas();
+            setTimeout(resizeCanvas, 50);
         }
 
         let points = [];
         let historyState = [];
-        let draggedPoint = null;
+        let draggedPointIndex = null;
+        let isDragging = false;
 
         function saveState() {
             historyState.push(points.map(p => ({ x: p.x, y: p.y, label: p.label })));
-            if (historyState.length > 20) historyState.shift();
+            if (historyState.length > 25) historyState.shift();
+        }
+
+        function updateHint() {
+            const hint = document.getElementById('actionHint');
+            if (points.length === 0) {
+                hint.innerText = 'Коснитесь экрана, чтобы поставить точку А';
+            } else if (points.length < 3) {
+                let nextLabel = String.fromCharCode(65 + points.length);
+                hint.innerText = `Поставьте точку ${nextLabel} (нужно минимум 3 угла)`;
+            } else {
+                let nextLabel = String.fromCharCode(65 + points.length);
+                hint.innerText = `Тяните углы пальцем или тапните для точки ${nextLabel}`;
+            }
         }
 
         function autoGenerateRect() {
             saveState();
-            let w = canvas.width * 0.6;
-            let h = canvas.height * 0.6;
-            let startX = (canvas.width - w) / 2;
-            let startY = (canvas.height - h) / 2;
+            let drawW = 400 / CM_PER_PIXEL; // 400 см
+            let drawH = 300 / CM_PER_PIXEL; // 300 см
+            let startX = (canvas.width - drawW) / 2;
+            let startY = (canvas.height - drawH) / 2;
 
             points = [
                 { x: startX, y: startY, label: 'A' },
-                { x: startX + w, y: startY, label: 'B' },
-                { x: startX + w, y: startY + h, label: 'C' },
-                { x: startX, y: startY + h, label: 'D' }
+                { x: startX + drawW, y: startY, label: 'B' },
+                { x: startX + drawW, y: startY + drawH, label: 'C' },
+                { x: startX, y: startY + drawH, label: 'D' }
             ];
-            updateWallsInputs();
+            rebuildWallInputs();
+            updateHint();
             drawSketch();
         }
 
         canvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            // Проверяем захват существующих точек для перемещения
-            for (let p of points) {
-                if (Math.hypot(p.x - x, p.y - y) < 35) {
+            // Проверяем, нажал ли пользователь на уже существующий угол (радиус захвата 30px)
+            for (let i = 0; i < points.length; i++) {
+                if (Math.hypot(points[i].x - x, points[i].y - y) < 30) {
                     saveState();
-                    draggedPoint = p;
+                    draggedPointIndex = i;
+                    isDragging = true;
+                    canvas.setPointerCapture(e.pointerId);
                     return;
                 }
             }
 
-            // Добавляем новую точку только если кликнули на свободное место
+            // Если нажали на пустое место — ставим новую точку
             saveState();
-            let labelCharCode = 65 + points.length;
-            let label = String.fromCharCode(labelCharCode);
+            let label = String.fromCharCode(65 + points.length);
             points.push({ x, y, label });
-            updateWallsInputs();
+            rebuildWallInputs();
+            updateHint();
             drawSketch();
         });
 
         canvas.addEventListener('pointermove', (e) => {
-            if (!draggedPoint) return;
+            if (!isDragging || draggedPointIndex === null) return;
+            e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            draggedPoint.x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
-            draggedPoint.y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
+            let p = points[draggedPointIndex];
+            p.x = Math.max(16, Math.min(canvas.width - 16, e.clientX - rect.left));
+            p.y = Math.max(16, Math.min(canvas.height - 16, e.clientY - rect.top));
 
-            updateWallsInputs();
+            syncInputsValuesOnly();
             drawSketch();
         });
 
-        canvas.addEventListener('pointerup', () => {
-            draggedPoint = null;
+        canvas.addEventListener('pointerup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                draggedPointIndex = null;
+            }
         });
 
         function undoPoint() {
             if (historyState.length > 0) {
                 points = historyState.pop();
-                updateWallsInputs();
-                drawSketch();
             } else {
                 points = [];
-                updateWallsInputs();
-                drawSketch();
             }
+            rebuildWallInputs();
+            updateHint();
+            drawSketch();
         }
 
         function resetSketch() {
             saveState();
             points = [];
-            updateWallsInputs();
+            rebuildWallInputs();
+            updateHint();
             drawSketch();
         }
 
-        function updateWallsInputs() {
+        function getWallCount() {
+            if (points.length < 2) return 0;
+            if (points.length === 2) return 1; // Только 1 отрезок А-В, без дубля В-А!
+            return points.length; // От 3 точек замыкаем контур
+        }
+
+        function rebuildWallInputs() {
             const container = document.getElementById('wallsInputsContainer');
             const card = document.getElementById('wallsCard');
             container.innerHTML = '';
 
-            if (points.length < 2) {
+            let extraAngles = points.length > 4 ? points.length - 4 : 0;
+            document.getElementById('countAngles').value = extraAngles;
+            document.getElementById('resAnglesCount').innerText = points.length + ' шт.';
+
+            let wallCount = getWallCount();
+            if (wallCount === 0) {
                 card.style.display = 'none';
-                document.getElementById('countAngles').value = 0;
                 return;
             }
             card.style.display = 'flex';
 
-            let extraAngles = points.length > 4 ? points.length - 4 : 0;
-            document.getElementById('countAngles').value = extraAngles;
-
-            let pixelLen0 = points.length >= 2 ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 150;
-            if (pixelLen0 === 0) pixelLen0 = 150;
-
-            for (let i = 0; i < points.length; i++) {
-                let p1 = points[i].label;
-                let p2 = points[(i + 1) % points.length].label;
-
-                let nextP = points[(i + 1) % points.length];
-                let pxDist = Math.hypot(nextP.x - points[i].x, nextP.y - points[i].y);
-                let cmVal = Math.round(pxDist * (400 / pixelLen0));
+            for (let i = 0; i < wallCount; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
 
                 let div = document.createElement('div');
                 div.className = 'input-group';
                 div.innerHTML = `
-                    <label>Стена ${p1}-${p2} (см)</label>
-                    <input type="number" class="input-field wall-len" data-index="${i}" value="${cmVal}" step="1" oninput="drawSketch()">
+                    <label>Стена ${p1.label}-${p2.label} (см)</label>
+                    <input type="number" class="input-field wall-len" id="wall-input-${i}" data-index="${i}" value="${distCm}" step="1" oninput="onWallInputChange(${i}, this.value)">
                 `;
                 container.appendChild(div);
             }
+        }
+
+        // Обновляет только цифры внутри инпутов во время перетаскивания пальцем
+        function syncInputsValuesOnly() {
+            let wallCount = getWallCount();
+            for (let i = 0; i < wallCount; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                let input = document.getElementById(`wall-input-${i}`);
+                if (input) input.value = distCm;
+            }
+        }
+
+        // Когда пользователь вручную вводит длину в таблицу — двигаем точку на чертеже
+        function onWallInputChange(wallIndex, newCmValue) {
+            let cm = parseFloat(newCmValue);
+            if (!cm || cm <= 0) {
+                drawSketch();
+                return;
+            }
+            let p1 = points[wallIndex];
+            let p2Index = (wallIndex + 1) % points.length;
+            let p2 = points[p2Index];
+
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            let currentPx = Math.hypot(dx, dy);
+            let targetPx = cm / CM_PER_PIXEL;
+
+            if (currentPx > 0) {
+                p2.x = p1.x + (dx / currentPx) * targetPx;
+                p2.y = p1.y + (dy / currentPx) * targetPx;
+            } else {
+                p2.x = p1.x + targetPx;
+            }
+            drawSketch();
         }
 
         function drawSketch() {
             if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -614,60 +701,71 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
 
-            if (points.length === 0) {
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = '13px Segoe UI';
-                ctx.fillText('Тапайте по экрану для расстановки углов комнаты', 20, 30);
-                return;
-            }
+            if (points.length === 0) return;
 
+            // Тонкие полупрозрачные диагонали с размерами (от 4 углов)
             if (points.length >= 4) {
                 ctx.save();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([4, 4]);
 
                 for (let i = 0; i < points.length; i++) {
                     for (let j = i + 2; j < points.length; j++) {
                         if (i === 0 && j === points.length - 1) continue;
+                        let p1 = points[i];
+                        let p2 = points[j];
                         ctx.beginPath();
-                        ctx.moveTo(points[i].x, points[i].y);
-                        ctx.lineTo(points[j].x, points[j].y);
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
                         ctx.stroke();
+
+                        let diagCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                        let midX = (p1.x + p2.x) / 2;
+                        let midY = (p1.y + p2.y) / 2;
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                        ctx.font = '10px Segoe UI';
+                        ctx.fillText(`${diagCm}`, midX - 8, midY - 3);
                     }
                 }
                 ctx.restore();
             }
 
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 1; i < points.length; i++) {
-                ctx.lineTo(points[i].x, points[i].y);
-            }
-            if (points.length > 2) ctx.closePath();
-            
-            ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
-            ctx.fill();
-            ctx.strokeStyle = '#00d2ff';
-            ctx.lineWidth = 2.5;
-            ctx.stroke();
-
-            points.forEach((p, index) => {
-                let nextP = points[(index + 1) % points.length];
-                if (points.length < 2) return;
-
-                let inputField = document.querySelector(`.wall-len[data-index="${index}"]`);
-                let lenCm = inputField ? inputField.value : '';
-
-                if (lenCm && points.length >= 2) {
-                    let midX = (p.x + nextP.x) / 2;
-                    let midY = (p.y + nextP.y) / 2;
-
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.font = 'bold 12px Segoe UI';
-                    ctx.fillText(`${lenCm} см`, midX - 15, midY - 6);
+            // Линии стен
+            if (points.length >= 2) {
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
                 }
+                if (points.length >= 3) {
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
+                    ctx.fill();
+                }
+                ctx.strokeStyle = '#00d2ff';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
 
+            // Подписи длин стен на отрезках
+            let wallCount = getWallCount();
+            for (let i = 0; i < wallCount; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let inputEl = document.getElementById(`wall-input-${i}`);
+                let lenCm = inputEl ? inputEl.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+
+                let midX = (p1.x + p2.x) / 2;
+                let midY = (p1.y + p2.y) / 2;
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = 'bold 12px Segoe UI';
+                ctx.fillText(`${lenCm} см`, midX - 18, midY - 6);
+            }
+
+            // Точки углов и буквы
+            points.forEach((p) => {
                 ctx.fillStyle = '#00d2ff';
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
@@ -677,6 +775,68 @@
                 ctx.font = 'bold 13px Segoe UI';
                 ctx.fillText(p.label, p.x + 10, p.y - 10);
             });
+        }
+
+        // Вычисление реальной площади многоугольника (формула Гаусса) с масштабированием под введенные стены
+        function calculatePolygonAreaM2() {
+            if (points.length < 3) return 0;
+            let sum = 0;
+            for (let i = 0; i < points.length; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                sum += (p1.x * p2.y - p2.x * p1.y);
+            }
+            let pxArea = Math.abs(sum) / 2;
+            let cm2Area = pxArea * (CM_PER_PIXEL * CM_PER_PIXEL);
+            return cm2Area / 10000;
+        }
+
+        function calculate() {
+            let roomPerimCm = 0;
+            document.querySelectorAll('.wall-len').forEach(input => {
+                roomPerimCm += parseFloat(input.value) || 0;
+            });
+
+            if (roomPerimCm <= 0 || points.length < 3) {
+                alert('Поставьте минимум 3 угла на чертеже!');
+                return;
+            }
+
+            let roomPerimeterM = roomPerimCm / 100;
+            let area = calculatePolygonAreaM2();
+
+            let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
+            let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
+
+            let cLights = parseFloat(document.getElementById('countLights').value) || 0;
+            let pLight = parseFloat(document.getElementById('priceLight').value) || 0;
+
+            let cChandeliers = parseFloat(document.getElementById('countChandeliers').value) || 0;
+            let pChandelier = parseFloat(document.getElementById('priceChandelier').value) || 0;
+
+            let cCornice = parseFloat(document.getElementById('countCornice').value) || 0;
+            let pCornice = parseFloat(document.getElementById('priceCornice').value) || 0;
+
+            let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
+            let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
+
+            let extraAngles = points.length > 4 ? points.length - 4 : 0;
+            document.getElementById('countAngles').value = extraAngles;
+            let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
+
+            let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
+
+            let canvasCost = area * pCanvas;
+            let profileCost = roomPerimeterM * pProfile;
+            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (extraAngles * pAngle) + custom1 + custom2;
+            let total = canvasCost + profileCost + mountingCost;
+
+            document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
+            document.getElementById('resPerimeter').innerText = roomPerimeterM.toFixed(2) + ' м';
+            document.getElementById('resAnglesCount').innerText = `${points.length} шт. (доп: ${extraAngles})`;
+            document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
+            document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
 
         function saveProject() {
@@ -698,18 +858,18 @@
             let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
             saved.push(projectData);
             localStorage.setItem('pro_projects', JSON.stringify(saved));
-            alert(`Замер для клиента "${name}" успешно сохранен!`);
+            alert(`Замер для клиента "${name}" сохранен!`);
         }
 
         function loadProjectModal() {
             let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
             if (saved.length === 0) {
-                alert('Нет сохраненных проектов!');
+                alert('Нет сохраненных замеров!');
                 return;
             }
 
-            let listStr = saved.map((p, idx) => `${idx + 1}. ${p.name} (${p.address || 'Без адреса'}) от ${p.date}`).join('\n');
-            let choice = prompt(`Выберите номер проекта для загрузки:\n\n${listStr}`);
+            let listStr = saved.map((p, idx) => `${idx + 1}. ${p.name} (${p.address || 'Без адреса'}) — ${p.date}`).join('\n');
+            let choice = prompt(`Введите номер замера для загрузки:\n\n${listStr}`);
             let index = parseInt(choice) - 1;
 
             if (saved[index]) {
@@ -717,62 +877,16 @@
                 document.getElementById('clientName').value = proj.name;
                 document.getElementById('clientAddress').value = proj.address || '';
                 points = proj.points;
-                updateWallsInputs();
+                rebuildWallInputs();
                 
                 let wallInputs = document.querySelectorAll('.wall-len');
                 proj.walls.forEach((val, idx) => {
                     if (wallInputs[idx]) wallInputs[idx].value = val;
                 });
 
+                updateHint();
                 drawSketch();
-                alert(`Проект "${proj.name}" загружен!`);
             }
-        }
-
-        function calculate() {
-            let roomPerimCm = 0;
-            document.querySelectorAll('.wall-len').forEach(input => {
-                roomPerimCm += parseFloat(input.value) || 0;
-            });
-
-            if (roomPerimCm <= 0) {
-                alert('Начертите комнату или введите размеры стен!');
-                return;
-            }
-
-            let roomPerimeterM = roomPerimCm / 100;
-            let area = (roomPerimeterM / 4) * (roomPerimeterM / 4) * 1.15;
-
-            let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
-            let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
-
-            let cLights = parseFloat(document.getElementById('countLights').value) || 0;
-            let pLight = parseFloat(document.getElementById('priceLight').value) || 0;
-
-            let cChandeliers = parseFloat(document.getElementById('countChandeliers').value) || 0;
-            let pChandelier = parseFloat(document.getElementById('priceChandelier').value) || 0;
-
-            let cCornice = parseFloat(document.getElementById('countCornice').value) || 0;
-            let pCornice = parseFloat(document.getElementById('priceCornice').value) || 0;
-
-            let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
-            let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
-
-            let cAngles = parseFloat(document.getElementById('countAngles').value) || 0;
-            let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
-
-            let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
-            let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
-
-            let canvasCost = area * pCanvas;
-            let profileCost = roomPerimeterM * pProfile;
-            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (cAngles * pAngle) + custom1 + custom2;
-            let total = canvasCost + profileCost + mountingCost;
-
-            document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resPerimeter').innerText = roomPerimeterM.toFixed(2) + ' м';
-            document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
-            document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
         }
 
         function shareEstimate() {
@@ -785,21 +899,23 @@
             let address = document.getElementById('clientAddress').value || 'Объект';
             let area = document.getElementById('resArea').innerText;
             let baget = document.getElementById('resPerimeter').innerText;
+            let angles = document.getElementById('resAnglesCount').innerText;
             let mounting = document.getElementById('resMounting').innerText;
 
-            let text = `📋 Смета на натяжной потолок%0A` +
-                       `👤 Клиент: ${name}%0A` +
-                       `📍 Адрес: ${address}%0A------------------%0A` +
-                       `• Площадь: ${area}%0A` +
-                       `• Периметр: ${baget}%0A` +
-                       `• Монтаж: ${mounting}%0A------------------%0A` +
-                       `💰 ИТОГО: ${total}%0A%0A` +
-                       `Рассчитано в PRO Замер`;
+            let text = `📋 Смета на натяжной потолок\n` +
+                       `👤 Клиент: ${name}\n` +
+                       `📍 Адрес: ${address}\n------------------\n` +
+                       `• Площадь потолка: ${area}\n` +
+                       `• Периметр (багет): ${baget}\n` +
+                       `• Углы помещения: ${angles}\n` +
+                       `• Монтаж и доп. работы: ${mounting}\n------------------\n` +
+                       `💰 ИТОГО К ОПЛАТЕ: ${total}\n\n` +
+                       `Сформировано в приложении PRO Замер`;
 
             if (navigator.share) {
-                navigator.share({ title: 'Смета потолка', text: decodeURIComponent(text.replace(/%0A/g, '\n')) }).catch(() => {});
+                navigator.share({ title: 'Смета потолка', text: text }).catch(() => {});
             } else {
-                window.open(`https://wa.me/?text=${text}`, '_blank');
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
             }
         }
     </script>
