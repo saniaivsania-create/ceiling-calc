@@ -83,13 +83,14 @@
             position: relative;
         }
 
+        /* Полноэкранный режим */
         .canvas-card.fullscreen {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
             z-index: 9999;
             border-radius: 0;
             max-width: none;
-            padding: 16px;
+            padding: 12px;
             background: #070a12;
             justify-content: space-between;
         }
@@ -127,12 +128,32 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 140px);
+            height: calc(100vh - 120px);
+        }
+
+        /* Полупрозрачная панель управления для полноэкранного режима */
+        .floating-tools {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 8px;
+            background: rgba(19, 27, 46, 0.85);
+            backdrop-filter: blur(6px);
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            z-index: 10000;
+        }
+
+        .canvas-card.fullscreen .floating-tools {
+            display: flex;
         }
 
         .canvas-tools {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 6px;
         }
 
@@ -195,7 +216,7 @@
 
         .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
-        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: span(--danger); color: #ef4444; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
         .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
 
         .item-row {
@@ -259,9 +280,19 @@
                 <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             <canvas id="sketchCanvas"></canvas>
+            
+            <!-- Панель управления на обычном экране -->
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить по цифрам</button>
+                <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
+                <button class="btn btn-success" onclick="buildFromNumbers()">📐 Построить чертеж</button>
+            </div>
+
+            <!-- Плавающая полупрозрачная панель для полноэкранного режима -->
+            <div class="floating-tools">
+                <button class="btn" onclick="undoPoint()" style="background: rgba(255,255,255,0.15); color:white;">↩️ Отмена</button>
+                <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
+                <button class="btn btn-success" onclick="toggleFullscreen()">✖ Закрыть</button>
             </div>
         </div>
 
@@ -390,7 +421,13 @@
             { x: 80, y: 200, label: 'D' }
         ];
 
+        let historyState = [];
         let draggedPoint = null;
+
+        function saveState() {
+            historyState.push(points.map(p => ({ x: p.x, y: p.y, label: p.label })));
+            if (historyState.length > 20) historyState.shift();
+        }
 
         // Построение по цифрам из таблицы
         function buildFromNumbers() {
@@ -425,7 +462,8 @@
 
             points.forEach((p) => {
                 let dist = Math.hypot(p.x - x, p.y - y);
-                if (dist < 25) {
+                if (dist < 30) {
+                    saveState();
                     draggedPoint = p;
                 }
             });
@@ -444,6 +482,17 @@
         canvas.addEventListener('pointerup', () => {
             draggedPoint = null;
         });
+
+        // Кнопка отмены (возврат на шаг назад)
+        function undoPoint() {
+            if (historyState.length > 0) {
+                points = historyState.pop();
+                updateTableFromDrawing();
+                drawSketch();
+            } else {
+                alert('Нечего отменять!');
+            }
+        }
 
         // Обновление цифр в таблице при растягивании чертежа
         function updateTableFromDrawing() {
@@ -497,7 +546,6 @@
                 let nextP = points[(index + 1) % points.length];
                 let lenCm = inputs[index] ? inputs[index].value : '0';
 
-                // Текст с расстоянием посередине отрезка
                 let midX = (p.x + nextP.x) / 2;
                 let midY = (p.y + nextP.y) / 2;
 
@@ -505,10 +553,9 @@
                 ctx.font = 'bold 12px Segoe UI';
                 ctx.fillText(`${lenCm} см`, midX - 15, midY - 6);
 
-                // Точка угла
                 ctx.fillStyle = '#00d2ff';
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.fillStyle = '#ffffff';
@@ -518,6 +565,7 @@
         }
 
         function resetSketch() {
+            saveState();
             document.getElementById('len-0').value = 400;
             document.getElementById('len-1').value = 300;
             document.getElementById('len-2').value = 400;
@@ -534,7 +582,7 @@
             let roomPerimeterM = roomPerimCm / 100;
             let ab = (parseFloat(document.getElementById('len-0').value) || 400) / 100;
             let bc = (parseFloat(document.getElementById('len-1').value) || 300) / 100;
-            let area = ab * bc; // Упрощенный расчет площади прямоугольника по сторонам
+            let area = ab * bc;
 
             let pCanvas = parseFloat(document.getElementById('priceCanvas').value) || 0;
             let pProfile = parseFloat(document.getElementById('priceProfile').value) || 0;
