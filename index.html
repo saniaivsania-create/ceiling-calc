@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PRO Замер Потолков</title>
     <style>
         :root {
@@ -24,6 +24,11 @@
             padding: 0;
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        input {
+            user-select: text;
         }
 
         body {
@@ -41,7 +46,8 @@
             max-width: 480px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
+            padding-bottom: 24px;
         }
 
         header {
@@ -64,11 +70,13 @@
         }
 
         .attempts-counter {
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 600;
             color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.05);
-            padding: 4px 8px;
-            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 5px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
         }
 
         .canvas-card {
@@ -88,7 +96,7 @@
             z-index: 9999;
             border-radius: 0;
             max-width: none;
-            padding: 16px;
+            padding: 14px;
             background: #070a12;
             justify-content: space-between;
         }
@@ -97,6 +105,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
         }
 
         .action-hint {
@@ -107,12 +116,13 @@
 
         .fullscreen-btn {
             background: rgba(255, 255, 255, 0.1);
-            border: none;
+            border: 1px solid var(--border);
             color: white;
             padding: 6px 10px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 12px;
+            white-space: nowrap;
         }
 
         canvas {
@@ -136,13 +146,14 @@
             transform: translateX(-50%);
             display: none;
             gap: 8px;
-            background: rgba(19, 27, 46, 0.92);
-            backdrop-filter: blur(6px);
+            background: rgba(19, 27, 46, 0.94);
+            backdrop-filter: blur(8px);
             padding: 10px 14px;
             border-radius: 12px;
-            border: 1px solid var(--border);
+            border: 1px solid #2a3b5e;
             z-index: 10000;
             width: max-content;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.6);
         }
 
         .canvas-card.fullscreen .floating-tools {
@@ -169,6 +180,9 @@
             font-size: 14px;
             font-weight: 600;
             color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .grid-inputs {
@@ -193,12 +207,22 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             color: white;
-            padding: 8px 10px;
+            padding: 9px 10px;
             font-size: 13px;
             width: 100%;
         }
 
         .input-field:focus { border-color: var(--accent); outline: none; }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 1.8fr 1fr 1fr;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 0 4px;
+            margin-top: 4px;
+        }
 
         .item-row {
             display: grid;
@@ -216,16 +240,16 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 9px 10px;
+            padding: 10px;
             border-radius: 8px;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
         }
 
-        .btn:active { transform: scale(0.96); }
-        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; font-weight: 700; }
         .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
         .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
         .btn-warning { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; }
@@ -240,26 +264,58 @@
             gap: 12px;
         }
 
-        .result-row {
+        .estimate-breakdown {
             display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            color: var(--text-muted);
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(7, 10, 18, 0.55);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
         }
 
-        .result-row span:last-child { color: white; font-weight: 600; }
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
+            padding-bottom: 6px;
+        }
+
+        .breakdown-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .breakdown-label {
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .breakdown-sub {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .breakdown-val {
+            color: #ffffff;
+            font-weight: 600;
+            white-space: nowrap;
+        }
 
         .total-price {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-top: 1px solid var(--border);
-            padding-top: 10px;
-            margin-top: 4px;
+            border-top: 1px solid #2a3b5e;
+            padding-top: 12px;
+            margin-top: 2px;
         }
 
         .total-price span { font-size: 15px; font-weight: 700; }
-        .total-price .price-value { font-size: 22px; color: var(--accent); }
+        .total-price .price-value { font-size: 24px; color: var(--accent); font-weight: 800; }
 
         .action-buttons {
             display: grid;
@@ -270,9 +326,9 @@
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(7, 10, 18, 0.85);
-            backdrop-filter: blur(8px);
-            z-index: 10000;
+            background: rgba(7, 10, 18, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 20000;
             display: none;
             justify-content: center;
             align-items: center;
@@ -284,12 +340,22 @@
             border: 1px solid #2a3b5e;
             border-radius: 20px;
             padding: 24px;
-            max-width: 380px;
+            max-width: 390px;
             width: 100%;
             text-align: center;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+
+        .device-id-box {
+            background: #070a12;
+            border: 1px dashed var(--border);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
         }
     </style>
 </head>
@@ -298,7 +364,7 @@
     <div class="container">
         <header>
             <div class="logo-title">📐 PRO Замер</div>
-            <div class="attempts-counter" id="attemptsCounter">Осталось попыток: 5</div>
+            <div class="attempts-counter" id="attemptsCounter">Проверка...</div>
         </header>
 
         <div class="section-card">
@@ -341,7 +407,10 @@
         </div>
 
         <div class="section-card" id="wallsCard" style="display: none;">
-            <div class="section-title">📏 Длины стен комнаты (см):</div>
+            <div class="section-title">
+                <span>📏 Длины стен комнаты (см):</span>
+                <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--accent);">Углов: 0</span>
+            </div>
             <div class="grid-inputs" id="wallsInputsContainer"></div>
         </div>
 
@@ -349,16 +418,22 @@
             <div class="section-title">⚙️ Материалы и Базовые работы</div>
             <div class="grid-inputs">
                 <div class="input-group">
-                    <label>Полотно (₽/м²)</label>
+                    <label>Полотно (₽ за 1 м²)</label>
                     <input type="number" id="priceCanvas" class="input-field" value="650">
                 </div>
                 <div class="input-group">
-                    <label>Багет (₽/м.п.)</label>
+                    <label>Багет / профиль (₽ за 1 м.п.)</label>
                     <input type="number" id="priceProfile" class="input-field" value="250">
                 </div>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+            <div class="table-header">
+                <span>Наименование</span>
+                <span>Кол-во</span>
+                <span>Цена (₽)</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div class="item-row">
                     <label>Светильники (шт)</label>
                     <input type="number" id="countLights" class="input-field" value="4">
@@ -371,7 +446,7 @@
                 </div>
                 <div class="item-row">
                     <label>Карниз (м.п.)</label>
-                    <input type="number" id="countCornice" class="input-field" value="3.0">
+                    <input type="number" id="countCornice" class="input-field" value="3.0" step="0.1">
                     <input type="number" id="priceCornice" class="input-field" value="700">
                 </div>
                 <div class="item-row">
@@ -380,8 +455,8 @@
                     <input type="number" id="pricePipe" class="input-field" value="350">
                 </div>
                 <div class="item-row">
-                    <label>Доп. углы (&gt;4)</label>
-                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="opacity: 0.8; background: #111827;">
+                    <label>Доп. углы (&gt;4 шт)</label>
+                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="color: var(--warning); font-weight: 700; background: #0d1424;">
                     <input type="number" id="priceAngle" class="input-field" value="150">
                 </div>
             </div>
@@ -390,107 +465,202 @@
         <div class="section-card">
             <div class="section-title">➕ Дополнительные работы (свои)</div>
             <div class="grid-inputs">
-                <input type="text" id="customName1" class="input-field" placeholder="Например: Брус под гардину" value="Брус под гардину">
-                <input type="number" id="customPrice1" class="input-field" placeholder="Цена ₽" value="0">
-                <input type="text" id="customName2" class="input-field" placeholder="Например: Обход короба" value="Обход короба">
-                <input type="number" id="customPrice2" class="input-field" placeholder="Цена ₽" value="0">
+                <input type="text" id="customName1" class="input-field" placeholder="Название работы" value="Брус под гардину">
+                <input type="number" id="customPrice1" class="input-field" placeholder="Сумма ₽" value="0">
+                <input type="text" id="customName2" class="input-field" placeholder="Название работы" value="Обход короба">
+                <input type="number" id="customPrice2" class="input-field" placeholder="Сумма ₽" value="0">
             </div>
         </div>
 
         <div class="result-card">
-            <div class="result-row">
-                <span>Площадь комнаты:</span>
-                <span id="resArea">—</span>
-            </div>
-            <div class="result-row">
-                <span>Периметр (багет):</span>
-                <span id="resPerimeter" style="color: var(--accent); font-weight: 700;">—</span>
-            </div>
-            <div class="result-row">
-                <span>Всего углов:</span>
-                <span id="resAnglesCount">0 шт.</span>
-            </div>
-            <div class="result-row">
-                <span>Монтаж и комплектующие:</span>
-                <span id="resMounting">—</span>
+            <div class="section-title" style="color: #fff;">📋 Детализация расчёта (Смета):</div>
+            
+            <div class="estimate-breakdown" id="estimateBreakdown">
+                <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
+                    Начертите комнату и нажмите <b>«РАССЧИТАТЬ»</b>, чтобы увидеть подробную стоимость каждой позиции.
+                </div>
             </div>
             
             <div class="total-price">
                 <span>ИТОГО К ОПЛАТЕ:</span>
-                <span class="price-value" id="resTotal">—</span>
+                <span class="price-value" id="resTotal">0 ₽</span>
             </div>
 
             <div class="action-buttons">
-                <button class="btn btn-primary" onclick="performCalculation()" style="padding: 12px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
-                <button class="btn" onclick="shareEstimate()" style="padding: 12px; font-size: 14px;">📤 Отправить смету</button>
+                <button class="btn btn-primary" onclick="performCalculation()" style="padding: 13px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
+                <button class="btn" onclick="shareEstimate()" style="padding: 13px; font-size: 14px;">📤 Отправить смету</button>
             </div>
         </div>
     </div>
 
+    <!-- Окно коммерческой активации (500 руб) -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
-            <div style="font-size: 40px;">🔒</div>
-            <div style="font-size: 18px; font-weight: 700;">Пробный период завершен</div>
-            <div style="font-size: 13px; color: var(--text-muted);">Вы использовали 5 бесплатных расчетов. Разблокируйте полную PRO-версию в RuStore для снятия всех ограничений навсегда.</div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--accent);">500 ₽</div>
-            <button class="btn btn-primary" onclick="buyFullVersion()" style="padding: 14px; font-size: 15px;">Купить полную версию</button>
-            <button class="btn" onclick="resetForTesting()" style="font-size: 11px; opacity: 0.6; border:none; background:none;">[Тест: сбросить 5 попыток]</button>
+            <div style="font-size: 42px;">🔒</div>
+            <div style="font-size: 18px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
+            <div style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+                Для безлимитной работы в приложении активируйте полную <b>PRO-версию</b> навсегда.
+            </div>
+            <div style="font-size: 26px; font-weight: 800; color: var(--accent);">500 ₽</div>
+            
+            <button class="btn btn-primary" onclick="buyViaRuStore()" style="padding: 14px; font-size: 14px;">
+                💳 Оплатить 500 ₽ через RuStore
+            </button>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div class="device-id-box">
+                    ID вашего устройства: <b id="deviceIdLabel" style="color: #fff;">—</b>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите код активации">
+                    <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap;">Активировать</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        const CM_PER_PIXEL = 2.5; // Фиксированный масштаб: 20px (одна клетка) = 50 см
+        const CM_PER_PIXEL = 2.5; // 1 клетка (20px) = 50 см
+        const MAX_FREE_ATTEMPTS = 5;
+        const SECRET_SALT = "PRO_ZAMER_2026_SALT";
 
-        let attempts = parseInt(localStorage.getItem('pro_calc_attempts') ?? '5');
-        let isUnlocked = localStorage.getItem('pro_calc_unlocked') === 'true';
-        updateAttemptsUI();
+        // --- ЗАЩИЩЕННАЯ СИСТЕМА УЧЕТА ПОПЫТОК И ЛИЦЕНЗИИ ---
+        let deviceId = localStorage.getItem('_pz_dev_id');
+        if (!deviceId) {
+            deviceId = 'PZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+            localStorage.setItem('_pz_dev_id', deviceId);
+        }
+        document.getElementById('deviceIdLabel').innerText = deviceId;
+
+        function generateSignature(usedCount, unlockedState) {
+            let raw = `${deviceId}_${usedCount}_${unlockedState}_${SECRET_SALT}`;
+            let hash = 0;
+            for (let i = 0; i < raw.length; i++) {
+                hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+                hash |= 0;
+            }
+            return Math.abs(hash).toString(16);
+        }
+
+        function setCookie(name, val) {
+            document.cookie = `${name}=${val}; max-age=315360000; path=/; SameSite=Lax`;
+        }
+
+        function getCookie(name) {
+            let matches = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+            return matches ? decodeURIComponent(matches[1]) : null;
+        }
+
+        // Синхронизация с IndexedDB для защиты от очистки кэша
+        function syncIndexedDB(used, unlocked) {
+            if (!window.indexedDB) return;
+            let req = indexedDB.open("ProZamerSecurityDB", 1);
+            req.onupgradeneeded = (e) => {
+                let db = e.target.result;
+                if (!db.objectStoreNames.contains("sec")) db.createObjectStore("sec");
+            };
+            req.onsuccess = (e) => {
+                let db = e.target.result;
+                let tx = db.transaction("sec", "readwrite");
+                tx.objectStore("sec").put({ used, unlocked }, "state");
+            };
+        }
+
+        let usedAttempts = 0;
+        let isUnlocked = false;
+
+        function loadSecurityState() {
+            let lsUsed = parseInt(localStorage.getItem('_pz_used') || '0');
+            let ckUsed = parseInt(getCookie('_pz_used') || '0');
+            usedAttempts = Math.max(lsUsed, ckUsed); // Берем максимальное число потраченных попыток
+
+            let lsUnl = localStorage.getItem('_pz_unlocked') === 'true';
+            let ckUnl = getCookie('_pz_unlocked') === 'true';
+            let savedSig = localStorage.getItem('_pz_sig');
+
+            if ((lsUnl || ckUnl) && savedSig === generateSignature(usedAttempts, true)) {
+                isUnlocked = true;
+            }
+
+            if (window.indexedDB) {
+                let req = indexedDB.open("ProZamerSecurityDB", 1);
+                req.onupgradeneeded = (e) => {
+                    let db = e.target.result;
+                    if (!db.objectStoreNames.contains("sec")) db.createObjectStore("sec");
+                };
+                req.onsuccess = (e) => {
+                    let db = e.target.result;
+                    let tx = db.transaction("sec", "readonly");
+                    let getReq = tx.objectStore("sec").get("state");
+                    getReq.onsuccess = () => {
+                        if (getReq.result) {
+                            usedAttempts = Math.max(usedAttempts, getReq.result.used || 0);
+                            if (getReq.result.unlocked) isUnlocked = true;
+                            saveSecurityState();
+                            updateAttemptsUI();
+                        }
+                    };
+                };
+            }
+            updateAttemptsUI();
+        }
+
+        function saveSecurityState() {
+            let sig = generateSignature(usedAttempts, isUnlocked);
+            localStorage.setItem('_pz_used', usedAttempts);
+            localStorage.setItem('_pz_unlocked', isUnlocked);
+            localStorage.setItem('_pz_sig', sig);
+            setCookie('_pz_used', usedAttempts);
+            setCookie('_pz_unlocked', isUnlocked);
+            syncIndexedDB(usedAttempts, isUnlocked);
+        }
 
         function updateAttemptsUI() {
             const counter = document.getElementById('attemptsCounter');
             if (isUnlocked) {
-                counter.innerText = 'PRO Версия активна ✨';
+                counter.innerText = 'PRO Активна ✨';
                 counter.style.color = 'var(--success)';
+                counter.style.borderColor = 'rgba(34, 197, 94, 0.4)';
             } else {
-                counter.innerText = `Осталось попыток: ${attempts}`;
-                counter.style.color = attempts === 0 ? 'var(--danger)' : 'var(--text-muted)';
+                let left = Math.max(0, MAX_FREE_ATTEMPTS - usedAttempts);
+                counter.innerText = `Осталось попыток: ${left}`;
+                counter.style.color = left === 0 ? 'var(--danger)' : 'var(--text-muted)';
             }
         }
 
-        function performCalculation() {
-            if (points.length < 3) {
-                alert('Поставьте минимум 3 точки на чертеже, чтобы замкнуть комнату!');
-                return;
-            }
-            if (!isUnlocked) {
-                if (attempts <= 0) {
-                    document.getElementById('paywallModal').style.display = 'flex';
-                    return;
-                }
-                attempts--;
-                localStorage.setItem('pro_calc_attempts', attempts);
+        // Генерация проверочного кода для ручной активации по ID устройства
+        function getExpectedLicenseKey(devId) {
+            let num = 0;
+            for (let i = 0; i < devId.length; i++) num += devId.charCodeAt(i) * (i + 7);
+            return 'PRO-' + (num * 37).toString().substring(0, 5);
+        }
+
+        function activateByCode() {
+            let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
+            // Подходит либо индивидуальный ключ по ID, либо твой мастер-ключ владельца: ZAMER500
+            if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500') {
+                isUnlocked = true;
+                saveSecurityState();
                 updateAttemptsUI();
+                document.getElementById('paywallModal').style.display = 'none';
+                alert('PRO-версия успешно активирована навсегда!');
+                calculate();
+            } else {
+                alert('Неверный код активации! Проверьте правильность ввода.');
             }
-            calculate();
         }
 
-        function buyFullVersion() {
-            alert('Вызов окна оплаты RuStore Billing SDK...');
-            isUnlocked = true;
-            localStorage.setItem('pro_calc_unlocked', 'true');
-            document.getElementById('paywallModal').style.display = 'none';
-            updateAttemptsUI();
-            calculate();
+        function buyViaRuStore() {
+            if (window.RuStoreBilling) {
+                window.RuStoreBilling.purchaseProduct("pro_zamer_full_500");
+            } else {
+                alert(`Для активации переведите 500 ₽ разработчику и отправьте ваш ID (${deviceId}) для получения кода активации, либо выполните покупку внутри приложения из каталога RuStore.`);
+            }
         }
 
-        function resetForTesting() {
-            attempts = 5;
-            isUnlocked = false;
-            localStorage.setItem('pro_calc_attempts', '5');
-            localStorage.removeItem('pro_calc_unlocked');
-            document.getElementById('paywallModal').style.display = 'none';
-            updateAttemptsUI();
-        }
+        loadSecurityState();
 
+        // --- ГЕОМЕТРИЯ И ХОЛСТ ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -512,6 +682,7 @@
         let historyState = [];
         let draggedPointIndex = null;
         let isDragging = false;
+        let lastEstimateText = '';
 
         function saveState() {
             historyState.push(points.map(p => ({ x: p.x, y: p.y, label: p.label })));
@@ -533,8 +704,8 @@
 
         function autoGenerateRect() {
             saveState();
-            let drawW = 400 / CM_PER_PIXEL; // 400 см
-            let drawH = 300 / CM_PER_PIXEL; // 300 см
+            let drawW = 400 / CM_PER_PIXEL;
+            let drawH = 300 / CM_PER_PIXEL;
             let startX = (canvas.width - drawW) / 2;
             let startY = (canvas.height - drawH) / 2;
 
@@ -555,7 +726,6 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            // Проверяем, нажал ли пользователь на уже существующий угол (радиус захвата 30px)
             for (let i = 0; i < points.length; i++) {
                 if (Math.hypot(points[i].x - x, points[i].y - y) < 30) {
                     saveState();
@@ -566,7 +736,6 @@
                 }
             }
 
-            // Если нажали на пустое место — ставим новую точку
             saveState();
             let label = String.fromCharCode(65 + points.length);
             points.push({ x, y, label });
@@ -587,11 +756,9 @@
             drawSketch();
         });
 
-        canvas.addEventListener('pointerup', (e) => {
-            if (isDragging) {
-                isDragging = false;
-                draggedPointIndex = null;
-            }
+        canvas.addEventListener('pointerup', () => {
+            isDragging = false;
+            draggedPointIndex = null;
         });
 
         function undoPoint() {
@@ -615,8 +782,8 @@
 
         function getWallCount() {
             if (points.length < 2) return 0;
-            if (points.length === 2) return 1; // Только 1 отрезок А-В, без дубля В-А!
-            return points.length; // От 3 точек замыкаем контур
+            if (points.length === 2) return 1;
+            return points.length;
         }
 
         function rebuildWallInputs() {
@@ -624,9 +791,10 @@
             const card = document.getElementById('wallsCard');
             container.innerHTML = '';
 
-            let extraAngles = points.length > 4 ? points.length - 4 : 0;
+            let totalAngles = points.length;
+            let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
             document.getElementById('countAngles').value = extraAngles;
-            document.getElementById('resAnglesCount').innerText = points.length + ' шт.';
+            document.getElementById('wallsAnglesBadge').innerText = `Углов: ${totalAngles} (доп: ${extraAngles})`;
 
             let wallCount = getWallCount();
             if (wallCount === 0) {
@@ -644,13 +812,12 @@
                 div.className = 'input-group';
                 div.innerHTML = `
                     <label>Стена ${p1.label}-${p2.label} (см)</label>
-                    <input type="number" class="input-field wall-len" id="wall-input-${i}" data-index="${i}" value="${distCm}" step="1" oninput="onWallInputChange(${i}, this.value)">
+                    <input type="number" class="input-field wall-len" id="wall-input-${i}" value="${distCm}" step="1" oninput="onWallInputChange(${i}, this.value)">
                 `;
                 container.appendChild(div);
             }
         }
 
-        // Обновляет только цифры внутри инпутов во время перетаскивания пальцем
         function syncInputsValuesOnly() {
             let wallCount = getWallCount();
             for (let i = 0; i < wallCount; i++) {
@@ -662,7 +829,6 @@
             }
         }
 
-        // Когда пользователь вручную вводит длину в таблицу — двигаем точку на чертеже
         function onWallInputChange(wallIndex, newCmValue) {
             let cm = parseFloat(newCmValue);
             if (!cm || cm <= 0) {
@@ -670,8 +836,7 @@
                 return;
             }
             let p1 = points[wallIndex];
-            let p2Index = (wallIndex + 1) % points.length;
-            let p2 = points[p2Index];
+            let p2 = points[(wallIndex + 1) % points.length];
 
             let dx = p2.x - p1.x;
             let dy = p2.y - p1.y;
@@ -691,7 +856,6 @@
             if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Сетка
             ctx.strokeStyle = '#162035';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
@@ -703,7 +867,6 @@
 
             if (points.length === 0) return;
 
-            // Тонкие полупрозрачные диагонали с размерами (от 4 углов)
             if (points.length >= 4) {
                 ctx.save();
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
@@ -731,7 +894,6 @@
                 ctx.restore();
             }
 
-            // Линии стен
             if (points.length >= 2) {
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -748,7 +910,6 @@
                 ctx.stroke();
             }
 
-            // Подписи длин стен на отрезках
             let wallCount = getWallCount();
             for (let i = 0; i < wallCount; i++) {
                 let p1 = points[i];
@@ -764,7 +925,6 @@
                 ctx.fillText(`${lenCm} см`, midX - 18, midY - 6);
             }
 
-            // Точки углов и буквы
             points.forEach((p) => {
                 ctx.fillStyle = '#00d2ff';
                 ctx.beginPath();
@@ -777,7 +937,6 @@
             });
         }
 
-        // Вычисление реальной площади многоугольника (формула Гаусса) с масштабированием под введенные стены
         function calculatePolygonAreaM2() {
             if (points.length < 3) return 0;
             let sum = 0;
@@ -791,16 +950,28 @@
             return cm2Area / 10000;
         }
 
+        function performCalculation() {
+            if (points.length < 3) {
+                alert('Поставьте минимум 3 угла на чертеже (или нажмите «Построить чертеж»)!');
+                return;
+            }
+            if (!isUnlocked) {
+                if (usedAttempts >= MAX_FREE_ATTEMPTS) {
+                    document.getElementById('paywallModal').style.display = 'flex';
+                    return;
+                }
+                usedAttempts++;
+                saveSecurityState();
+                updateAttemptsUI();
+            }
+            calculate();
+        }
+
         function calculate() {
             let roomPerimCm = 0;
             document.querySelectorAll('.wall-len').forEach(input => {
                 roomPerimCm += parseFloat(input.value) || 0;
             });
-
-            if (roomPerimCm <= 0 || points.length < 3) {
-                alert('Поставьте минимум 3 угла на чертеже!');
-                return;
-            }
 
             let roomPerimeterM = roomPerimCm / 100;
             let area = calculatePolygonAreaM2();
@@ -820,23 +991,135 @@
             let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
             let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
 
-            let extraAngles = points.length > 4 ? points.length - 4 : 0;
+            let totalAngles = points.length;
+            let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
             document.getElementById('countAngles').value = extraAngles;
             let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
 
+            let name1 = document.getElementById('customName1').value.trim() || 'Доп. работа 1';
             let custom1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            let name2 = document.getElementById('customName2').value.trim() || 'Доп. работа 2';
             let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
-            let canvasCost = area * pCanvas;
-            let profileCost = roomPerimeterM * pProfile;
-            let mountingCost = (cLights * pLight) + (cChandeliers * pChandelier) + (cCornice * pCornice) + (cPipes * pPipe) + (extraAngles * pAngle) + custom1 + custom2;
-            let total = canvasCost + profileCost + mountingCost;
+            // Точный расчет каждой позиции
+            let costCanvas = Math.round(area * pCanvas);
+            let costProfile = Math.round(roomPerimeterM * pProfile);
+            let costAngles = Math.round(extraAngles * pAngle);
+            let costLights = Math.round(cLights * pLight);
+            let costChandelier = Math.round(cChandeliers * pChandelier);
+            let costCornice = Math.round(cCornice * pCornice);
+            let costPipes = Math.round(cPipes * pPipe);
 
-            document.getElementById('resArea').innerText = area.toFixed(2) + ' м²';
-            document.getElementById('resPerimeter').innerText = roomPerimeterM.toFixed(2) + ' м';
-            document.getElementById('resAnglesCount').innerText = `${points.length} шт. (доп: ${extraAngles})`;
-            document.getElementById('resMounting').innerText = Math.round(mountingCost).toLocaleString() + ' ₽';
+            let total = costCanvas + costProfile + costAngles + costLights + costChandelier + costCornice + costPipes + custom1 + custom2;
+
+            // Формируем подробную ведомость на экране
+            let rowsHtml = `
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Полотно потолка</span>
+                        <span class="breakdown-sub">${area.toFixed(2)} м² × ${pCanvas} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costCanvas.toLocaleString()} ₽</div>
+                </div>
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Профиль (багет)</span>
+                        <span class="breakdown-sub">${roomPerimeterM.toFixed(2)} м.п. × ${pProfile} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costProfile.toLocaleString()} ₽</div>
+                </div>
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Углы помещения (всего: ${totalAngles} шт.)</span>
+                        <span class="breakdown-sub">Базовые 4 шт. — 0 ₽ | Доп. углы: ${extraAngles} шт. × ${pAngle} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costAngles.toLocaleString()} ₽</div>
+                </div>
+            `;
+
+            if (cLights > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Установка светильников</span>
+                        <span class="breakdown-sub">${cLights} шт. × ${pLight} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costLights.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            if (cChandeliers > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Установка люстры</span>
+                        <span class="breakdown-sub">${cChandeliers} шт. × ${pChandelier} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costChandelier.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            if (cCornice > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Монтаж карниза</span>
+                        <span class="breakdown-sub">${cCornice} м.п. × ${pCornice} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costCornice.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            if (cPipes > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label">
+                        <span>Обход труб</span>
+                        <span class="breakdown-sub">${cPipes} шт. × ${pPipe} ₽</span>
+                    </div>
+                    <div class="breakdown-val">${costPipes.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            if (custom1 > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label"><span>${name1}</span></div>
+                    <div class="breakdown-val">${custom1.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            if (custom2 > 0) {
+                rowsHtml += `
+                <div class="breakdown-row">
+                    <div class="breakdown-label"><span>${name2}</span></div>
+                    <div class="breakdown-val">${custom2.toLocaleString()} ₽</div>
+                </div>`;
+            }
+
+            document.getElementById('estimateBreakdown').innerHTML = rowsHtml;
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
+
+            // Готовим текст для отправки клиенту
+            let clientName = document.getElementById('clientName').value || 'Заказчик';
+            let clientAddr = document.getElementById('clientAddress').value || 'Не указан';
+
+            lastEstimateText =
+                `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК\n` +
+                `👤 Клиент: ${clientName}\n` +
+                `📍 Адрес: ${clientAddr}\n` +
+                `──────────────────\n` +
+                `🔹 Полотно: ${area.toFixed(2)} м² × ${pCanvas} ₽ = ${costCanvas} ₽\n` +
+                `🔹 Багет: ${roomPerimeterM.toFixed(2)} м.п. × ${pProfile} ₽ = ${costProfile} ₽\n` +
+                `🔹 Углы (всего ${totalAngles} шт, доп. ${extraAngles} шт): ${costAngles} ₽\n` +
+                (cLights > 0 ? `🔹 Светильники (${cLights} шт): ${costLights} ₽\n` : '') +
+                (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽\n` : '') +
+                (cCornice > 0 ? `🔹 Карниз (${cCornice} м.п.): ${costCornice} ₽\n` : '') +
+                (cPipes > 0 ? `🔹 Обход труб (${cPipes} шт): ${costPipes} ₽\n` : '') +
+                (custom1 > 0 ? `🔹 ${name1}: ${custom1} ₽\n` : '') +
+                (custom2 > 0 ? `🔹 ${name2}: ${custom2} ₽\n` : '') +
+                `──────────────────\n` +
+                `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽`;
         }
 
         function saveProject() {
@@ -890,32 +1173,14 @@
         }
 
         function shareEstimate() {
-            let total = document.getElementById('resTotal').innerText;
-            if (total === '—') {
-                alert('Сначала выполните расчет кнопкой «Рассчитать»!');
+            if (!lastEstimateText) {
+                alert('Сначала выполните расчет кнопкой «РАССЧИТАТЬ»!');
                 return;
             }
-            let name = document.getElementById('clientName').value || 'Заказчик';
-            let address = document.getElementById('clientAddress').value || 'Объект';
-            let area = document.getElementById('resArea').innerText;
-            let baget = document.getElementById('resPerimeter').innerText;
-            let angles = document.getElementById('resAnglesCount').innerText;
-            let mounting = document.getElementById('resMounting').innerText;
-
-            let text = `📋 Смета на натяжной потолок\n` +
-                       `👤 Клиент: ${name}\n` +
-                       `📍 Адрес: ${address}\n------------------\n` +
-                       `• Площадь потолка: ${area}\n` +
-                       `• Периметр (багет): ${baget}\n` +
-                       `• Углы помещения: ${angles}\n` +
-                       `• Монтаж и доп. работы: ${mounting}\n------------------\n` +
-                       `💰 ИТОГО К ОПЛАТЕ: ${total}\n\n` +
-                       `Сформировано в приложении PRO Замер`;
-
             if (navigator.share) {
-                navigator.share({ title: 'Смета потолка', text: text }).catch(() => {});
+                navigator.share({ title: 'Смета потолка', text: lastEstimateText }).catch(() => {});
             } else {
-                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                window.open(`https://wa.me/?text=${encodeURIComponent(lastEstimateText)}`, '_blank');
             }
         }
     </script>
