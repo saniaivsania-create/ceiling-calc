@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PRO Замер Потолков</title>
+    <title>Потолок Замер PRO</title>
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -27,9 +27,7 @@
             user-select: none;
         }
 
-        input {
-            user-select: text;
-        }
+        input { user-select: text; }
 
         body {
             background-color: var(--bg-color);
@@ -61,7 +59,7 @@
         }
 
         .logo-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
             color: var(--accent);
             display: flex;
@@ -96,8 +94,10 @@
             z-index: 9999;
             border-radius: 0;
             max-width: none;
-            padding: 14px;
+            padding: 12px;
             background: #070a12;
+            display: flex;
+            flex-direction: column;
             justify-content: space-between;
         }
 
@@ -115,19 +115,20 @@
         }
 
         .fullscreen-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid var(--border);
-            color: white;
-            padding: 6px 10px;
+            background: rgba(0, 210, 255, 0.15);
+            border: 1px solid rgba(0, 210, 255, 0.4);
+            color: var(--accent);
+            padding: 7px 12px;
             border-radius: 8px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: 600;
             white-space: nowrap;
         }
 
         canvas {
             width: 100%;
-            height: 260px;
+            height: 270px;
             background: #070a12;
             border-radius: 10px;
             border: 1px solid var(--border);
@@ -136,34 +137,25 @@
         }
 
         .canvas-card.fullscreen canvas {
-            height: calc(100vh - 150px);
+            flex: 1;
+            height: auto;
+            margin: 6px 0;
         }
 
-        .floating-tools {
-            position: absolute;
-            bottom: 35px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
-            gap: 8px;
-            background: rgba(19, 27, 46, 0.94);
-            backdrop-filter: blur(8px);
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1px solid #2a3b5e;
-            z-index: 10000;
-            width: max-content;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.6);
-        }
-
-        .canvas-card.fullscreen .floating-tools {
-            display: flex;
-        }
-
+        /* Панель кнопок под чертежом (работает и в обычном, и в полноэкранном режиме) */
         .canvas-tools {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 6px;
+        }
+
+        .canvas-card.fullscreen .canvas-tools {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: #131b2e;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #2a3b5e;
         }
 
         .section-card {
@@ -237,15 +229,19 @@
         }
 
         .btn {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.06);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 10px;
+            padding: 10px 8px;
             border-radius: 8px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
 
         .btn:active { transform: scale(0.97); }
@@ -283,10 +279,7 @@
             padding-bottom: 6px;
         }
 
-        .breakdown-row:last-child {
-            border-bottom: none;
-            padding-bottom: 0;
-        }
+        .breakdown-row:last-child { border-bottom: none; padding-bottom: 0; }
 
         .breakdown-label {
             color: var(--text-muted);
@@ -294,16 +287,8 @@
             flex-direction: column;
         }
 
-        .breakdown-sub {
-            font-size: 11px;
-            color: #64748b;
-        }
-
-        .breakdown-val {
-            color: #ffffff;
-            font-weight: 600;
-            white-space: nowrap;
-        }
+        .breakdown-sub { font-size: 11px; color: #64748b; }
+        .breakdown-val { color: #ffffff; font-weight: 600; white-space: nowrap; }
 
         .total-price {
             display: flex;
@@ -326,7 +311,7 @@
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(7, 10, 18, 0.9);
+            background: rgba(7, 10, 18, 0.92);
             backdrop-filter: blur(10px);
             z-index: 20000;
             display: none;
@@ -339,7 +324,7 @@
             background: var(--card-bg);
             border: 1px solid #2a3b5e;
             border-radius: 20px;
-            padding: 24px;
+            padding: 22px;
             max-width: 390px;
             width: 100%;
             text-align: center;
@@ -363,7 +348,7 @@
 
     <div class="container">
         <header>
-            <div class="logo-title">📐 PRO Замер</div>
+            <div class="logo-title">📐 Потолок Замер PRO</div>
             <div class="attempts-counter" id="attemptsCounter">Проверка...</div>
         </header>
 
@@ -388,21 +373,19 @@
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
                 <span class="action-hint" id="actionHint">Коснитесь экрана, чтобы поставить точку А</span>
-                <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
+                <button class="fullscreen-btn" id="topFullscreenBtn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
+            
             <canvas id="sketchCanvas"></canvas>
             
+            <!-- Все кнопки управления всегда доступны и на малом, и на большом экране -->
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
-                <button class="btn btn-success" onclick="autoGenerateRect()">📐 Построить чертеж</button>
-            </div>
-
-            <div class="floating-tools">
-                <button class="btn" onclick="undoPoint()" style="background: rgba(255,255,255,0.15); color:white;">↩️ Отмена</button>
-                <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn btn-success" onclick="autoGenerateRect()">📐 Построить</button>
-                <button class="btn btn-primary" onclick="toggleFullscreen()">✖ Свернуть</button>
+                <button class="btn btn-success" onclick="autoGenerateRect()">📐 Прямоугольник</button>
+                <button class="btn btn-warning" onclick="rotateSketch()">🔄 Повернуть 90°</button>
+                <button class="btn" onclick="fitToScreen()" style="border-color: var(--accent); color: var(--accent);">🔍 Вписать</button>
+                <button class="btn btn-primary" id="bottomFullscreenBtn" onclick="toggleFullscreen()">⛶ Развернуть</button>
             </div>
         </div>
 
@@ -493,38 +476,47 @@
         </div>
     </div>
 
-    <!-- Окно коммерческой активации (500 руб) -->
+    <!-- Модальное окно подписки: 3 месяца (300 ₽) и 1 год (800 ₽) -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
-            <div style="font-size: 42px;">🔒</div>
-            <div style="font-size: 18px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
-            <div style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
-                Для безлимитной работы в приложении активируйте полную <b>PRO-версию</b> навсегда.
+            <div style="font-size: 40px;">🔒</div>
+            <div style="font-size: 17px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                Выберите подписку для безлимитной работы в приложении:
             </div>
-            <div style="font-size: 26px; font-weight: 800; color: var(--accent);">500 ₽</div>
             
-            <button class="btn btn-primary" onclick="buyViaRuStore()" style="padding: 14px; font-size: 14px;">
-                💳 Оплатить 500 ₽ через RuStore
-            </button>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex:1; background:#070a12; border:1px solid #2a3b5e; padding:12px; border-radius:12px; text-align:center;">
+                    <div style="font-size:12px; color:var(--text-muted); font-weight: 600;">На 3 месяца</div>
+                    <div style="font-size:20px; font-weight:800; color:#fff; margin:6px 0;">300 ₽</div>
+                    <button class="btn btn-primary" onclick="buySubscription('3M', 300)" style="width:100%; padding:9px; font-size:12px;">Выбрать</button>
+                </div>
+                <div style="flex:1; background:#1a2744; border:1.5px solid var(--accent); padding:12px; border-radius:12px; text-align:center; position:relative;">
+                    <div style="position:absolute; top:-9px; left:50%; transform:translateX(-50%); background:var(--accent); color:#0b0f19; font-size:9px; font-weight:800; padding:2px 8px; border-radius:4px;">ВЫГОДНО</div>
+                    <div style="font-size:12px; color:var(--accent); font-weight: 600;">На 1 год</div>
+                    <div style="font-size:20px; font-weight:800; color:#fff; margin:6px 0;">800 ₽</div>
+                    <button class="btn btn-primary" onclick="buySubscription('1Y', 800)" style="width:100%; padding:9px; font-size:12px;">Выбрать</button>
+                </div>
+            </div>
 
-            <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
                 <div class="device-id-box">
                     ID вашего устройства: <b id="deviceIdLabel" style="color: #fff;">—</b>
                 </div>
                 <div style="display: flex; gap: 6px;">
-                    <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите код активации">
-                    <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap;">Активировать</button>
+                    <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите ключ подписки">
+                    <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap; padding: 0 14px;">ОК</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        const CM_PER_PIXEL = 2.5; // 1 клетка (20px) = 50 см
+        let cmPerPixel = 2.5; // Динамический масштаб (по умолчанию 1px = 2.5 см)
         const MAX_FREE_ATTEMPTS = 5;
-        const SECRET_SALT = "PRO_ZAMER_2026_SALT";
+        const SECRET_SALT = "PRO_ZAMER_2026_SUB";
 
-        // --- ЗАЩИЩЕННАЯ СИСТЕМА УЧЕТА ПОПЫТОК И ЛИЦЕНЗИИ ---
+        // --- СИСТЕМА ЗАЩИТЫ И УЧЕТА ПОДПИСОК (3 МЕСЯЦА / 1 ГОД) ---
         let deviceId = localStorage.getItem('_pz_dev_id');
         if (!deviceId) {
             deviceId = 'PZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -532,8 +524,8 @@
         }
         document.getElementById('deviceIdLabel').innerText = deviceId;
 
-        function generateSignature(usedCount, unlockedState) {
-            let raw = `${deviceId}_${usedCount}_${unlockedState}_${SECRET_SALT}`;
+        function generateSignature(usedCount, expireTime) {
+            let raw = `${deviceId}_${usedCount}_${expireTime}_${SECRET_SALT}`;
             let hash = 0;
             for (let i = 0; i < raw.length; i++) {
                 hash = ((hash << 5) - hash) + raw.charCodeAt(i);
@@ -551,8 +543,7 @@
             return matches ? decodeURIComponent(matches[1]) : null;
         }
 
-        // Синхронизация с IndexedDB для защиты от очистки кэша
-        function syncIndexedDB(used, unlocked) {
+        function syncIndexedDB(used, expireUntil) {
             if (!window.indexedDB) return;
             let req = indexedDB.open("ProZamerSecurityDB", 1);
             req.onupgradeneeded = (e) => {
@@ -562,24 +553,29 @@
             req.onsuccess = (e) => {
                 let db = e.target.result;
                 let tx = db.transaction("sec", "readwrite");
-                tx.objectStore("sec").put({ used, unlocked }, "state");
+                tx.objectStore("sec").put({ used, expireUntil }, "state");
             };
         }
 
         let usedAttempts = 0;
-        let isUnlocked = false;
+        let subExpireUntil = 0; // Timestamp окончания подписки
+
+        function isSubscriptionActive() {
+            return Date.now() < subExpireUntil;
+        }
 
         function loadSecurityState() {
             let lsUsed = parseInt(localStorage.getItem('_pz_used') || '0');
             let ckUsed = parseInt(getCookie('_pz_used') || '0');
-            usedAttempts = Math.max(lsUsed, ckUsed); // Берем максимальное число потраченных попыток
+            usedAttempts = Math.max(lsUsed, ckUsed);
 
-            let lsUnl = localStorage.getItem('_pz_unlocked') === 'true';
-            let ckUnl = getCookie('_pz_unlocked') === 'true';
+            let lsExp = parseInt(localStorage.getItem('_pz_exp') || '0');
+            let ckExp = parseInt(getCookie('_pz_exp') || '0');
             let savedSig = localStorage.getItem('_pz_sig');
+            let candidateExp = Math.max(lsExp, ckExp);
 
-            if ((lsUnl || ckUnl) && savedSig === generateSignature(usedAttempts, true)) {
-                isUnlocked = true;
+            if (candidateExp > 0 && savedSig === generateSignature(usedAttempts, candidateExp)) {
+                subExpireUntil = candidateExp;
             }
 
             if (window.indexedDB) {
@@ -595,7 +591,9 @@
                     getReq.onsuccess = () => {
                         if (getReq.result) {
                             usedAttempts = Math.max(usedAttempts, getReq.result.used || 0);
-                            if (getReq.result.unlocked) isUnlocked = true;
+                            if ((getReq.result.expireUntil || 0) > subExpireUntil) {
+                                subExpireUntil = getReq.result.expireUntil;
+                            }
                             saveSecurityState();
                             updateAttemptsUI();
                         }
@@ -606,19 +604,20 @@
         }
 
         function saveSecurityState() {
-            let sig = generateSignature(usedAttempts, isUnlocked);
+            let sig = generateSignature(usedAttempts, subExpireUntil);
             localStorage.setItem('_pz_used', usedAttempts);
-            localStorage.setItem('_pz_unlocked', isUnlocked);
+            localStorage.setItem('_pz_exp', subExpireUntil);
             localStorage.setItem('_pz_sig', sig);
             setCookie('_pz_used', usedAttempts);
-            setCookie('_pz_unlocked', isUnlocked);
-            syncIndexedDB(usedAttempts, isUnlocked);
+            setCookie('_pz_exp', subExpireUntil);
+            syncIndexedDB(usedAttempts, subExpireUntil);
         }
 
         function updateAttemptsUI() {
             const counter = document.getElementById('attemptsCounter');
-            if (isUnlocked) {
-                counter.innerText = 'PRO Активна ✨';
+            if (isSubscriptionActive()) {
+                let daysLeft = Math.ceil((subExpireUntil - Date.now()) / (1000 * 60 * 60 * 24));
+                counter.innerText = `PRO активна (${daysLeft} дн.) ✨`;
                 counter.style.color = 'var(--success)';
                 counter.style.borderColor = 'rgba(34, 197, 94, 0.4)';
             } else {
@@ -628,54 +627,81 @@
             }
         }
 
-        // Генерация проверочного кода для ручной активации по ID устройства
-        function getExpectedLicenseKey(devId) {
+        // Расчет ожидаемого ключа для 3 месяцев (3M) или 1 года (1Y)
+        function getExpectedLicenseKey(devId, planType) {
             let num = 0;
             for (let i = 0; i < devId.length; i++) num += devId.charCodeAt(i) * (i + 7);
-            return 'PRO-' + (num * 37).toString().substring(0, 5);
+            if (planType === '3M') {
+                return '3M-' + (num * 29).toString().substring(0, 5);
+            } else {
+                return '1Y-' + (num * 43).toString().substring(0, 5);
+            }
         }
 
         function activateByCode() {
             let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-            // Подходит либо индивидуальный ключ по ID, либо твой мастер-ключ владельца: ZAMER500
-            if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500') {
-                isUnlocked = true;
+            let key3M = getExpectedLicenseKey(deviceId, '3M');
+            let key1Y = getExpectedLicenseKey(deviceId, '1Y');
+
+            // Проверка на 3 месяца (90 дней)
+            if (code === key3M || code === 'ZAMER300') {
+                subExpireUntil = Date.now() + (90 * 24 * 60 * 60 * 1000);
                 saveSecurityState();
                 updateAttemptsUI();
                 document.getElementById('paywallModal').style.display = 'none';
-                alert('PRO-версия успешно активирована навсегда!');
+                alert('Подписка на 3 месяца (90 дней) успешно активирована!');
                 calculate();
-            } else {
-                alert('Неверный код активации! Проверьте правильность ввода.');
+                return;
             }
+
+            // Проверка на 1 год (365 дней)
+            if (code === key1Y || code === 'ZAMER800') {
+                subExpireUntil = Date.now() + (365 * 24 * 60 * 60 * 1000);
+                saveSecurityState();
+                updateAttemptsUI();
+                document.getElementById('paywallModal').style.display = 'none';
+                alert('Подписка на 1 год (365 дней) успешно активирована!');
+                calculate();
+                return;
+            }
+
+            alert('Неверный ключ активации! Проверьте правильность ввода.');
         }
 
-        function buyViaRuStore() {
+        function buySubscription(plan, price) {
+            let planText = plan === '3M' ? '3 месяца (300 ₽)' : '1 год (800 ₽)';
             if (window.RuStoreBilling) {
-                window.RuStoreBilling.purchaseProduct("pro_zamer_full_500");
+                window.RuStoreBilling.purchaseProduct(plan === '3M' ? "sub_3m_300" : "sub_1y_800");
             } else {
-                alert(`Для активации переведите 500 ₽ разработчику и отправьте ваш ID (${deviceId}) для получения кода активации, либо выполните покупку внутри приложения из каталога RuStore.`);
+                alert(`Выбран тариф: ${planText}.\nОплатите в RuStore или отправьте ваш ID (${deviceId}) разработчику для получения ключа.`);
             }
         }
 
         loadSecurityState();
 
-        // --- ГЕОМЕТРИЯ И ХОЛСТ ---
+        // --- ХОЛСТ, АВТОМАСШТАБ И ВРАЩЕНИЕ ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
         function resizeCanvas() {
             canvas.width = canvas.clientWidth || 350;
-            canvas.height = canvas.clientHeight || 260;
-            drawSketch();
+            canvas.height = canvas.clientHeight || 270;
+            fitToScreen(false);
         }
 
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 100);
 
         function toggleFullscreen() {
-            document.getElementById('canvasCard').classList.toggle('fullscreen');
-            setTimeout(resizeCanvas, 50);
+            const card = document.getElementById('canvasCard');
+            const isFull = card.classList.toggle('fullscreen');
+            document.getElementById('topFullscreenBtn').innerText = isFull ? '✖ Свернуть экран' : '⛶ На весь экран';
+            document.getElementById('bottomFullscreenBtn').innerText = isFull ? '✖ Свернуть' : '⛶ Развернуть';
+            setTimeout(() => {
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                fitToScreen(false);
+            }, 60);
         }
 
         let points = [];
@@ -685,7 +711,10 @@
         let lastEstimateText = '';
 
         function saveState() {
-            historyState.push(points.map(p => ({ x: p.x, y: p.y, label: p.label })));
+            historyState.push({
+                pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
+                scale: cmPerPixel
+            });
             if (historyState.length > 25) historyState.shift();
         }
 
@@ -704,8 +733,9 @@
 
         function autoGenerateRect() {
             saveState();
-            let drawW = 400 / CM_PER_PIXEL;
-            let drawH = 300 / CM_PER_PIXEL;
+            cmPerPixel = 2.5;
+            let drawW = 400 / cmPerPixel;
+            let drawH = 300 / cmPerPixel;
             let startX = (canvas.width - drawW) / 2;
             let startY = (canvas.height - drawH) / 2;
 
@@ -715,8 +745,77 @@
                 { x: startX + drawW, y: startY + drawH, label: 'C' },
                 { x: startX, y: startY + drawH, label: 'D' }
             ];
+            fitToScreen(false);
             rebuildWallInputs();
             updateHint();
+            drawSketch();
+        }
+
+        // Разворот чертежа на 90 градусов по часовой стрелке
+        function rotateSketch() {
+            if (points.length < 2) return;
+            saveState();
+            let cx = canvas.width / 2;
+            let cy = canvas.height / 2;
+            points.forEach(p => {
+                let dx = p.x - cx;
+                let dy = p.y - cy;
+                p.x = cx - dy;
+                p.y = cy + dx;
+            });
+            fitToScreen(false);
+            drawSketch();
+        }
+
+        // Автоматическое вписывание и масштабирование гигантских стен (хоть 28 метров) внутрь экрана
+        function fitToScreen(rebuild = false) {
+            if (points.length < 2) {
+                drawSketch();
+                return;
+            }
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            points.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+
+            let polyW = Math.max(maxX - minX, 10);
+            let polyH = Math.max(maxY - minY, 10);
+            let pad = 42; // Отступ от краев экрана, чтобы точки и буквы никогда не обрезались
+
+            let availW = Math.max(canvas.width - pad * 2, 60);
+            let availH = Math.max(canvas.height - pad * 2, 60);
+
+            let factor = Math.min(availW / polyW, availH / polyH);
+
+            // Если чертеж вылезает за границы ИЛИ слишком мелкий — плавно подгоняем масштаб
+            if (factor < 1 || factor > 1.35 || rebuild) {
+                let centerX = (minX + maxX) / 2;
+                let centerY = (minY + maxY) / 2;
+                let canvasCX = canvas.width / 2;
+                let canvasCY = canvas.height / 2;
+
+                points.forEach(p => {
+                    p.x = canvasCX + (p.x - centerX) * factor;
+                    p.y = canvasCY + (p.y - centerY) * factor;
+                });
+                // Чтобы реальные сантиметры стен не изменились при сжатии картинки, пропорционально меняем вес пикселя
+                cmPerPixel = cmPerPixel / factor;
+            } else {
+                // Просто центрируем, если вылезло за один край
+                if (minX < pad || maxX > canvas.width - pad || minY < pad || maxY > canvas.height - pad) {
+                    let centerX = (minX + maxX) / 2;
+                    let centerY = (minY + maxY) / 2;
+                    let dx = (canvas.width / 2) - centerX;
+                    let dy = (canvas.height / 2) - centerY;
+                    points.forEach(p => {
+                        p.x += dx;
+                        p.y += dy;
+                    });
+                }
+            }
             drawSketch();
         }
 
@@ -749,8 +848,8 @@
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
             let p = points[draggedPointIndex];
-            p.x = Math.max(16, Math.min(canvas.width - 16, e.clientX - rect.left));
-            p.y = Math.max(16, Math.min(canvas.height - 16, e.clientY - rect.top));
+            p.x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
+            p.y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
 
             syncInputsValuesOnly();
             drawSketch();
@@ -763,9 +862,12 @@
 
         function undoPoint() {
             if (historyState.length > 0) {
-                points = historyState.pop();
+                let st = historyState.pop();
+                points = st.pts;
+                cmPerPixel = st.scale;
             } else {
                 points = [];
+                cmPerPixel = 2.5;
             }
             rebuildWallInputs();
             updateHint();
@@ -775,6 +877,7 @@
         function resetSketch() {
             saveState();
             points = [];
+            cmPerPixel = 2.5;
             rebuildWallInputs();
             updateHint();
             drawSketch();
@@ -806,13 +909,13 @@
             for (let i = 0; i < wallCount; i++) {
                 let p1 = points[i];
                 let p2 = points[(i + 1) % points.length];
-                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
 
                 let div = document.createElement('div');
                 div.className = 'input-group';
                 div.innerHTML = `
                     <label>Стена ${p1.label}-${p2.label} (см)</label>
-                    <input type="number" class="input-field wall-len" id="wall-input-${i}" value="${distCm}" step="1" oninput="onWallInputChange(${i}, this.value)">
+                    <input type="number" class="input-field wall-len" id="wall-input-${i}" value="${distCm}" step="1" onchange="onWallInputChange(${i}, this.value)">
                 `;
                 container.appendChild(div);
             }
@@ -823,25 +926,24 @@
             for (let i = 0; i < wallCount; i++) {
                 let p1 = points[i];
                 let p2 = points[(i + 1) % points.length];
-                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                let distCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
                 let input = document.getElementById(`wall-input-${i}`);
                 if (input) input.value = distCm;
             }
         }
 
+        // При вводе большой стены (например, 1800 или 2800 см) точка сдвигается и чертеж сразу вписывается в экран
         function onWallInputChange(wallIndex, newCmValue) {
             let cm = parseFloat(newCmValue);
-            if (!cm || cm <= 0) {
-                drawSketch();
-                return;
-            }
+            if (!cm || cm <= 0) return;
+
             let p1 = points[wallIndex];
             let p2 = points[(wallIndex + 1) % points.length];
 
             let dx = p2.x - p1.x;
             let dy = p2.y - p1.y;
             let currentPx = Math.hypot(dx, dy);
-            let targetPx = cm / CM_PER_PIXEL;
+            let targetPx = cm / cmPerPixel;
 
             if (currentPx > 0) {
                 p2.x = p1.x + (dx / currentPx) * targetPx;
@@ -849,6 +951,12 @@
             } else {
                 p2.x = p1.x + targetPx;
             }
+
+            // Вписываем весь чертеж в экран, чтобы длинная стена не улетала за края
+            fitToScreen(true);
+            syncInputsValuesOnly();
+            let editedInput = document.getElementById(`wall-input-${wallIndex}`);
+            if (editedInput) editedInput.value = Math.round(cm);
             drawSketch();
         }
 
@@ -883,7 +991,7 @@
                         ctx.lineTo(p2.x, p2.y);
                         ctx.stroke();
 
-                        let diagCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                        let diagCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
                         let midX = (p1.x + p2.x) / 2;
                         let midY = (p1.y + p2.y) / 2;
                         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
@@ -915,7 +1023,7 @@
                 let p1 = points[i];
                 let p2 = points[(i + 1) % points.length];
                 let inputEl = document.getElementById(`wall-input-${i}`);
-                let lenCm = inputEl ? inputEl.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * CM_PER_PIXEL);
+                let lenCm = inputEl ? inputEl.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
 
                 let midX = (p1.x + p2.x) / 2;
                 let midY = (p1.y + p2.y) / 2;
@@ -933,7 +1041,9 @@
 
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 13px Segoe UI';
-                ctx.fillText(p.label, p.x + 10, p.y - 10);
+                let lx = Math.min(canvas.width - 18, Math.max(6, p.x + 10));
+                let ly = Math.min(canvas.height - 6, Math.max(16, p.y - 10));
+                ctx.fillText(p.label, lx, ly);
             });
         }
 
@@ -946,16 +1056,16 @@
                 sum += (p1.x * p2.y - p2.x * p1.y);
             }
             let pxArea = Math.abs(sum) / 2;
-            let cm2Area = pxArea * (CM_PER_PIXEL * CM_PER_PIXEL);
+            let cm2Area = pxArea * (cmPerPixel * cmPerPixel);
             return cm2Area / 10000;
         }
 
         function performCalculation() {
             if (points.length < 3) {
-                alert('Поставьте минимум 3 угла на чертеже (или нажмите «Построить чертеж»)!');
+                alert('Поставьте минимум 3 угла на чертеже (или нажмите «Прямоугольник»)!');
                 return;
             }
-            if (!isUnlocked) {
+            if (!isSubscriptionActive()) {
                 if (usedAttempts >= MAX_FREE_ATTEMPTS) {
                     document.getElementById('paywallModal').style.display = 'flex';
                     return;
@@ -1001,7 +1111,6 @@
             let name2 = document.getElementById('customName2').value.trim() || 'Доп. работа 2';
             let custom2 = parseFloat(document.getElementById('customPrice2').value) || 0;
 
-            // Точный расчет каждой позиции
             let costCanvas = Math.round(area * pCanvas);
             let costProfile = Math.round(roomPerimeterM * pProfile);
             let costAngles = Math.round(extraAngles * pAngle);
@@ -1012,7 +1121,6 @@
 
             let total = costCanvas + costProfile + costAngles + costLights + costChandelier + costCornice + costPipes + custom1 + custom2;
 
-            // Формируем подробную ведомость на экране
             let rowsHtml = `
                 <div class="breakdown-row">
                     <div class="breakdown-label">
@@ -1100,7 +1208,6 @@
             document.getElementById('estimateBreakdown').innerHTML = rowsHtml;
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
 
-            // Готовим текст для отправки клиенту
             let clientName = document.getElementById('clientName').value || 'Заказчик';
             let clientAddr = document.getElementById('clientAddress').value || 'Не указан';
 
@@ -1134,6 +1241,7 @@
                 name,
                 address,
                 points,
+                scale: cmPerPixel,
                 walls: Array.from(document.querySelectorAll('.wall-len')).map(i => i.value),
                 date: new Date().toLocaleDateString()
             };
@@ -1160,6 +1268,7 @@
                 document.getElementById('clientName').value = proj.name;
                 document.getElementById('clientAddress').value = proj.address || '';
                 points = proj.points;
+                cmPerPixel = proj.scale || 2.5;
                 rebuildWallInputs();
                 
                 let wallInputs = document.querySelectorAll('.wall-len');
@@ -1168,7 +1277,7 @@
                 });
 
                 updateHint();
-                drawSketch();
+                fitToScreen(false);
             }
         }
 
