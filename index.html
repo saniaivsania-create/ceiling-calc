@@ -142,7 +142,6 @@
             margin: 6px 0;
         }
 
-        /* Панель кнопок под чертежом (работает и в обычном, и в полноэкранном режиме) */
         .canvas-tools {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -302,7 +301,7 @@
         .total-price span { font-size: 15px; font-weight: 700; }
         .total-price .price-value { font-size: 24px; color: var(--accent); font-weight: 800; }
 
-        .action-buttons {
+        .share-buttons-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
@@ -378,13 +377,12 @@
             
             <canvas id="sketchCanvas"></canvas>
             
-            <!-- Все кнопки управления всегда доступны и на малом, и на большом экране -->
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Отмена</button>
                 <button class="btn btn-success" onclick="autoGenerateRect()">📐 Прямоугольник</button>
                 <button class="btn btn-warning" onclick="rotateSketch()">🔄 Повернуть 90°</button>
-                <button class="btn" onclick="fitToScreen()" style="border-color: var(--accent); color: var(--accent);">🔍 Вписать</button>
+                <button class="btn" onclick="fitToScreen(true)" style="border-color: var(--accent); color: var(--accent);">🔍 Вписать</button>
                 <button class="btn btn-primary" id="bottomFullscreenBtn" onclick="toggleFullscreen()">⛶ Развернуть</button>
             </div>
         </div>
@@ -469,9 +467,11 @@
                 <span class="price-value" id="resTotal">0 ₽</span>
             </div>
 
-            <div class="action-buttons">
-                <button class="btn btn-primary" onclick="performCalculation()" style="padding: 13px; font-size: 14px;">🧮 РАССЧИТАТЬ</button>
-                <button class="btn" onclick="shareEstimate()" style="padding: 13px; font-size: 14px;">📤 Отправить смету</button>
+            <button class="btn btn-primary" onclick="performCalculation()" style="padding: 14px; font-size: 15px; width: 100%;">🧮 РАССЧИТАТЬ СМЕТУ</button>
+
+            <div class="share-buttons-grid">
+                <button class="btn btn-success" onclick="shareEstimate('separate')" style="padding: 12px 8px; font-size: 12px;">📤 Смета + Чертёж</button>
+                <button class="btn btn-warning" onclick="shareEstimate('allInOne')" style="padding: 12px 8px; font-size: 12px;">🖼️ Всё на 1 листе</button>
             </div>
         </div>
     </div>
@@ -512,11 +512,10 @@
     </div>
 
     <script>
-        let cmPerPixel = 2.5; // Динамический масштаб (по умолчанию 1px = 2.5 см)
+        let cmPerPixel = 2.5;
         const MAX_FREE_ATTEMPTS = 5;
         const SECRET_SALT = "PRO_ZAMER_2026_SUB";
 
-        // --- СИСТЕМА ЗАЩИТЫ И УЧЕТА ПОДПИСОК (3 МЕСЯЦА / 1 ГОД) ---
         let deviceId = localStorage.getItem('_pz_dev_id');
         if (!deviceId) {
             deviceId = 'PZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -558,7 +557,7 @@
         }
 
         let usedAttempts = 0;
-        let subExpireUntil = 0; // Timestamp окончания подписки
+        let subExpireUntil = 0;
 
         function isSubscriptionActive() {
             return Date.now() < subExpireUntil;
@@ -627,7 +626,6 @@
             }
         }
 
-        // Расчет ожидаемого ключа для 3 месяцев (3M) или 1 года (1Y)
         function getExpectedLicenseKey(devId, planType) {
             let num = 0;
             for (let i = 0; i < devId.length; i++) num += devId.charCodeAt(i) * (i + 7);
@@ -643,7 +641,6 @@
             let key3M = getExpectedLicenseKey(deviceId, '3M');
             let key1Y = getExpectedLicenseKey(deviceId, '1Y');
 
-            // Проверка на 3 месяца (90 дней)
             if (code === key3M || code === 'ZAMER300') {
                 subExpireUntil = Date.now() + (90 * 24 * 60 * 60 * 1000);
                 saveSecurityState();
@@ -654,7 +651,6 @@
                 return;
             }
 
-            // Проверка на 1 год (365 дней)
             if (code === key1Y || code === 'ZAMER800') {
                 subExpireUntil = Date.now() + (365 * 24 * 60 * 60 * 1000);
                 saveSecurityState();
@@ -673,13 +669,12 @@
             if (window.RuStoreBilling) {
                 window.RuStoreBilling.purchaseProduct(plan === '3M' ? "sub_3m_300" : "sub_1y_800");
             } else {
-                alert(`Выбран тариф: ${planText}.\nОплатите в RuStore или отправьте ваш ID (${deviceId}) разработчику для получения ключа.`);
+                alert(`Выбран тариф: ${planText}.\nОтправьте ваш ID (${deviceId}) разработчику для получения ключа активации.`);
             }
         }
 
         loadSecurityState();
 
-        // --- ХОЛСТ, АВТОМАСШТАБ И ВРАЩЕНИЕ ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -709,6 +704,7 @@
         let draggedPointIndex = null;
         let isDragging = false;
         let lastEstimateText = '';
+        let lastBreakdownItems = [];
 
         function saveState() {
             historyState.push({
@@ -751,7 +747,6 @@
             drawSketch();
         }
 
-        // Разворот чертежа на 90 градусов по часовой стрелке
         function rotateSketch() {
             if (points.length < 2) return;
             saveState();
@@ -763,12 +758,11 @@
                 p.x = cx - dy;
                 p.y = cy + dx;
             });
-            fitToScreen(false);
+            fitToScreen(true);
             drawSketch();
         }
 
-        // Автоматическое вписывание и масштабирование гигантских стен (хоть 28 метров) внутрь экрана
-        function fitToScreen(rebuild = false) {
+        function fitToScreen(forceFit = false) {
             if (points.length < 2) {
                 drawSketch();
                 return;
@@ -783,15 +777,14 @@
 
             let polyW = Math.max(maxX - minX, 10);
             let polyH = Math.max(maxY - minY, 10);
-            let pad = 42; // Отступ от краев экрана, чтобы точки и буквы никогда не обрезались
+            let pad = 44;
 
             let availW = Math.max(canvas.width - pad * 2, 60);
             let availH = Math.max(canvas.height - pad * 2, 60);
 
             let factor = Math.min(availW / polyW, availH / polyH);
 
-            // Если чертеж вылезает за границы ИЛИ слишком мелкий — плавно подгоняем масштаб
-            if (factor < 1 || factor > 1.35 || rebuild) {
+            if (factor < 1 || factor > 1.35 || forceFit) {
                 let centerX = (minX + maxX) / 2;
                 let centerY = (minY + maxY) / 2;
                 let canvasCX = canvas.width / 2;
@@ -801,10 +794,8 @@
                     p.x = canvasCX + (p.x - centerX) * factor;
                     p.y = canvasCY + (p.y - centerY) * factor;
                 });
-                // Чтобы реальные сантиметры стен не изменились при сжатии картинки, пропорционально меняем вес пикселя
                 cmPerPixel = cmPerPixel / factor;
             } else {
-                // Просто центрируем, если вылезло за один край
                 if (minX < pad || maxX > canvas.width - pad || minY < pad || maxY > canvas.height - pad) {
                     let centerX = (minX + maxX) / 2;
                     let centerY = (minY + maxY) / 2;
@@ -932,7 +923,6 @@
             }
         }
 
-        // При вводе большой стены (например, 1800 или 2800 см) точка сдвигается и чертеж сразу вписывается в экран
         function onWallInputChange(wallIndex, newCmValue) {
             let cm = parseFloat(newCmValue);
             if (!cm || cm <= 0) return;
@@ -952,7 +942,6 @@
                 p2.x = p1.x + targetPx;
             }
 
-            // Вписываем весь чертеж в экран, чтобы длинная стена не улетала за края
             fitToScreen(true);
             syncInputsValuesOnly();
             let editedInput = document.getElementById(`wall-input-${wallIndex}`);
@@ -1121,89 +1110,28 @@
 
             let total = costCanvas + costProfile + costAngles + costLights + costChandelier + costCornice + costPipes + custom1 + custom2;
 
-            let rowsHtml = `
+            lastBreakdownItems = [
+                { title: 'Полотно потолка', sub: `${area.toFixed(2)} м² × ${pCanvas} ₽`, val: `${costCanvas.toLocaleString()} ₽` },
+                { title: 'Профиль (багет)', sub: `${roomPerimeterM.toFixed(2)} м.п. × ${pProfile} ₽`, val: `${costProfile.toLocaleString()} ₽` },
+                { title: `Углы (всего: ${totalAngles} шт.)`, sub: `Доп. углы: ${extraAngles} шт. × ${pAngle} ₽`, val: `${costAngles.toLocaleString()} ₽` }
+            ];
+
+            if (cLights > 0) lastBreakdownItems.push({ title: 'Светильники', sub: `${cLights} шт. × ${pLight} ₽`, val: `${costLights.toLocaleString()} ₽` });
+            if (cChandeliers > 0) lastBreakdownItems.push({ title: 'Люстра', sub: `${cChandeliers} шт. × ${pChandelier} ₽`, val: `${costChandelier.toLocaleString()} ₽` });
+            if (cCornice > 0) lastBreakdownItems.push({ title: 'Монтаж карниза', sub: `${cCornice} м.п. × ${pCornice} ₽`, val: `${costCornice.toLocaleString()} ₽` });
+            if (cPipes > 0) lastBreakdownItems.push({ title: 'Обход труб', sub: `${cPipes} шт. × ${pPipe} ₽`, val: `${costPipes.toLocaleString()} ₽` });
+            if (custom1 > 0) lastBreakdownItems.push({ title: name1, sub: 'Доп. работа', val: `${custom1.toLocaleString()} ₽` });
+            if (custom2 > 0) lastBreakdownItems.push({ title: name2, sub: 'Доп. работа', val: `${custom2.toLocaleString()} ₽` });
+
+            let rowsHtml = lastBreakdownItems.map(item => `
                 <div class="breakdown-row">
                     <div class="breakdown-label">
-                        <span>Полотно потолка</span>
-                        <span class="breakdown-sub">${area.toFixed(2)} м² × ${pCanvas} ₽</span>
+                        <span>${item.title}</span>
+                        <span class="breakdown-sub">${item.sub}</span>
                     </div>
-                    <div class="breakdown-val">${costCanvas.toLocaleString()} ₽</div>
+                    <div class="breakdown-val">${item.val}</div>
                 </div>
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Профиль (багет)</span>
-                        <span class="breakdown-sub">${roomPerimeterM.toFixed(2)} м.п. × ${pProfile} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costProfile.toLocaleString()} ₽</div>
-                </div>
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Углы помещения (всего: ${totalAngles} шт.)</span>
-                        <span class="breakdown-sub">Базовые 4 шт. — 0 ₽ | Доп. углы: ${extraAngles} шт. × ${pAngle} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costAngles.toLocaleString()} ₽</div>
-                </div>
-            `;
-
-            if (cLights > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Установка светильников</span>
-                        <span class="breakdown-sub">${cLights} шт. × ${pLight} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costLights.toLocaleString()} ₽</div>
-                </div>`;
-            }
-
-            if (cChandeliers > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Установка люстры</span>
-                        <span class="breakdown-sub">${cChandeliers} шт. × ${pChandelier} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costChandelier.toLocaleString()} ₽</div>
-                </div>`;
-            }
-
-            if (cCornice > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Монтаж карниза</span>
-                        <span class="breakdown-sub">${cCornice} м.п. × ${pCornice} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costCornice.toLocaleString()} ₽</div>
-                </div>`;
-            }
-
-            if (cPipes > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label">
-                        <span>Обход труб</span>
-                        <span class="breakdown-sub">${cPipes} шт. × ${pPipe} ₽</span>
-                    </div>
-                    <div class="breakdown-val">${costPipes.toLocaleString()} ₽</div>
-                </div>`;
-            }
-
-            if (custom1 > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label"><span>${name1}</span></div>
-                    <div class="breakdown-val">${custom1.toLocaleString()} ₽</div>
-                </div>`;
-            }
-
-            if (custom2 > 0) {
-                rowsHtml += `
-                <div class="breakdown-row">
-                    <div class="breakdown-label"><span>${name2}</span></div>
-                    <div class="breakdown-val">${custom2.toLocaleString()} ₽</div>
-                </div>`;
-            }
+            `).join('');
 
             document.getElementById('estimateBreakdown').innerHTML = rowsHtml;
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
@@ -1281,16 +1209,110 @@
             }
         }
 
-        function shareEstimate() {
-            if (!lastEstimateText) {
-                alert('Сначала выполните расчет кнопкой «РАССЧИТАТЬ»!');
+        // Универсальная отправка: mode = 'separate' (Чертёж + текст) или 'allInOne' (Всё на 1 листе-картинке)
+        async function shareEstimate(mode = 'separate') {
+            if (!lastEstimateText || points.length < 3) {
+                alert('Сначала начертите комнату и нажмите «РАССЧИТАТЬ СМЕТУ»!');
                 return;
             }
-            if (navigator.share) {
-                navigator.share({ title: 'Смета потолка', text: lastEstimateText }).catch(() => {});
-            } else {
-                window.open(`https://wa.me/?text=${encodeURIComponent(lastEstimateText)}`, '_blank');
+
+            const tempCanvas = document.createElement('canvas');
+            const pad = 18;
+            const headerH = 78;
+            const rowH = 38;
+            const footerH = mode === 'allInOne' ? (lastBreakdownItems.length * rowH + 75) : 0;
+
+            tempCanvas.width = Math.max(canvas.width, 380);
+            tempCanvas.height = headerH + canvas.height + footerH;
+            const tCtx = tempCanvas.getContext('2d');
+
+            // Темный фон документа
+            tCtx.fillStyle = '#070a12';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            let clientName = document.getElementById('clientName').value || 'Заказчик';
+            let clientAddr = document.getElementById('clientAddress').value || 'Адрес не указан';
+            let totalText = document.getElementById('resTotal').innerText;
+
+            // Шапка
+            tCtx.fillStyle = '#00d2ff';
+            tCtx.font = 'bold 16px Segoe UI, sans-serif';
+            tCtx.fillText(`📐 Замер потолка — ${clientName}`, pad, 28);
+
+            tCtx.fillStyle = '#94a3b8';
+            tCtx.font = '13px Segoe UI, sans-serif';
+            tCtx.fillText(`📍 Адрес: ${clientAddr}`, pad, 50);
+
+            tCtx.fillStyle = '#22c55e';
+            tCtx.font = 'bold 14px Segoe UI, sans-serif';
+            tCtx.fillText(`💰 Итого по смете: ${totalText}`, pad, 70);
+
+            // Отрисовка самого чертежа по центру
+            let offsetX = (tempCanvas.width - canvas.width) / 2;
+            tCtx.drawImage(canvas, offsetX, headerH);
+
+            // Если выбран режим "Всё на 1 листе" — рисуем таблицу сметы прямо под чертежом
+            if (mode === 'allInOne') {
+                let startY = headerH + canvas.height + 24;
+
+                tCtx.strokeStyle = '#1e293b';
+                tCtx.lineWidth = 1;
+                tCtx.beginPath();
+                tCtx.moveTo(pad, startY - 12);
+                tCtx.lineTo(tempCanvas.width - pad, startY - 12);
+                tCtx.stroke();
+
+                lastBreakdownItems.forEach((item, idx) => {
+                    let y = startY + idx * rowH;
+                    tCtx.fillStyle = '#ffffff';
+                    tCtx.font = 'bold 13px Segoe UI, sans-serif';
+                    tCtx.fillText(item.title, pad, y);
+
+                    tCtx.fillStyle = '#94a3b8';
+                    tCtx.font = '11px Segoe UI, sans-serif';
+                    tCtx.fillText(item.sub, pad, y + 15);
+
+                    tCtx.fillStyle = '#00d2ff';
+                    tCtx.font = 'bold 13px Segoe UI, sans-serif';
+                    let valWidth = tCtx.measureText(item.val).width;
+                    tCtx.fillText(item.val, tempCanvas.width - pad - valWidth, y + 8);
+                });
+
+                let totalY = startY + lastBreakdownItems.length * rowH + 18;
+                tCtx.fillStyle = '#131b2e';
+                tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
+
+                tCtx.fillStyle = '#ffffff';
+                tCtx.font = 'bold 15px Segoe UI, sans-serif';
+                tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
+
+                tCtx.fillStyle = '#22c55e';
+                tCtx.font = 'bold 17px Segoe UI, sans-serif';
+                let totW = tCtx.measureText(totalText).width;
+                tCtx.fillText(totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
             }
+
+            tempCanvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const fileName = `zamer_${clientName.replace(/\s+/g, '_')}.png`;
+                const file = new File([blob], fileName, { type: 'image/png' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            title: 'Смета и чертёж потолка',
+                            text: mode === 'separate' ? lastEstimateText : `Смета и чертёж: ${clientName} (${clientAddr})`,
+                            files: [file]
+                        });
+                    } catch (err) {}
+                } else {
+                    const link = document.createElement('a');
+                    link.download = fileName;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    window.open(`https://wa.me/?text=${encodeURIComponent(lastEstimateText)}`, '_blank');
+                }
+            }, 'image/png');
         }
     </script>
 </body>
