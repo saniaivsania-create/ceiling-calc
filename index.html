@@ -449,11 +449,11 @@
             <div class="grid-inputs">
                 <div class="input-group">
                     <label>Имя клиента</label>
-                    <input type="text" id="clientName" class="input-field" placeholder="Вася">
+                    <input type="text" id="clientName" class="input-field" placeholder="Введите имя">
                 </div>
                 <div class="input-group">
                     <label>Адрес объекта</label>
-                    <input type="text" id="clientAddress" class="input-field" placeholder="ул. Ленина, д. 10">
+                    <input type="text" id="clientAddress" class="input-field" placeholder="Введите адрес">
                 </div>
             </div>
             <div style="display: flex; gap: 6px; margin-top: 4px;">
@@ -465,7 +465,7 @@
         <!-- КАРТОЧКА ХОЛСТА -->
         <div class="canvas-card" id="canvasCard">
             <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Тапните на экран для точки А</span>
+                <span class="action-hint" id="actionHint">Тапните на экран, чтобы поставить точку А</span>
                 <button class="fullscreen-btn" id="topFullscreenBtn" onclick="toggleFullscreen()">⛶ На весь экран</button>
             </div>
             
@@ -497,7 +497,7 @@
 
             <div id="wallsInputsContainer"></div>
 
-            <div style="display: flex; gap: 8px; margin-top: 4px;" id="tableActionButtons">
+            <div style="display: none; gap: 8px; margin-top: 4px;" id="tableActionButtons">
                 <button class="btn btn-success" onclick="buildSketchFromTable()" style="flex: 1; padding: 11px;">🔨 Построить и замкнуть по размерам</button>
                 <button class="btn" onclick="fitToScreen(true)" style="padding: 11px; color: var(--accent); border-color: var(--accent);">🔍 Вписать</button>
             </div>
@@ -566,7 +566,7 @@
             
             <div class="estimate-breakdown" id="estimateBreakdown">
                 <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
-                    Замкните чертёж и нажмите <b>«РАССЧИТАТЬ СМЕТУ»</b>
+                    Начертите комнату и нажмите <b>«РАССЧИТАТЬ СМЕТУ»</b>
                 </div>
             </div>
             
@@ -640,7 +640,6 @@
         const MAX_CORNERS = 50;
         const SECRET_SALT = "PRO_ZAMER_2026_500RUB";
 
-        // Функция генерации буквенных имен углов от 1 до 50 (A..Z, AA..AX)
         function getPointLabel(index) {
             if (index < 26) {
                 return String.fromCharCode(65 + index);
@@ -798,7 +797,7 @@
 
         loadSecurityState();
 
-        // --- ПОСЛЕДОВАТЕЛЬНОЕ ПОСТРОЕНИЕ ЧЕРТЕЖА ОТ ТОЧКИ К ТОЧКЕ (ДО 50 УГЛОВ) ---
+        // --- ЧИСТЫЙ ХОЛСТ ПРИ ЗАПУСКЕ ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -821,7 +820,8 @@
         window.addEventListener('resize', resizeCanvas);
         setTimeout(() => {
             resizeCanvas();
-            createFromTablePreset();
+            updateHint();
+            drawSketch();
         }, 120);
 
         function toggleFullscreen() {
@@ -856,7 +856,7 @@
             const closeBtn = document.getElementById('closeContourBtn');
 
             if (points.length === 0) {
-                hint.innerText = 'Тапните на экран, чтобы поставить точку А';
+                hint.innerText = 'Тапните на экран для точки А или нажмите «📋 Создать таблицу»';
                 closeBtn.innerText = '🔗 Замкнуть';
             } else if (!isClosed) {
                 let nextLabel = getPointLabel(points.length);
@@ -1090,7 +1090,6 @@
             }
         }
 
-        // Создание шаблона комнаты на любое количество углов от 3 до 50
         function createFromTablePreset() {
             saveState();
             let rawVal = parseInt(document.getElementById('presetCornersCount').value) || 4;
@@ -1153,6 +1152,7 @@
 
         function rebuildWallInputs() {
             const container = document.getElementById('wallsInputsContainer');
+            const actionBtns = document.getElementById('tableActionButtons');
             container.innerHTML = '';
 
             let totalAngles = points.length;
@@ -1161,7 +1161,11 @@
             document.getElementById('wallsAnglesBadge').innerText = `Углов: ${totalAngles} (доп: ${extraAngles})`;
 
             let wallCount = getWallCount();
-            if (wallCount === 0) return;
+            if (wallCount === 0) {
+                actionBtns.style.display = 'none';
+                return;
+            }
+            actionBtns.style.display = 'flex';
 
             for (let i = 0; i < wallCount; i++) {
                 let p1 = points[i];
