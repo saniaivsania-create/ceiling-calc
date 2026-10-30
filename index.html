@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Потолок Замер PRO</title>
     <link rel="manifest" href="manifest.json">
-    
+
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -381,9 +381,10 @@
             text-align: center;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
             box-shadow: 0 15px 40px rgba(0,0,0,0.8);
-            max-height: 85vh;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .saved-list {
@@ -431,10 +432,13 @@
         .device-id-box {
             background: #070a12;
             border: 1px dashed var(--border);
-            padding: 8px;
-            border-radius: 8px;
+            padding: 10px;
+            border-radius: 10px;
             font-size: 12px;
             color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
     </style>
 </head>
@@ -490,7 +494,6 @@
                 <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--accent);">Углов: 0</span>
             </div>
 
-            <!-- Ввод любого количества углов от 3 до 50 -->
             <div style="display: flex; gap: 8px; align-items: center; background: #070a12; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
                 <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Углов (3–50):</span>
                 <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50" style="width: 75px; text-align: center; font-weight: 700; color: var(--accent);">
@@ -608,30 +611,34 @@
         </div>
     </div>
 
-    <!-- Модальное окно подписки RuStore: 3 месяца за 500 ₽ -->
+    <!-- Модальное окно подписки RuStore + Контактная почта Prilojeniea-p-k@mail.ru -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
-            <div style="font-size: 40px;">🔒</div>
+            <div style="font-size: 36px;">🔒</div>
             <div style="font-size: 17px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
-                Оформите подписку через официальный магазин <b>RuStore</b> для безлимитной работы со сметами и выгрузкой в цех:
+                Оформите подписку через <b>RuStore</b> или получите ключ активации у разработчика по электронной почте:
             </div>
             
-            <div style="background: linear-gradient(145deg, #16223b, #1a2c4e); border: 2px solid var(--accent); padding: 16px; border-radius: 14px; text-align: center;">
+            <div style="background: linear-gradient(145deg, #16223b, #1a2c4e); border: 2px solid var(--accent); padding: 14px; border-radius: 14px; text-align: center;">
                 <div style="font-size: 13px; color: var(--accent); font-weight: 700;">ПОДПИСКА PRO (НА 3 МЕСЯЦА)</div>
-                <div style="font-size: 28px; font-weight: 800; color: #fff; margin: 6px 0;">500 ₽</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Полный доступ ко всем расчётам, чертежам и выгрузке Word</div>
-                <button class="btn btn-primary" onclick="buyViaRuStore()" style="width: 100%; padding: 13px; font-size: 14px;">🛒 Оплатить через RuStore (500 ₽)</button>
+                <div style="font-size: 26px; font-weight: 800; color: #fff; margin: 4px 0;">500 ₽</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Безлимитные расчёты, чертежи и выгрузка в Word</div>
+                <button class="btn btn-primary" onclick="buyViaRuStore()" style="width: 100%; padding: 12px; font-size: 13px;">🛒 Оплатить подписку (500 ₽)</button>
             </div>
 
-            <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-                <div class="device-id-box">
-                    Резервная активация по ключу (Ваш ID: <b id="deviceIdLabel" style="color: #fff;">—</b>)
+            <div class="device-id-box">
+                <div>Ваш ID устройства: <b id="deviceIdLabel" style="color: #fff; font-size: 13px;">—</b></div>
+                <div>Почта для получения ключа: <b style="color: var(--accent);">Prilojeniea-p-k@mail.ru</b></div>
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button class="btn btn-warning" onclick="sendEmailToSupport()" style="flex: 1; padding: 8px; font-size: 11px;">✉️ Написать на почту</button>
+                    <button class="btn" onclick="copySupportInfo()" style="flex: 1; padding: 8px; font-size: 11px;">📋 Скопировать почту и ID</button>
                 </div>
-                <div style="display: flex; gap: 6px;">
-                    <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите код активации">
-                    <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap; padding: 0 14px;">ОК</button>
-                </div>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+                <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите полученный ключ">
+                <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap; padding: 0 16px;">Активировать</button>
             </div>
         </div>
     </div>
@@ -640,6 +647,7 @@
         let cmPerPixel = 2.5;
         const MAX_FREE_ATTEMPTS = 5;
         const MAX_CORNERS = 50;
+        const SUPPORT_EMAIL = "Prilojeniea-p-k@mail.ru";
         const SECRET_SALT = "PRO_ZAMER_2026_500RUB";
 
         function getPointLabel(index) {
@@ -785,11 +793,29 @@
             }
         }
 
+        function sendEmailToSupport() {
+            let subject = encodeURIComponent(`Покупка ключа Потолок Замер PRO (ID: ${deviceId})`);
+            let body = encodeURIComponent(`Здравствуйте! Хочу приобрести подписку на 3 месяца (500 ₽).\nМой ID устройства: ${deviceId}`);
+            window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+        }
+
+        function copySupportInfo() {
+            let textToCopy = `Почта: ${SUPPORT_EMAIL} | Мой ID: ${deviceId}`;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
+                    alert(`Почта ${SUPPORT_EMAIL} скопирована!\nНе забудьте указать в письме ваш ID: ${deviceId}`);
+                });
+            } else {
+                prompt("Скопируйте адрес почты:", SUPPORT_EMAIL);
+            }
+        }
+
         function buyViaRuStore() {
             if (window.RuStoreBilling) {
                 window.RuStoreBilling.purchaseProduct("sub_3m_500");
             } else {
-                alert(`Платёжный шлюз RuStore Pay (продукт: sub_3m_500 — 500 ₽ на 3 месяца) будет автоматически открываться после загрузки APK в RuStore.\n\nДля прямой активации отправьте ваш ID (${deviceId}) разработчику.`);
+                alert(`Для оформления подписки (500 ₽ на 3 месяца) напишите нам на почту:\n${SUPPORT_EMAIL}\n\nВ письме укажите ваш ID устройства: ${deviceId}`);
+                sendEmailToSupport();
             }
         }
 
