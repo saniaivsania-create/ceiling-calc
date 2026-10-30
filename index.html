@@ -182,6 +182,15 @@
             gap: 8px;
         }
 
+        #wallsInputsContainer {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 360px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
         .wall-row-input {
             display: grid;
             grid-template-columns: 1fr 1.1fr;
@@ -472,30 +481,21 @@
             </div>
         </div>
 
-        <!-- КАРТОЧКА ПОСТРОЕНИЯ ПО ТАБЛИЦЕ (ОТ ТОЧКИ К ТОЧКЕ) -->
+        <!-- КАРТОЧКА ПОСТРОЕНИЯ ПО ТАБЛИЦЕ (ДО 50 УГЛОВ) -->
         <div class="section-card">
             <div class="section-title">
                 <span>📏 Построение и длины стен (см):</span>
                 <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--accent);">Углов: 0</span>
             </div>
 
-            <!-- Выбор количества углов для быстрого табличного ввода -->
+            <!-- Ввод любого количества углов от 3 до 50 -->
             <div style="display: flex; gap: 8px; align-items: center; background: #070a12; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
-                <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Кол-во углов:</span>
-                <select id="presetCornersCount" class="dir-select" style="width: 85px;">
-                    <option value="4" selected>4 угла</option>
-                    <option value="5">5 углов</option>
-                    <option value="6">6 углов</option>
-                    <option value="7">7 углов</option>
-                    <option value="8">8 углов</option>
-                    <option value="9">9 углов</option>
-                    <option value="10">10 углов</option>
-                    <option value="12">12 углов</option>
-                </select>
+                <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Углов (3–50):</span>
+                <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50" style="width: 75px; text-align: center; font-weight: 700; color: var(--accent);">
                 <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать таблицу</button>
             </div>
 
-            <div id="wallsInputsContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            <div id="wallsInputsContainer"></div>
 
             <div style="display: flex; gap: 8px; margin-top: 4px;" id="tableActionButtons">
                 <button class="btn btn-success" onclick="buildSketchFromTable()" style="flex: 1; padding: 11px;">🔨 Построить и замкнуть по размерам</button>
@@ -637,7 +637,18 @@
     <script>
         let cmPerPixel = 2.5;
         const MAX_FREE_ATTEMPTS = 5;
+        const MAX_CORNERS = 50;
         const SECRET_SALT = "PRO_ZAMER_2026_500RUB";
+
+        // Функция генерации буквенных имен углов от 1 до 50 (A..Z, AA..AX)
+        function getPointLabel(index) {
+            if (index < 26) {
+                return String.fromCharCode(65 + index);
+            }
+            let first = Math.floor(index / 26) - 1;
+            let second = index % 26;
+            return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
+        }
 
         let deviceId = localStorage.getItem('_pz_dev_id');
         if (!deviceId) {
@@ -787,12 +798,12 @@
 
         loadSecurityState();
 
-        // --- ПОСЛЕДОВАТЕЛЬНОЕ ПОСТРОЕНИЕ ЧЕРТЕЖА ОТ ТОЧКИ К ТОЧКЕ ---
+        // --- ПОСЛЕДОВАТЕЛЬНОЕ ПОСТРОЕНИЕ ЧЕРТЕЖА ОТ ТОЧКИ К ТОЧКЕ (ДО 50 УГЛОВ) ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
         let points = [];
-        let isClosed = false; // Флаг: замкнут ли контур
+        let isClosed = false;
         let historyState = [];
         let draggedPointIndex = null;
         let isDragging = false;
@@ -810,7 +821,7 @@
         window.addEventListener('resize', resizeCanvas);
         setTimeout(() => {
             resizeCanvas();
-            createFromTablePreset(); // Сразу даем удобный стартовый 4-угольник
+            createFromTablePreset();
         }, 120);
 
         function toggleFullscreen() {
@@ -831,12 +842,12 @@
                 closed: isClosed,
                 scale: cmPerPixel
             });
-            if (historyState.length > 30) historyState.shift();
+            if (historyState.length > 40) historyState.shift();
         }
 
         function relabelPoints() {
             points.forEach((p, idx) => {
-                p.label = String.fromCharCode(65 + idx);
+                p.label = getPointLabel(idx);
             });
         }
 
@@ -848,20 +859,21 @@
                 hint.innerText = 'Тапните на экран, чтобы поставить точку А';
                 closeBtn.innerText = '🔗 Замкнуть';
             } else if (!isClosed) {
-                let nextLabel = String.fromCharCode(65 + points.length);
+                let nextLabel = getPointLabel(points.length);
                 if (points.length < 3) {
                     hint.innerText = `Ставьте по очереди точку ${nextLabel}`;
+                } else if (points.length >= MAX_CORNERS) {
+                    hint.innerText = `Достигнут предел 50 углов! Нажмите «🔗 Замкнуть»`;
                 } else {
                     hint.innerText = `Ставьте точку ${nextLabel} или нажмите «🔗 Замкнуть» (или на точку А)`;
                 }
                 closeBtn.innerText = '🔗 Замкнуть';
             } else {
-                hint.innerText = 'Контур замкнут! Тяните углы пальцем или меняйте длины в таблице';
+                hint.innerText = `Контур замкнут (${points.length} угл.)! Тяните углы или меняйте таблицу`;
                 closeBtn.innerText = '🔓 Разомкнуть';
             }
         }
 
-        // Замыкание или размыкание контура кнопкой
         function closePolygon() {
             if (points.length < 3) {
                 alert('Для замыкания комнаты нужно поставить минимум 3 точки (A, B, C)!');
@@ -874,7 +886,6 @@
             drawSketch();
         }
 
-        // Выравнивание стен под 90 градусов (чтобы сложные комнаты с выступами были идеально ровными)
         function snapOrthogonal() {
             if (points.length < 2) return;
             saveState();
@@ -889,7 +900,6 @@
                     curr.x = prev.x;
                 }
             }
-            // Если контур замкнут и последняя точка почти на одной линии с А — подравниваем замыкание
             if (isClosed && points.length >= 4) {
                 let first = points[0];
                 let last = points[points.length - 1];
@@ -957,14 +967,12 @@
             drawSketch();
         }
 
-        // Нажатие на холст: перетаскивание углов, замыкание при клике на точку А или добавление следующей точки по порядку
         canvas.addEventListener('pointerdown', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            // Если контур еще НЕ замкнут и есть >= 3 точек, клик по первой точке А замыкает контур!
             if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 32) {
                 saveState();
                 isClosed = true;
@@ -974,9 +982,8 @@
                 return;
             }
 
-            // Проверка попадания пальцем в существующий угол для перетаскивания
             for (let i = 0; i < points.length; i++) {
-                if (Math.hypot(points[i].x - x, points[i].y - y) < 28) {
+                if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
                     saveState();
                     draggedPointIndex = i;
                     isDragging = true;
@@ -985,16 +992,20 @@
                 }
             }
 
-            // Если контур еще не замкнут — ставим следующую точку строго в конец цепочки (A -> B -> C -> D...)
+            if (points.length >= MAX_CORNERS) {
+                alert('Достигнуто максимальное количество углов — 50!');
+                return;
+            }
+
             if (!isClosed) {
                 saveState();
-                let label = String.fromCharCode(65 + points.length);
+                let label = getPointLabel(points.length);
                 points.push({ x, y, label });
+                document.getElementById('presetCornersCount').value = points.length;
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
             } else {
-                // Если контур уже замкнут, но пользователь хочет добавить точку — вставляем ее в ближайшую стену
                 saveState();
                 let bestWallIdx = points.length - 1;
                 let minDist = Infinity;
@@ -1011,6 +1022,7 @@
                 }
                 points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
                 relabelPoints();
+                document.getElementById('presetCornersCount').value = points.length;
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
@@ -1045,6 +1057,9 @@
                 isClosed = false;
                 cmPerPixel = 2.5;
             }
+            if (points.length >= 3) {
+                document.getElementById('presetCornersCount').value = points.length;
+            }
             rebuildWallInputs();
             updateHint();
             drawSketch();
@@ -1060,13 +1075,11 @@
             drawSketch();
         }
 
-        // Сколько стен сейчас активно
         function getWallCount() {
             if (points.length < 2) return 0;
             return isClosed ? points.length : points.length - 1;
         }
 
-        // Определяет ближайшее направление стены (Вверх, Вправо, Вниз, Влево) для таблицы
         function detectWallDir(p1, p2) {
             let dx = p2.x - p1.x;
             let dy = p2.y - p1.y;
@@ -1077,16 +1090,18 @@
             }
         }
 
-        // Создание шаблона комнаты на выбранное количество углов (4, 6, 8 и т.д.)
+        // Создание шаблона комнаты на любое количество углов от 3 до 50
         function createFromTablePreset() {
             saveState();
-            let count = parseInt(document.getElementById('presetCornersCount').value) || 4;
+            let rawVal = parseInt(document.getElementById('presetCornersCount').value) || 4;
+            let count = Math.max(3, Math.min(MAX_CORNERS, rawVal));
+            document.getElementById('presetCornersCount').value = count;
+
             cmPerPixel = 2.5;
             let cx = (canvas.width || 350) / 2;
             let cy = (canvas.height || 290) / 2;
 
             if (count === 4) {
-                // Классический прямоугольник A(низ-лево) -> B(верх-лево) -> C(верх-право) -> D(низ-право)
                 let w = 400 / cmPerPixel, h = 300 / cmPerPixel;
                 points = [
                     { x: cx - w/2, y: cy + h/2, label: 'A' },
@@ -1095,7 +1110,6 @@
                     { x: cx + w/2, y: cy + h/2, label: 'D' }
                 ];
             } else if (count === 6) {
-                // Г-образная комната на 6 углов
                 let w = 400 / cmPerPixel, h = 350 / cmPerPixel;
                 points = [
                     { x: cx - w/2, y: cy + h/2, label: 'A' },
@@ -1106,7 +1120,6 @@
                     { x: cx + w/2, y: cy + h/2, label: 'F' }
                 ];
             } else if (count === 8) {
-                // Комната с нишей/выступом на 8 углов (точно как на твоем скриншоте!)
                 let w = 400 / cmPerPixel, h = 480 / cmPerPixel;
                 points = [
                     { x: cx - w/2, y: cy + h/2, label: 'A' },
@@ -1119,15 +1132,14 @@
                     { x: cx + w/2, y: cy + h/2, label: 'H' }
                 ];
             } else {
-                // Любое другое число углов (5, 7, 9, 10, 12)
                 points = [];
-                let r = 110;
+                let r = 115;
                 for (let i = 0; i < count; i++) {
                     let ang = Math.PI - (i * 2 * Math.PI / count);
                     points.push({
                         x: cx + r * Math.cos(ang),
                         y: cy + r * Math.sin(ang),
-                        label: String.fromCharCode(65 + i)
+                        label: getPointLabel(i)
                     });
                 }
             }
@@ -1191,12 +1203,10 @@
             }
         }
 
-        // Когда пользователь меняет длину отрезка в таблице — двигаем следующую точку и все последующие без поломки фигуры
         function onWallLengthEdit(wallIndex, valStr) {
             let cm = parseFloat(valStr);
             if (!cm || cm <= 0) return;
             if (wallIndex >= points.length - 1 && isClosed) {
-                // Если редактируется замыкающая стена — просто обновляем подпись
                 drawSketch();
                 return;
             }
@@ -1218,7 +1228,6 @@
                 shiftX = targetPx;
             }
 
-            // Сдвигаем точку p2 и все последующие точки цепочки, чтобы не ломать остальные углы
             for (let j = wallIndex + 1; j < points.length; j++) {
                 points[j].x += shiftX;
                 points[j].y += shiftY;
@@ -1230,7 +1239,6 @@
             buildSketchFromTable();
         }
 
-        // Полное построение чертежа по введенным в таблицу отрезкам (A-B, B-C, C-D...) и их направлениям
         function buildSketchFromTable() {
             if (points.length < 3) return;
             saveState();
@@ -1238,7 +1246,6 @@
             cmPerPixel = 2.5;
             let newPts = [{ x: 0, y: 0, label: 'A' }];
 
-            // Строим последовательно от точки к точке: A -> B -> C -> ... до последней точки
             for (let i = 0; i < points.length - 1; i++) {
                 let lenInput = document.getElementById(`wall-input-${i}`);
                 let dirSelect = document.getElementById(`wall-dir-${i}`);
@@ -1255,7 +1262,7 @@
                 else if (dir === 'R') nx += px;
                 else if (dir === 'L') nx -= px;
 
-                newPts.push({ x: nx, y: ny, label: String.fromCharCode(65 + i + 1) });
+                newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
             }
 
             points = newPts;
@@ -1266,7 +1273,6 @@
             drawSketch();
         }
 
-        // Вспомогательная проверка: находится ли точка внутри многоугольника (чтобы рисовать только внутренние диагонали)
         function isPointInsidePoly(px, py) {
             let inside = false;
             for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -1283,7 +1289,6 @@
             return (ccw(a, c, d) !== ccw(b, c, d)) && (ccw(a, b, c) !== ccw(a, b, d));
         }
 
-        // Чистые внутренние диагонали для раскроя (не выходят наружу в вырезах B-C-D-E)
         function getCleanDiagonals() {
             let diags = [];
             if (!isClosed || points.length < 4) return diags;
@@ -1297,12 +1302,10 @@
                     let p1 = points[i];
                     let p2 = points[j];
 
-                    // Середина диагонали должна лежать строго внутри потолка
                     let mx = (p1.x + p2.x) / 2;
                     let my = (p1.y + p2.y) / 2;
                     if (!isPointInsidePoly(mx, my)) continue;
 
-                    // Диагональ не должна пересекать ни одну стену и ни одну уже выбранную диагональ
                     let crosses = false;
                     for (let w = 0; w < n; w++) {
                         if (w === i || (w + 1) % n === i || w === j || (w + 1) % n === j) continue;
@@ -1350,7 +1353,6 @@
             centerX /= points.length;
             centerY /= points.length;
 
-            // 1. Внутренние диагонали раскроя (только когда контур замкнут)
             let diags = getCleanDiagonals();
             if (diags.length > 0) {
                 ctx.save();
@@ -1378,7 +1380,6 @@
                 ctx.restore();
             }
 
-            // 2. Линии стен строго от точки к точке
             if (points.length >= 2) {
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -1394,7 +1395,6 @@
                 ctx.lineWidth = 2.5;
                 ctx.stroke();
 
-                // Если контур еще НЕ замкнут — показываем тонкий ориентир к точке А
                 if (!isClosed && points.length >= 3) {
                     ctx.save();
                     ctx.strokeStyle = 'rgba(34, 197, 94, 0.45)';
@@ -1408,7 +1408,6 @@
                 }
             }
 
-            // 3. Подписи длин стен
             let wallCount = getWallCount();
             ctx.textAlign = 'center';
             for (let i = 0; i < wallCount; i++) {
@@ -1437,12 +1436,10 @@
                 ctx.fillText(`${lenCm} см`, labelX, labelY);
             }
 
-            // 4. Точки углов и буквы
             points.forEach((p, idx) => {
-                // Первую точку А подсвечиваем зеленым ободком, пока контур не замкнут
                 ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#22c55e' : '#00d2ff';
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 7.5, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
                 ctx.fill();
 
                 let vx = p.x - centerX;
@@ -1451,11 +1448,11 @@
                 let lx = p.x + (vx / vLen) * 16;
                 let ly = p.y + (vy / vLen) * 16 + 4;
 
-                lx = Math.min(canvas.width - 12, Math.max(12, lx));
+                lx = Math.min(canvas.width - 14, Math.max(14, lx));
                 ly = Math.min(canvas.height - 6, Math.max(14, ly));
 
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 13px Segoe UI';
+                ctx.font = 'bold 12px Segoe UI';
                 ctx.fillText(p.label, lx, ly);
             });
             ctx.textAlign = 'start';
@@ -1479,7 +1476,6 @@
                 alert('Поставьте минимум 3 точки на чертеже!');
                 return;
             }
-            // Если пользователь забыл нажать "Замкнуть" — автоматически замыкаем при расчете
             if (!isClosed) {
                 isClosed = true;
                 rebuildWallInputs();
@@ -1677,8 +1673,10 @@
             document.getElementById('clientName').value = proj.name;
             document.getElementById('clientAddress').value = proj.address || '';
             points = proj.points;
+            relabelPoints();
             isClosed = proj.closed !== undefined ? proj.closed : true;
             cmPerPixel = proj.scale || 2.5;
+            document.getElementById('presetCornersCount').value = points.length;
             rebuildWallInputs();
 
             let wallInputs = document.querySelectorAll('.wall-len');
@@ -1778,7 +1776,7 @@
             const pad = 18;
             const headerH = 78;
             const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + 3;
-            const footerH = linesCount * 26 + 40;
+            const footerH = linesCount * 24 + 45;
 
             tempCanvas.width = Math.max(canvas.width, 380);
             tempCanvas.height = headerH + canvas.height + footerH;
@@ -1809,7 +1807,7 @@
             y += 22;
 
             tCtx.fillStyle = '#ffffff';
-            tCtx.font = '13px Segoe UI, sans-serif';
+            tCtx.font = '12px Segoe UI, sans-serif';
             lastCalcData.wallsData.forEach((w, i) => {
                 let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                 tCtx.fillText(`Стена ${w.name}: ${w.cm} см`, colX, y);
@@ -1824,7 +1822,7 @@
                 y += 22;
 
                 tCtx.fillStyle = '#cbd5e1';
-                tCtx.font = '13px Segoe UI, sans-serif';
+                tCtx.font = '12px Segoe UI, sans-serif';
                 lastCalcData.diags.forEach((d, i) => {
                     let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                     tCtx.fillText(`Диагональ ${d.name}: ${d.len} см`, colX, y);
