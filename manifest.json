@@ -1,12 +1,23 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
+  "name": "Потолок Замер PRO",
+  "short_name": "Потолок Замер",
+  "description": "Удобный калькулятор для расчета и построения натяжных потолков",
+  "start_url": "/ceiling-calc/index.html",
+  "scope": "/ceiling-calc/",
   "display": "standalone",
-  "name": "saniaivsania-create.github",
-  "orientation": "any",
-  "scope": "/",
-  "short_name": "saniaivsania-create.github",
-  "start_url": "/",
-  "theme_color": "#ffffff",
-  "description": "Удобный калькулятор для расчета натяжных потолков"
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
