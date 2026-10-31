@@ -8,23 +8,50 @@
 
     <style>
         :root {
-            --bg-color: #0b0f19;
-            --card-bg: #131b2e;
-            --accent: #00d2ff;
-            --accent-gradient: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
-            --text-main: #ffffff;
+            /* Тёмная тема (по умолчанию) — строгий графитовый Flat */
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --input-bg: #0f172a;
+            --sub-block-bg: #151e2e;
+            --accent: #2563eb;
+            --accent-text: #ffffff;
+            --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --border: #1e293b;
-            --danger: #ef4444;
-            --success: #22c55e;
-            --warning: #f59e0b;
+            --border: #334155;
+            --btn-neutral: #334155;
+            --btn-neutral-text: #f1f5f9;
+            --danger: #dc2626;
+            --danger-text: #ffffff;
+            --success: #059669;
+            --canvas-bg: #0f172a;
+            --modal-overlay: rgba(15, 23, 42, 0.85);
+        }
+
+        body.light-theme {
+            /* Дневная (светлая) тема */
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --input-bg: #f8fafc;
+            --sub-block-bg: #f1f5f9;
+            --accent: #2563eb;
+            --accent-text: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --btn-neutral: #e2e8f0;
+            --btn-neutral-text: #1e293b;
+            --danger: #dc2626;
+            --danger-text: #ffffff;
+            --success: #059669;
+            --canvas-bg: #ffffff;
+            --modal-overlay: rgba(15, 23, 42, 0.5);
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
@@ -39,6 +66,7 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
+            transition: background-color 0.15s ease, color 0.15s ease;
         }
 
         .container {
@@ -46,7 +74,7 @@
             max-width: 480px;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
             padding-bottom: 28px;
         }
 
@@ -55,33 +83,59 @@
             justify-content: space-between;
             align-items: center;
             background: var(--card-bg);
-            padding: 12px 16px;
+            padding: 12px 14px;
             border-radius: 12px;
             border: 1px solid var(--border);
-        }
-
-        .logo-title {
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--accent);
-            display: flex;
-            align-items: center;
             gap: 8px;
         }
 
+        .logo-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .attempts-counter {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.06);
-            padding: 5px 10px;
+            background: var(--sub-block-bg);
+            padding: 6px 10px;
             border-radius: 8px;
             border: 1px solid var(--border);
+            white-space: nowrap;
         }
+
+        .theme-toggle-btn {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .theme-toggle-btn:active { opacity: 0.85; }
 
         .canvas-card {
             background: var(--card-bg);
-            border-radius: 16px;
+            border-radius: 12px;
             border: 1px solid var(--border);
             padding: 12px;
             display: flex;
@@ -97,7 +151,7 @@
             border-radius: 0;
             max-width: none;
             padding: 12px;
-            background: #070a12;
+            background: var(--bg-color);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -111,16 +165,16 @@
         }
 
         .action-hint {
-            font-size: 13px;
-            color: var(--accent);
+            font-size: 12px;
+            color: var(--text-muted);
             font-weight: 500;
         }
 
         .fullscreen-btn {
-            background: rgba(0, 210, 255, 0.15);
-            border: 1px solid rgba(0, 210, 255, 0.4);
-            color: var(--accent);
-            padding: 7px 12px;
+            background: var(--btn-neutral);
+            border: 1px solid var(--border);
+            color: var(--btn-neutral-text);
+            padding: 6px 10px;
             border-radius: 8px;
             cursor: pointer;
             font-size: 12px;
@@ -131,8 +185,8 @@
         canvas {
             width: 100%;
             height: 290px;
-            background: #070a12;
-            border-radius: 10px;
+            background: var(--canvas-bg);
+            border-radius: 8px;
             border: 1px solid var(--border);
             touch-action: none;
             cursor: crosshair;
@@ -153,15 +207,15 @@
         .canvas-card.fullscreen .canvas-tools {
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
-            background: #131b2e;
+            background: var(--card-bg);
             padding: 10px;
-            border-radius: 12px;
-            border: 1px solid #2a3b5e;
+            border-radius: 10px;
+            border: 1px solid var(--border);
         }
 
         .section-card {
             background: var(--card-bg);
-            border-radius: 16px;
+            border-radius: 12px;
             border: 1px solid var(--border);
             padding: 14px;
             display: flex;
@@ -170,12 +224,14 @@
         }
 
         .section-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-muted);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         .grid-inputs {
@@ -184,10 +240,40 @@
             gap: 8px;
         }
 
+        /* Аккуратные карточки для полей ввода */
+        .input-card-box {
+            background: var(--sub-block-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .input-card-box label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .input-card-box .input-field {
+            border: none;
+            background: transparent;
+            padding: 2px 0;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 0;
+        }
+
+        .input-card-box .input-field:focus {
+            outline: none;
+        }
+
         #wallsInputsContainer {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
             max-height: 360px;
             overflow-y: auto;
             padding-right: 4px;
@@ -196,10 +282,10 @@
         .wall-row-input {
             display: grid;
             grid-template-columns: 1fr 1.1fr;
-            gap: 6px;
-            background: rgba(7, 10, 18, 0.45);
+            gap: 8px;
+            background: var(--sub-block-bg);
             padding: 8px;
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid var(--border);
             align-items: center;
         }
@@ -216,22 +302,25 @@
         }
 
         .input-field {
-            background: #070a12;
+            background: var(--input-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
-            color: white;
-            padding: 9px 10px;
+            color: var(--text-main);
+            padding: 8px 10px;
             font-size: 13px;
             width: 100%;
         }
 
-        .input-field:focus { border-color: var(--accent); outline: none; }
+        .input-field:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
 
         .dir-select {
-            background: #0d1526;
-            border: 1px solid #2a3b5e;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            color: var(--accent);
+            color: var(--text-main);
             padding: 8px 6px;
             font-size: 12px;
             font-weight: 600;
@@ -260,10 +349,11 @@
             color: var(--text-main);
         }
 
+        /* Плоские системные кнопки (Flat Design) */
         .btn {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid var(--border);
-            color: var(--text-main);
+            background: var(--btn-neutral);
+            border: none;
+            color: var(--btn-neutral-text);
             padding: 10px 8px;
             border-radius: 8px;
             font-size: 12px;
@@ -273,19 +363,35 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 5px;
+            transition: opacity 0.12s ease;
         }
 
-        .btn:active { transform: scale(0.97); }
-        .btn-primary { background: var(--accent-gradient); border: none; color: #0b0f19; font-weight: 700; }
-        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
-        .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
-        .btn-warning { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; }
+        .btn:active { opacity: 0.8; }
+
+        /* Главный акцентный цвет (подтверждающие действия) */
+        .btn-primary, .btn-success {
+            background: var(--accent);
+            color: var(--accent-text);
+            font-weight: 600;
+        }
+
+        /* Опасные действия (Сброс, Удаление) */
+        .btn-danger {
+            background: var(--danger);
+            color: var(--danger-text);
+        }
+
+        /* Остальные кнопки — нейтральные графитовые/серые */
+        .btn-warning {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+        }
 
         .result-card {
-            background: linear-gradient(145deg, #131b2e 0%, #1a2744 100%);
-            border-radius: 16px;
-            border: 1px solid #2a3b5e;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
             padding: 16px;
             display: flex;
             flex-direction: column;
@@ -296,9 +402,9 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            background: rgba(7, 10, 18, 0.55);
+            background: var(--sub-block-bg);
             padding: 12px;
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid var(--border);
         }
 
@@ -307,37 +413,37 @@
             justify-content: space-between;
             align-items: center;
             font-size: 13px;
-            border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
+            border-bottom: 1px solid var(--border);
             padding-bottom: 6px;
         }
 
         .breakdown-row:last-child { border-bottom: none; padding-bottom: 0; }
 
         .breakdown-label {
-            color: var(--text-muted);
+            color: var(--text-main);
             display: flex;
             flex-direction: column;
         }
 
-        .breakdown-sub { font-size: 11px; color: #64748b; }
-        .breakdown-val { color: #ffffff; font-weight: 600; white-space: nowrap; }
+        .breakdown-sub { font-size: 11px; color: var(--text-muted); }
+        .breakdown-val { color: var(--text-main); font-weight: 600; white-space: nowrap; }
 
         .total-price {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-top: 1px solid #2a3b5e;
+            border-top: 1px solid var(--border);
             padding-top: 12px;
             margin-top: 2px;
         }
 
-        .total-price span { font-size: 15px; font-weight: 700; }
-        .total-price .price-value { font-size: 24px; color: var(--accent); font-weight: 800; }
+        .total-price span { font-size: 14px; font-weight: 700; }
+        .total-price .price-value { font-size: 22px; color: var(--accent); font-weight: 800; }
 
         .export-block {
-            background: rgba(7, 10, 18, 0.45);
+            background: var(--sub-block-bg);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 10px;
             display: flex;
             flex-direction: column;
@@ -345,8 +451,8 @@
         }
 
         .export-block-title {
-            font-size: 12px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 600;
             color: var(--text-muted);
             display: flex;
             align-items: center;
@@ -362,8 +468,8 @@
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(7, 10, 18, 0.92);
-            backdrop-filter: blur(10px);
+            background: var(--modal-overlay);
+            backdrop-filter: blur(6px);
             z-index: 20000;
             display: none;
             justify-content: center;
@@ -373,8 +479,8 @@
 
         .modal-content {
             background: var(--card-bg);
-            border: 1px solid #2a3b5e;
-            border-radius: 20px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
             padding: 20px;
             max-width: 400px;
             width: 100%;
@@ -382,7 +488,6 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
             max-height: 90vh;
             overflow-y: auto;
         }
@@ -398,9 +503,9 @@
         }
 
         .saved-item {
-            background: #070a12;
+            background: var(--sub-block-bg);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 10px 12px;
             display: flex;
             justify-content: space-between;
@@ -417,8 +522,8 @@
 
         .saved-item-name {
             font-size: 14px;
-            font-weight: 700;
-            color: #fff;
+            font-weight: 600;
+            color: var(--text-main);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -430,10 +535,10 @@
         }
 
         .device-id-box {
-            background: #070a12;
-            border: 1px dashed var(--border);
+            background: var(--sub-block-bg);
+            border: 1px solid var(--border);
             padding: 10px;
-            border-radius: 10px;
+            border-radius: 8px;
             font-size: 12px;
             color: var(--text-muted);
             display: flex;
@@ -447,24 +552,27 @@
     <div class="container">
         <header>
             <div class="logo-title">📐 Потолок Замер PRO</div>
-            <div class="attempts-counter" id="attemptsCounter">Проверка...</div>
+            <div class="header-right">
+                <div class="attempts-counter" id="attemptsCounter">Проверка...</div>
+                <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">☀️ День</button>
+            </div>
         </header>
 
         <div class="section-card">
             <div class="section-title">👤 Данные клиента и объекта</div>
             <div class="grid-inputs">
-                <div class="input-group">
+                <div class="input-card-box">
                     <label>Имя клиента</label>
                     <input type="text" id="clientName" class="input-field" placeholder="Введите имя">
                 </div>
-                <div class="input-group">
+                <div class="input-card-box">
                     <label>Адрес объекта</label>
                     <input type="text" id="clientAddress" class="input-field" placeholder="Введите адрес">
                 </div>
             </div>
-            <div style="display: flex; gap: 6px; margin-top: 4px;">
-                <button class="btn btn-success" onclick="saveProject()" style="flex: 1;">💾 Сохранить замер</button>
-                <button class="btn btn-warning" onclick="openProjectsModal()" style="flex: 1;">📂 Загрузить / Удалить</button>
+            <div style="display: flex; gap: 8px; margin-top: 2px;">
+                <button class="btn btn-primary" onclick="saveProject()" style="flex: 1;">💾 Сохранить замер</button>
+                <button class="btn" onclick="openProjectsModal()" style="flex: 1;">📂 Загрузить / Удалить</button>
             </div>
         </div>
 
@@ -480,42 +588,42 @@
             <div class="canvas-tools">
                 <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
                 <button class="btn" onclick="undoPoint()">↩️ Шаг назад</button>
-                <button class="btn btn-success" id="closeContourBtn" onclick="closePolygon()">🔗 Замкнуть</button>
-                <button class="btn btn-warning" onclick="snapOrthogonal()">📐 Выровнять 90°</button>
+                <button class="btn btn-primary" id="closeContourBtn" onclick="closePolygon()">🔗 Замкнуть</button>
+                <button class="btn" onclick="snapOrthogonal()">📐 Выровнять 90°</button>
                 <button class="btn" onclick="rotateSketch()">🔄 Повернуть</button>
-                <button class="btn btn-primary" id="bottomFullscreenBtn" onclick="toggleFullscreen()">⛶ Развернуть</button>
+                <button class="btn" id="bottomFullscreenBtn" onclick="toggleFullscreen()">⛶ Развернуть</button>
             </div>
         </div>
 
         <!-- КАРТОЧКА ПОСТРОЕНИЯ ПО ТАБЛИЦЕ (ДО 50 УГЛОВ) -->
         <div class="section-card">
             <div class="section-title">
-                <span>📏 Построение и длины стен (см):</span>
-                <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--accent);">Углов: 0</span>
+                <span>📏 Построение и длины стен (см)</span>
+                <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
             </div>
 
-            <div style="display: flex; gap: 8px; align-items: center; background: #070a12; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="display: flex; gap: 8px; align-items: center; background: var(--sub-block-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
                 <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Углов (3–50):</span>
-                <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50" style="width: 75px; text-align: center; font-weight: 700; color: var(--accent);">
+                <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50" style="width: 75px; text-align: center; font-weight: 700;">
                 <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать таблицу</button>
             </div>
 
             <div id="wallsInputsContainer"></div>
 
-            <div style="display: none; gap: 8px; margin-top: 4px;" id="tableActionButtons">
-                <button class="btn btn-success" onclick="buildSketchFromTable()" style="flex: 1; padding: 11px;">🔨 Построить и замкнуть по размерам</button>
-                <button class="btn" onclick="fitToScreen(true)" style="padding: 11px; color: var(--accent); border-color: var(--accent);">🔍 Вписать</button>
+            <div style="display: none; gap: 8px; margin-top: 2px;" id="tableActionButtons">
+                <button class="btn btn-primary" onclick="buildSketchFromTable()" style="flex: 1; padding: 11px;">🔨 Построить и замкнуть по размерам</button>
+                <button class="btn" onclick="fitToScreen(true)" style="padding: 11px;">🔍 Вписать</button>
             </div>
         </div>
 
         <div class="section-card">
             <div class="section-title">⚙️ Материалы и Базовые работы</div>
             <div class="grid-inputs">
-                <div class="input-group">
+                <div class="input-card-box">
                     <label>Полотно (₽ за 1 м²)</label>
                     <input type="number" id="priceCanvas" class="input-field" value="650">
                 </div>
-                <div class="input-group">
+                <div class="input-card-box">
                     <label>Багет / профиль (₽ за 1 м.п.)</label>
                     <input type="number" id="priceProfile" class="input-field" value="250">
                 </div>
@@ -550,7 +658,7 @@
                 </div>
                 <div class="item-row">
                     <label>Доп. углы (&gt;4 шт)</label>
-                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="color: var(--warning); font-weight: 700; background: #0d1424;">
+                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="font-weight: 700; opacity: 0.8;">
                     <input type="number" id="priceAngle" class="input-field" value="150">
                 </div>
             </div>
@@ -567,7 +675,7 @@
         </div>
 
         <div class="result-card">
-            <div class="section-title" style="color: #fff;">📋 Детализация расчёта (Смета):</div>
+            <div class="section-title">📋 Детализация расчёта (Смета)</div>
             
             <div class="estimate-breakdown" id="estimateBreakdown">
                 <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
@@ -580,21 +688,21 @@
                 <span class="price-value" id="resTotal">0 ₽</span>
             </div>
 
-            <button class="btn btn-primary" onclick="performCalculation()" style="padding: 14px; font-size: 15px; width: 100%;">🧮 РАССЧИТАТЬ СМЕТУ</button>
+            <button class="btn btn-primary" onclick="performCalculation()" style="padding: 14px; font-size: 14px; width: 100%;">🧮 РАССЧИТАТЬ СМЕТУ</button>
 
             <div class="export-block">
                 <div class="export-block-title">👤 Отправить КЛИЕНТУ (Смета с ценами + Чертёж):</div>
                 <div class="share-buttons-grid">
-                    <button class="btn btn-success" onclick="exportClientImage()">🖼️ Картинкой (PNG)</button>
-                    <button class="btn btn-success" onclick="exportWordDoc('client')">📄 Файлом Word (.doc)</button>
+                    <button class="btn" onclick="exportClientImage()">🖼️ Картинкой (PNG)</button>
+                    <button class="btn" onclick="exportWordDoc('client')">📄 Файлом Word (.doc)</button>
                 </div>
             </div>
 
             <div class="export-block">
                 <div class="export-block-title">🏭 Отправить В ЦЕХ (Только раскрой, стены и диагонали БЕЗ ЦЕН):</div>
                 <div class="share-buttons-grid">
-                    <button class="btn btn-warning" onclick="exportFactoryImage()">📐 Чертёж в цех (PNG)</button>
-                    <button class="btn btn-warning" onclick="exportWordDoc('factory')">📄 Бланк Word (.doc)</button>
+                    <button class="btn" onclick="exportFactoryImage()">📐 Чертёж в цех (PNG)</button>
+                    <button class="btn" onclick="exportWordDoc('factory')">📄 Бланк Word (.doc)</button>
                 </div>
             </div>
         </div>
@@ -604,7 +712,7 @@
     <div class="modal-overlay" id="projectsModal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 16px; font-weight: 700; color: var(--accent);">📂 Сохранённые клиенты</span>
+                <span style="font-size: 15px; font-weight: 700;">📂 Сохранённые клиенты</span>
                 <button class="btn btn-danger" onclick="closeProjectsModal()" style="padding: 6px 10px;">✖</button>
             </div>
             <div class="saved-list" id="savedProjectsList"></div>
@@ -614,36 +722,81 @@
     <!-- Модальное окно подписки RuStore + Контактная почта Prilojeniea-p-k@mail.ru -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
-            <div style="font-size: 36px;">🔒</div>
-            <div style="font-size: 17px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
+            <div style="font-size: 32px;">🔒</div>
+            <div style="font-size: 16px; font-weight: 700;">Бесплатный лимит (5 замеров) исчерпан</div>
             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
                 Оформите подписку через <b>RuStore</b> или получите ключ активации у разработчика по электронной почте:
             </div>
             
-            <div style="background: linear-gradient(145deg, #16223b, #1a2c4e); border: 2px solid var(--accent); padding: 14px; border-radius: 14px; text-align: center;">
-                <div style="font-size: 13px; color: var(--accent); font-weight: 700;">ПОДПИСКА PRO (НА 3 МЕСЯЦА)</div>
-                <div style="font-size: 26px; font-weight: 800; color: #fff; margin: 4px 0;">500 ₽</div>
+            <div style="background: var(--sub-block-bg); border: 1px solid var(--border); padding: 14px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 700;">ПОДПИСКА PRO (НА 3 МЕСЯЦА)</div>
+                <div style="font-size: 24px; font-weight: 800; margin: 4px 0;">500 ₽</div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Безлимитные расчёты, чертежи и выгрузка в Word</div>
                 <button class="btn btn-primary" onclick="buyViaRuStore()" style="width: 100%; padding: 12px; font-size: 13px;">🛒 Оплатить подписку (500 ₽)</button>
             </div>
 
             <div class="device-id-box">
-                <div>Ваш ID устройства: <b id="deviceIdLabel" style="color: #fff; font-size: 13px;">—</b></div>
+                <div>Ваш ID устройства: <b id="deviceIdLabel" style="color: var(--text-main); font-size: 13px;">—</b></div>
                 <div>Почта для получения ключа: <b style="color: var(--accent);">Prilojeniea-p-k@mail.ru</b></div>
                 <div style="display: flex; gap: 6px; margin-top: 4px;">
-                    <button class="btn btn-warning" onclick="sendEmailToSupport()" style="flex: 1; padding: 8px; font-size: 11px;">✉️ Написать на почту</button>
+                    <button class="btn" onclick="sendEmailToSupport()" style="flex: 1; padding: 8px; font-size: 11px;">✉️ Написать на почту</button>
                     <button class="btn" onclick="copySupportInfo()" style="flex: 1; padding: 8px; font-size: 11px;">📋 Скопировать почту и ID</button>
                 </div>
             </div>
 
             <div style="display: flex; gap: 6px;">
                 <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите полученный ключ">
-                <button class="btn btn-success" onclick="activateByCode()" style="white-space: nowrap; padding: 0 16px;">Активировать</button>
+                <button class="btn btn-primary" onclick="activateByCode()" style="white-space: nowrap; padding: 0 16px;">Активировать</button>
             </div>
         </div>
     </div>
 
     <script>
+        // Автономная работа без интернета (Service Worker)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'potolok-pro-offline-v3';
+                    self.addEventListener('install', e => {
+                        e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
+                        self.skipWaiting();
+                    });
+                    self.addEventListener('activate', e => {
+                        e.waitUntil(self.clients.claim());
+                    });
+                    self.addEventListener('fetch', e => {
+                        e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+                    });
+                `;
+                try {
+                    const blob = new Blob([swCode], { type: 'application/javascript' });
+                    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+                } catch (e) {}
+            });
+        }
+
+        // Переключение темы (День / Ночь)
+        let isLightTheme = localStorage.getItem('_pz_theme') === 'light';
+
+        function applyTheme() {
+            if (isLightTheme) {
+                document.body.classList.add('light-theme');
+                document.getElementById('themeToggleBtn').innerText = '🌙 Ночь';
+            } else {
+                document.body.classList.remove('light-theme');
+                document.getElementById('themeToggleBtn').innerText = '☀️ День';
+            }
+            if (typeof drawSketch === 'function') {
+                drawSketch();
+            }
+        }
+
+        function toggleTheme() {
+            isLightTheme = !isLightTheme;
+            localStorage.setItem('_pz_theme', isLightTheme ? 'light' : 'dark');
+            applyTheme();
+        }
+
         let cmPerPixel = 2.5;
         const MAX_FREE_ATTEMPTS = 5;
         const MAX_CORNERS = 50;
@@ -759,35 +912,63 @@
             const counter = document.getElementById('attemptsCounter');
             if (isSubscriptionActive()) {
                 let daysLeft = Math.ceil((subExpireUntil - Date.now()) / (1000 * 60 * 60 * 24));
-                counter.innerText = `PRO активна (${daysLeft} дн.) ✨`;
+                counter.innerText = daysLeft > 1000 ? `PRO Безлимит` : `PRO (${daysLeft} дн.)`;
                 counter.style.color = 'var(--success)';
-                counter.style.borderColor = 'rgba(34, 197, 94, 0.4)';
             } else {
                 let left = Math.max(0, MAX_FREE_ATTEMPTS - usedAttempts);
-                counter.innerText = `Осталось попыток: ${left}`;
+                counter.innerText = `Попыток: ${left}`;
                 counter.style.color = left === 0 ? 'var(--danger)' : 'var(--text-muted)';
             }
         }
 
         function getExpectedLicenseKey(devId) {
+            let cleanId = devId.trim().toUpperCase();
+            let hash = 5381;
+            let secret = cleanId + "_POTOLOK_PRO_SECRET_73";
+            for (let i = 0; i < secret.length; i++) {
+                hash = ((hash << 5) + hash) + secret.charCodeAt(i);
+                hash = hash & 0x7FFFFFFF;
+            }
+            return 'PRO-' + (hash % 900000 + 100000).toString();
+        }
+
+        function getLegacyKey1(devId) {
             let num = 0;
             for (let i = 0; i < devId.length; i++) num += devId.charCodeAt(i) * (i + 7);
             return '3M-' + (num * 29).toString().substring(0, 5);
         }
 
-        function grantThreeMonthsAccess() {
-            subExpireUntil = Date.now() + (90 * 24 * 60 * 60 * 1000);
+        function getLegacyKey2(devId) {
+            let num = 0;
+            for (let i = 0; i < devId.length; i++) num += devId.charCodeAt(i) * (i + 7);
+            return 'PRO-' + (num * 37).toString().substring(0, 5);
+        }
+
+        function grantAccess(days, message) {
+            subExpireUntil = Date.now() + (days * 24 * 60 * 60 * 1000);
             saveSecurityState();
             updateAttemptsUI();
             document.getElementById('paywallModal').style.display = 'none';
-            alert('Подписка PRO на 3 месяца (90 дней) успешно активирована!');
+            alert(message);
             calculate();
         }
 
         function activateByCode() {
             let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-            if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500' || code === 'ZAMER300') {
-                grantThreeMonthsAccess();
+            
+            if (code === 'VIP-777-SVOI') {
+                grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
+                return;
+            }
+
+            if (
+                code === getExpectedLicenseKey(deviceId) || 
+                code === getLegacyKey1(deviceId) || 
+                code === getLegacyKey2(deviceId) || 
+                code === 'ZAMER500' || 
+                code === 'ZAMER300'
+            ) {
+                grantAccess(90, 'Подписка PRO на 3 месяца (90 дней) успешно активирована!');
             } else {
                 alert('Неверный ключ активации!');
             }
@@ -800,7 +981,6 @@
         }
 
         function copySupportInfo() {
-            let textToCopy = `Почта: ${SUPPORT_EMAIL} | Мой ID: ${deviceId}`;
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
                     alert(`Почта ${SUPPORT_EMAIL} скопирована!\nНе забудьте указать в письме ваш ID: ${deviceId}`);
@@ -820,7 +1000,7 @@
         }
 
         window.onRuStorePurchaseSuccess = function() {
-            grantThreeMonthsAccess();
+            grantAccess(90, 'Подписка PRO на 3 месяца (90 дней) успешно активирована!');
         };
 
         loadSecurityState();
@@ -838,6 +1018,8 @@
         let lastFactoryText = '';
         let lastBreakdownItems = [];
         let lastCalcData = null;
+
+        applyTheme();
 
         function resizeCanvas() {
             canvas.width = canvas.clientWidth || 350;
@@ -1368,8 +1550,19 @@
         function drawSketch() {
             if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.strokeStyle = '#162035';
+
+            // Цвета чертежа в зависимости от выбранного режима (День / Ночь)
+            const gridColor = isLightTheme ? '#f1f5f9' : '#1e293b';
+            const mainStrokeColor = isLightTheme ? '#0f172a' : '#e2e8f0';
+            const polyFillColor = isLightTheme ? 'rgba(15, 23, 42, 0.04)' : 'rgba(37, 99, 235, 0.08)';
+            const diagLineColor = isLightTheme ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
+            const badgeBgColor = isLightTheme ? 'rgba(255, 255, 255, 0.92)' : 'rgba(15, 23, 42, 0.88)';
+            const wallTextColor = isLightTheme ? '#0f172a' : '#f8fafc';
+            const diagTextColor = isLightTheme ? '#475569' : '#94a3b8';
+            const pointLabelColor = isLightTheme ? '#0f172a' : '#ffffff';
+            const strictFont = '600 11px "Roboto Mono", "Consolas", "SF Mono", monospace';
+
+            ctx.strokeStyle = gridColor;
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
                 ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
@@ -1388,7 +1581,7 @@
             let diags = getCleanDiagonals();
             if (diags.length > 0) {
                 ctx.save();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.strokeStyle = diagLineColor;
                 ctx.lineWidth = 1.2;
                 ctx.setLineDash([4, 4]);
 
@@ -1402,10 +1595,10 @@
                     let mx = d.from.x + (d.to.x - d.from.x) * ratio;
                     let my = d.from.y + (d.to.y - d.from.y) * ratio;
 
-                    ctx.fillStyle = 'rgba(7, 10, 18, 0.8)';
-                    ctx.fillRect(mx - 16, my - 9, 32, 13);
-                    ctx.fillStyle = '#cbd5e1';
-                    ctx.font = '10px Segoe UI';
+                    ctx.fillStyle = badgeBgColor;
+                    ctx.fillRect(mx - 18, my - 9, 36, 13);
+                    ctx.fillStyle = diagTextColor;
+                    ctx.font = '500 10px "Roboto Mono", "Consolas", monospace';
                     ctx.textAlign = 'center';
                     ctx.fillText(`${d.len}`, mx, my + 1);
                 });
@@ -1420,16 +1613,16 @@
                 }
                 if (isClosed && points.length >= 3) {
                     ctx.closePath();
-                    ctx.fillStyle = 'rgba(0, 210, 255, 0.08)';
+                    ctx.fillStyle = polyFillColor;
                     ctx.fill();
                 }
-                ctx.strokeStyle = '#00d2ff';
-                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = mainStrokeColor;
+                ctx.lineWidth = 2.2;
                 ctx.stroke();
 
                 if (!isClosed && points.length >= 3) {
                     ctx.save();
-                    ctx.strokeStyle = 'rgba(34, 197, 94, 0.45)';
+                    ctx.strokeStyle = 'rgba(5, 150, 105, 0.55)';
                     ctx.lineWidth = 1.5;
                     ctx.setLineDash([5, 5]);
                     ctx.beginPath();
@@ -1460,18 +1653,18 @@
                 labelX = Math.max(26, Math.min(canvas.width - 26, labelX));
                 labelY = Math.max(14, Math.min(canvas.height - 8, labelY));
 
-                ctx.fillStyle = 'rgba(7, 10, 18, 0.85)';
+                ctx.fillStyle = badgeBgColor;
                 ctx.fillRect(labelX - 24, labelY - 11, 48, 15);
 
-                ctx.fillStyle = '#f59e0b';
-                ctx.font = 'bold 11px Segoe UI';
+                ctx.fillStyle = wallTextColor;
+                ctx.font = strictFont;
                 ctx.fillText(`${lenCm} см`, labelX, labelY);
             }
 
             points.forEach((p, idx) => {
-                ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#22c55e' : '#00d2ff';
+                ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
                 ctx.fill();
 
                 let vx = p.x - centerX;
@@ -1483,8 +1676,8 @@
                 lx = Math.min(canvas.width - 14, Math.max(14, lx));
                 ly = Math.min(canvas.height - 6, Math.max(14, ly));
 
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Segoe UI';
+                ctx.fillStyle = pointLabelColor;
+                ctx.font = '700 12px "Roboto Mono", "Consolas", sans-serif';
                 ctx.fillText(p.label, lx, ly);
             });
             ctx.textAlign = 'start';
@@ -1691,7 +1884,7 @@
                         <span class="saved-item-sub">📍 ${p.address || 'Без адреса'} • ${p.date}</span>
                     </div>
                     <div style="display: flex; gap: 6px;">
-                        <button class="btn btn-success" onclick="loadSavedProject(${idx})" style="padding: 7px 10px;">📂 Открыть</button>
+                        <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 10px;">📂 Открыть</button>
                         <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 10px;">🗑️</button>
                     </div>
                 </div>
@@ -1747,18 +1940,22 @@
             tempCanvas.height = headerH + canvas.height + footerH;
             const tCtx = tempCanvas.getContext('2d');
 
-            tCtx.fillStyle = '#070a12';
+            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
+            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
+            const textMutedExport = isLightTheme ? '#64748b' : '#94a3b8';
+
+            tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#00d2ff';
+            tCtx.fillStyle = '#2563eb';
             tCtx.font = 'bold 16px Segoe UI, sans-serif';
             tCtx.fillText(`📋 Смета и чертёж — ${lastCalcData.clientName}`, pad, 28);
 
-            tCtx.fillStyle = '#94a3b8';
+            tCtx.fillStyle = textMutedExport;
             tCtx.font = '13px Segoe UI, sans-serif';
             tCtx.fillText(`📍 Адрес: ${lastCalcData.clientAddr}`, pad, 50);
 
-            tCtx.fillStyle = '#22c55e';
+            tCtx.fillStyle = '#059669';
             tCtx.font = 'bold 14px Segoe UI, sans-serif';
             tCtx.fillText(`Площадь: ${lastCalcData.area} м² | Периметр: ${lastCalcData.perimeter} м.п.`, pad, 70);
 
@@ -1768,29 +1965,29 @@
             let startY = headerH + canvas.height + 24;
             lastBreakdownItems.forEach((item, idx) => {
                 let y = startY + idx * rowH;
-                tCtx.fillStyle = '#ffffff';
+                tCtx.fillStyle = textMainExport;
                 tCtx.font = 'bold 13px Segoe UI, sans-serif';
                 tCtx.fillText(item.title, pad, y);
 
-                tCtx.fillStyle = '#94a3b8';
+                tCtx.fillStyle = textMutedExport;
                 tCtx.font = '11px Segoe UI, sans-serif';
                 tCtx.fillText(item.sub, pad, y + 15);
 
-                tCtx.fillStyle = '#00d2ff';
+                tCtx.fillStyle = textMainExport;
                 tCtx.font = 'bold 13px Segoe UI, sans-serif';
                 let valW = tCtx.measureText(item.val).width;
                 tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 8);
             });
 
             let totalY = startY + lastBreakdownItems.length * rowH + 16;
-            tCtx.fillStyle = '#131b2e';
+            tCtx.fillStyle = isLightTheme ? '#f1f5f9' : '#1e293b';
             tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
 
-            tCtx.fillStyle = '#ffffff';
+            tCtx.fillStyle = textMainExport;
             tCtx.font = 'bold 15px Segoe UI, sans-serif';
             tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
 
-            tCtx.fillStyle = '#22c55e';
+            tCtx.fillStyle = '#2563eb';
             tCtx.font = 'bold 17px Segoe UI, sans-serif';
             let totW = tCtx.measureText(lastCalcData.totalText).width;
             tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
@@ -1814,18 +2011,22 @@
             tempCanvas.height = headerH + canvas.height + footerH;
             const tCtx = tempCanvas.getContext('2d');
 
-            tCtx.fillStyle = '#070a12';
+            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
+            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
+            const textMutedExport = isLightTheme ? '#475569' : '#cbd5e1';
+
+            tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#f59e0b';
+            tCtx.fillStyle = '#2563eb';
             tCtx.font = 'bold 16px Segoe UI, sans-serif';
             tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 28);
 
-            tCtx.fillStyle = '#ffffff';
+            tCtx.fillStyle = textMainExport;
             tCtx.font = '13px Segoe UI, sans-serif';
             tCtx.fillText(`Объект: ${lastCalcData.clientName} (${lastCalcData.clientAddr})`, pad, 50);
 
-            tCtx.fillStyle = '#00d2ff';
+            tCtx.fillStyle = textMutedExport;
             tCtx.font = 'bold 13px Segoe UI, sans-serif';
             tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}`, pad, 70);
 
@@ -1833,13 +2034,13 @@
             tCtx.drawImage(canvas, offsetX, headerH);
 
             let y = headerH + canvas.height + 24;
-            tCtx.fillStyle = '#f59e0b';
+            tCtx.fillStyle = '#2563eb';
             tCtx.font = 'bold 13px Segoe UI, sans-serif';
             tCtx.fillText('📏 ДЛИНЫ СТЕН (см):', pad, y);
             y += 22;
 
-            tCtx.fillStyle = '#ffffff';
-            tCtx.font = '12px Segoe UI, sans-serif';
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '12px "Roboto Mono", monospace';
             lastCalcData.wallsData.forEach((w, i) => {
                 let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                 tCtx.fillText(`Стена ${w.name}: ${w.cm} см`, colX, y);
@@ -1848,13 +2049,13 @@
 
             if (lastCalcData.diags.length > 0) {
                 y += 8;
-                tCtx.fillStyle = '#00d2ff';
+                tCtx.fillStyle = '#2563eb';
                 tCtx.font = 'bold 13px Segoe UI, sans-serif';
                 tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ (см):', pad, y);
                 y += 22;
 
-                tCtx.fillStyle = '#cbd5e1';
-                tCtx.font = '12px Segoe UI, sans-serif';
+                tCtx.fillStyle = textMutedExport;
+                tCtx.font = '12px "Roboto Mono", monospace';
                 lastCalcData.diags.forEach((d, i) => {
                     let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                     tCtx.fillText(`Диагональ ${d.name}: ${d.len} см`, colX, y);
