@@ -3,12 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Потолок Замер PRO</title>
     <link rel="manifest" href="manifest.json">
 
+    <script>
+        // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
+        (function() {
+            const APP_VERSION = 'v7.1';
+            const lastVer = localStorage.getItem('_pz_app_version');
+            if (lastVer !== APP_VERSION) {
+                localStorage.setItem('_pz_app_version', APP_VERSION);
+                const clearTasks = [];
+                if ('serviceWorker' in navigator) {
+                    clearTasks.push(
+                        navigator.serviceWorker.getRegistrations().then(regs => {
+                            return Promise.all(regs.map(r => r.unregister()));
+                        })
+                    );
+                }
+                if ('caches' in window) {
+                    clearTasks.push(
+                        caches.keys().then(keys => {
+                            return Promise.all(keys.map(k => caches.delete(k)));
+                        })
+                    );
+                }
+                Promise.all(clearTasks).then(() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('v', APP_VERSION);
+                    window.location.replace(url.toString());
+                });
+            }
+        })();
+    </script>
+
     <style>
         :root {
-            /* Тёмная тема (по умолчанию) — строгий графитовый Flat */
             --bg-color: #0f172a;
             --card-bg: #1e293b;
             --input-bg: #0f172a;
@@ -26,10 +59,14 @@
             --success: #059669;
             --canvas-bg: #0f172a;
             --modal-overlay: rgba(15, 23, 42, 0.85);
+            --nav-bg: rgba(30, 41, 59, 0.96);
+            --fab-bg: rgba(30, 41, 59, 0.84);
+            --fab-border: rgba(148, 163, 184, 0.25);
+            --fab-icon: #e2e8f0;
+            --total-color: #f8fafc;
         }
 
         body.light-theme {
-            /* Дневная (светлая) тема */
             --bg-color: #f1f5f9;
             --card-bg: #ffffff;
             --input-bg: #f8fafc;
@@ -47,13 +84,18 @@
             --success: #059669;
             --canvas-bg: #ffffff;
             --modal-overlay: rgba(15, 23, 42, 0.5);
+            --nav-bg: rgba(255, 255, 255, 0.96);
+            --fab-bg: rgba(255, 255, 255, 0.9);
+            --fab-border: rgba(15, 23, 42, 0.14);
+            --fab-icon: #1e293b;
+            --total-color: #1e293b;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+            font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
@@ -77,7 +119,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            padding-bottom: 28px;
+            padding-bottom: 84px;
         }
 
         header {
@@ -85,14 +127,14 @@
             justify-content: space-between;
             align-items: center;
             background: var(--card-bg);
-            padding: 12px 14px;
+            padding: 10px 12px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            gap: 8px;
+            gap: 6px;
         }
 
         .logo-title {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
             color: var(--text-main);
             display: flex;
@@ -104,7 +146,7 @@
         .header-right {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .attempts-counter {
@@ -112,7 +154,7 @@
             font-weight: 600;
             color: var(--text-muted);
             background: var(--sub-block-bg);
-            padding: 6px 10px;
+            padding: 6px 8px;
             border-radius: 8px;
             border: 1px solid var(--border);
             white-space: nowrap;
@@ -122,9 +164,9 @@
             background: var(--btn-neutral);
             color: var(--btn-neutral-text);
             border: 1px solid var(--border);
-            padding: 6px 10px;
+            padding: 6px 9px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             display: flex;
@@ -135,14 +177,163 @@
 
         .theme-toggle-btn:active { opacity: 0.85; }
 
-        .canvas-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            padding: 12px;
+        .toast-container {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30000;
             display: flex;
             flex-direction: column;
+            gap: 8px;
+            width: 92%;
+            max-width: 420px;
+            pointer-events: none;
+        }
+
+        .toast-msg {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--indigo-main);
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             gap: 10px;
+            opacity: 0;
+            transform: translateY(-12px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .toast-msg.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-msg.toast-error { border-left-color: var(--danger); }
+        .toast-msg.toast-success { border-left-color: var(--success); }
+
+        .rooms-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+
+        .rooms-bar::-webkit-scrollbar { display: none; }
+
+        .room-tab {
+            background: var(--sub-block-bg);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.12s ease;
+        }
+
+        .room-tab.active {
+            background: var(--indigo-main);
+            color: #ffffff;
+            border-color: var(--indigo-main);
+        }
+
+        .room-btn-act {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+            border: 1px solid var(--border);
+            padding: 7px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        body.tab-mode .tab-pane {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        body.tab-mode .tab-pane.active { display: flex; }
+
+        body:not(.tab-mode) .tab-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        body:not(.tab-mode) .bottom-nav { display: none; }
+        body:not(.tab-mode) .container { padding-bottom: 28px; }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--nav-bg);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border);
+            z-index: 9000;
+            display: flex;
+            justify-content: center;
+            padding: 6px 12px 10px 12px;
+        }
+
+        .bottom-nav-inner {
+            width: 100%;
+            max-width: 480px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .nav-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            transition: all 0.15s ease;
+        }
+
+        .nav-tab-btn .nav-icon { font-size: 16px; }
+
+        .nav-tab-btn.active {
+            background: var(--sub-block-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+
+        .canvas-card {
+            background: var(--card-bg);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             position: relative;
         }
 
@@ -164,6 +355,7 @@
             justify-content: space-between;
             align-items: center;
             gap: 8px;
+            padding: 0 2px;
         }
 
         .action-hint {
@@ -172,47 +364,78 @@
             font-weight: 500;
         }
 
-        .fullscreen-btn {
-            background: var(--btn-neutral);
+        .canvas-viewport {
+            position: relative;
+            width: 100%;
+            height: 320px;
+            border-radius: 10px;
+            overflow: hidden;
             border: 1px solid var(--border);
-            color: var(--btn-neutral-text);
-            padding: 6px 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            white-space: nowrap;
+            background: var(--canvas-bg);
+        }
+
+        .canvas-card.fullscreen .canvas-viewport {
+            flex: 1;
+            height: auto;
         }
 
         canvas {
             width: 100%;
-            height: 290px;
-            background: var(--canvas-bg);
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            height: 100%;
+            display: block;
             touch-action: none;
             cursor: crosshair;
         }
 
-        .canvas-card.fullscreen canvas {
-            flex: 1;
-            height: auto;
-            margin: 6px 0;
+        .canvas-floating-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
         }
 
-        .canvas-tools {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+        .fab-group {
+            display: flex;
             gap: 6px;
+            pointer-events: auto;
         }
 
-        .canvas-card.fullscreen .canvas-tools {
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            background: var(--card-bg);
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
+        .canvas-fab {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--fab-bg);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--fab-border);
+            color: var(--fab-icon);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            transition: transform 0.12s ease, background-color 0.15s ease;
+        }
+
+        .canvas-fab:active { transform: scale(0.92); }
+
+        .canvas-fab svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 1.9;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .canvas-fab.fab-active {
+            background: var(--indigo-main);
+            color: #ffffff;
+            border-color: var(--indigo-main);
         }
 
         .section-card {
@@ -226,14 +449,14 @@
         }
 
         .section-title {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             color: var(--text-muted);
             display: flex;
             justify-content: space-between;
             align-items: center;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.4px;
         }
 
         .grid-inputs {
@@ -254,7 +477,7 @@
 
         .input-card-box label {
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 500;
             color: var(--text-muted);
         }
 
@@ -267,39 +490,55 @@
             border-radius: 0;
         }
 
-        .input-card-box .input-field:focus {
-            outline: none;
-        }
+        .input-card-box .input-field:focus { outline: none; }
 
         #wallsInputsContainer {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 6px;
-            max-height: 360px;
+            max-height: 280px;
             overflow-y: auto;
-            padding-right: 4px;
+            padding-right: 2px;
+        }
+
+        #wallsInputsContainer.show-directions {
+            grid-template-columns: 1fr;
         }
 
         .wall-row-input {
-            display: grid;
-            grid-template-columns: 1fr 1.1fr;
-            gap: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
             background: var(--sub-block-bg);
-            padding: 8px;
+            padding: 7px 10px;
             border-radius: 8px;
             border: 1px solid var(--border);
-            align-items: center;
         }
 
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .input-group label {
-            font-size: 11px;
+        .wall-row-label {
+            font-size: 12px;
+            font-weight: 600;
             color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .wall-row-label b { color: var(--text-main); }
+
+        .wall-row-input .wall-len {
+            width: 72px;
+            text-align: right;
+            font-weight: 600;
+            padding: 6px 8px;
+        }
+
+        .wall-dir-wrap {
+            display: none;
+            flex: 1;
+        }
+
+        #wallsInputsContainer.show-directions .wall-dir-wrap {
+            display: block;
         }
 
         .input-field {
@@ -307,7 +546,7 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text-main);
-            padding: 8px 10px;
+            padding: 8px 8px;
             font-size: 13px;
             width: 100%;
         }
@@ -322,16 +561,16 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text-main);
-            padding: 8px 6px;
+            padding: 6px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 500;
             width: 100%;
         }
 
         .table-header {
             display: grid;
-            grid-template-columns: 1.8fr 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: 1.5fr 1.25fr 0.85fr;
+            gap: 6px;
             font-size: 11px;
             color: var(--text-muted);
             padding: 0 4px;
@@ -340,17 +579,62 @@
 
         .item-row {
             display: grid;
-            grid-template-columns: 1.8fr 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: 1.5fr 1.25fr 0.85fr;
+            gap: 6px;
             align-items: center;
         }
 
         .item-row label {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-main);
+            line-height: 1.2;
         }
 
-        /* Плоские системные кнопки (Flat Design) */
+        .stepper-box {
+            display: flex;
+            align-items: center;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            height: 35px;
+        }
+
+        .stepper-btn {
+            background: var(--btn-neutral);
+            color: var(--btn-neutral-text);
+            border: none;
+            width: 28px;
+            height: 100%;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .stepper-btn:active { opacity: 0.75; }
+
+        .stepper-box .input-field {
+            border: none;
+            background: transparent;
+            text-align: center;
+            padding: 4px 2px;
+            font-weight: 600;
+            font-size: 13px;
+            height: 100%;
+            border-radius: 0;
+            -moz-appearance: textfield;
+        }
+
+        .stepper-box .input-field::-webkit-outer-spin-button,
+        .stepper-box .input-field::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
         .btn {
             background: var(--btn-neutral);
             border: none;
@@ -381,12 +665,6 @@
             color: var(--danger-text);
         }
 
-        .btn-warning {
-            background: var(--btn-neutral);
-            color: var(--btn-neutral-text);
-        }
-
-        /* Главная кнопка РАССЧИТАТЬ СМЕТУ: сильно скругленная, глубокий индиго, матовый белый текст */
         .btn-calc-pill {
             width: 100%;
             background: var(--indigo-main);
@@ -395,8 +673,8 @@
             border-radius: 999px;
             padding: 15px 20px;
             font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.4px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -410,7 +688,6 @@
             transform: scale(0.99);
         }
 
-        /* Кнопка вызова шторки экспорта */
         .btn-share-trigger {
             width: 100%;
             background: var(--sub-block-bg);
@@ -425,11 +702,6 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            transition: background-color 0.15s ease;
-        }
-
-        .btn-share-trigger:active {
-            background: var(--btn-neutral);
         }
 
         .result-card {
@@ -439,16 +711,16 @@
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 14px;
         }
 
         .estimate-breakdown {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
             background: var(--sub-block-bg);
-            padding: 12px;
-            border-radius: 8px;
+            padding: 14px;
+            border-radius: 10px;
             border: 1px solid var(--border);
         }
 
@@ -458,34 +730,56 @@
             align-items: center;
             font-size: 13px;
             border-bottom: 1px solid var(--border);
-            padding-bottom: 6px;
+            padding-bottom: 8px;
         }
 
         .breakdown-row:last-child { border-bottom: none; padding-bottom: 0; }
 
         .breakdown-label {
             color: var(--text-main);
+            font-weight: 400;
             display: flex;
             flex-direction: column;
+            gap: 2px;
         }
 
-        .breakdown-sub { font-size: 11px; color: var(--text-muted); }
-        .breakdown-val { color: var(--text-main); font-weight: 600; white-space: nowrap; }
+        .breakdown-sub {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        .breakdown-val {
+            color: var(--text-main);
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
 
         .total-price {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: baseline;
             border-top: 1px solid var(--border);
-            padding-top: 12px;
+            padding-top: 14px;
             margin-top: 2px;
         }
 
-        .total-price span { font-size: 14px; font-weight: 700; }
-        .total-price .price-value { font-size: 22px; color: var(--indigo-main); font-weight: 800; }
-        body:not(.light-theme) .total-price .price-value { color: #818cf8; }
+        .total-price span {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--total-color);
+            letter-spacing: 0.2px;
+        }
 
-        /* Выезжающая снизу шторка (Bottom Sheet) */
+        .total-price .price-value {
+            font-size: 26px;
+            color: var(--total-color);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
         .bottom-sheet-overlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -540,41 +834,36 @@
 
         .sheet-title {
             font-size: 15px;
-            font-weight: 700;
+            font-weight: 600;
             color: var(--text-main);
         }
 
-        .sheet-option-card {
-            background: var(--sub-block-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .sheet-option-header {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .sheet-option-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-main);
-        }
-
-        .sheet-option-desc {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        .share-buttons-grid {
+        .format-tabs {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            background: var(--sub-block-bg);
+            padding: 4px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            gap: 4px;
+        }
+
+        .format-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 9px 10px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .format-tab-btn.active {
+            background: var(--card-bg);
+            color: var(--text-main);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
         }
 
         .modal-overlay {
@@ -659,19 +948,25 @@
         }
     </style>
 </head>
-<body>
+<body class="tab-mode">
+
+    <div class="toast-container" id="toastContainer"></div>
 
     <div class="container">
         <header>
-            <div class="logo-title">📐 Потолок Замер PRO</div>
+            <div class="logo-title">📐 Замер PRO</div>
             <div class="header-right">
-                <div class="attempts-counter" id="attemptsCounter">Проверка...</div>
+                <div class="attempts-counter" id="attemptsCounter">...</div>
+                <button class="theme-toggle-btn" id="viewModeBtn" onclick="toggleViewMode()" title="Переключить вид: Вкладки / Весь список">📑 Вкладки</button>
                 <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">☀️ День</button>
             </div>
         </header>
 
         <div class="section-card">
-            <div class="section-title">👤 Данные клиента и объекта</div>
+            <div class="section-title">
+                <span>👤 Клиент и Помещения</span>
+                <span id="roomsCountBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Комнат: 1</span>
+            </div>
             <div class="grid-inputs">
                 <div class="input-card-box">
                     <label>Имя клиента</label>
@@ -682,166 +977,296 @@
                     <input type="text" id="clientAddress" class="input-field" placeholder="Введите адрес">
                 </div>
             </div>
+
+            <div class="rooms-bar" id="roomsBar"></div>
+
             <div style="display: flex; gap: 8px; margin-top: 2px;">
                 <button class="btn btn-primary" onclick="saveProject()" style="flex: 1;">💾 Сохранить замер</button>
-                <button class="btn" onclick="openProjectsModal()" style="flex: 1;">📂 Загрузить / Удалить</button>
+                <button class="btn" onclick="openProjectsModal()" style="flex: 1;">📂 База клиентов</button>
             </div>
         </div>
 
-        <!-- КАРТОЧКА ХОЛСТА -->
-        <div class="canvas-card" id="canvasCard">
-            <div class="canvas-header">
-                <span class="action-hint" id="actionHint">Тапните на экран, чтобы поставить точку А</span>
-                <button class="fullscreen-btn" id="topFullscreenBtn" onclick="toggleFullscreen()">⛶ На весь экран</button>
-            </div>
-            
-            <canvas id="sketchCanvas"></canvas>
-            
-            <div class="canvas-tools">
-                <button class="btn btn-danger" onclick="resetSketch()">🗑️ Сброс</button>
-                <button class="btn" onclick="undoPoint()">↩️ Шаг назад</button>
-                <button class="btn btn-primary" id="closeContourBtn" onclick="closePolygon()">🔗 Замкнуть</button>
-                <button class="btn" onclick="snapOrthogonal()">📐 Выровнять 90°</button>
-                <button class="btn" onclick="rotateSketch()">🔄 Повернуть</button>
-                <button class="btn" id="bottomFullscreenBtn" onclick="toggleFullscreen()">⛶ Развернуть</button>
-            </div>
-        </div>
-
-        <!-- КАРТОЧКА ПОСТРОЕНИЯ ПО ТАБЛИЦЕ (ДО 50 УГЛОВ) -->
-        <div class="section-card">
-            <div class="section-title">
-                <span>📏 Построение и длины стен (см)</span>
-                <span id="wallsAnglesBadge" style="font-size: 12px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
-            </div>
-
-            <div style="display: flex; gap: 8px; align-items: center; background: var(--sub-block-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
-                <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Углов (3–50):</span>
-                <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50" style="width: 75px; text-align: center; font-weight: 700;">
-                <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать таблицу</button>
-            </div>
-
-            <div id="wallsInputsContainer"></div>
-
-            <div style="display: none; gap: 8px; margin-top: 2px;" id="tableActionButtons">
-                <button class="btn btn-primary" onclick="buildSketchFromTable()" style="flex: 1; padding: 11px;">🔨 Построить и замкнуть по размерам</button>
-                <button class="btn" onclick="fitToScreen(true)" style="padding: 11px;">🔍 Вписать</button>
-            </div>
-        </div>
-
-        <div class="section-card">
-            <div class="section-title">⚙️ Материалы и Базовые работы</div>
-            <div class="grid-inputs">
-                <div class="input-card-box">
-                    <label>Полотно (₽ за 1 м²)</label>
-                    <input type="number" id="priceCanvas" class="input-field" value="650">
+        <!-- ВКЛАДКА 1: ЧЕРТЁЖ И СТЕНЫ -->
+        <div class="tab-pane active" id="tabSketch">
+            <div class="canvas-card" id="canvasCard">
+                <div class="canvas-header">
+                    <span class="action-hint" id="actionHint">Тапните на экран для точки А</span>
                 </div>
-                <div class="input-card-box">
-                    <label>Багет / профиль (₽ за 1 м.п.)</label>
-                    <input type="number" id="priceProfile" class="input-field" value="250">
+                
+                <div class="canvas-viewport">
+                    <canvas id="sketchCanvas"></canvas>
+
+                    <div class="canvas-floating-bar">
+                        <div class="fab-group">
+                            <button class="canvas-fab" onclick="resetSketch()" title="Сброс чертежа">
+                                <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                            </button>
+                            <button class="canvas-fab" onclick="undoPoint()" title="Шаг назад">
+                                <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                            </button>
+                            <button class="canvas-fab" id="closeContourBtn" onclick="closePolygon()" title="Замкнуть / Разомкнуть контур">
+                                <svg id="lockIconSvg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="fab-group">
+                            <button class="canvas-fab" onclick="snapOrthogonal()" title="Выровнять углы 90°">
+                                <svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M4 14h6v6"/></svg>
+                            </button>
+                            <button class="canvas-fab" onclick="rotateSketch()" title="Повернуть чертёж">
+                                <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                            </button>
+                            <button class="canvas-fab" id="bottomFullscreenBtn" onclick="toggleFullscreen()" title="На весь экран">
+                                <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="table-header">
-                <span>Наименование</span>
-                <span>Кол-во</span>
-                <span>Цена (₽)</span>
-            </div>
+            <div class="section-card">
+                <div class="section-title">
+                    <span>📏 Длины стен (см)</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="wallsAnglesBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
+                        <button class="theme-toggle-btn" onclick="toggleDirectionsMode()" id="dirToggleBtn" style="padding: 3px 7px; font-size: 10px;">⚙️ Направления</button>
+                    </div>
+                </div>
 
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div class="item-row">
-                    <label>Светильники (шт)</label>
-                    <input type="number" id="countLights" class="input-field" value="4">
-                    <input type="number" id="priceLight" class="input-field" value="450">
+                <div style="display: flex; gap: 8px; align-items: center; background: var(--sub-block-bg); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);">
+                    <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Углов:</span>
+                    <div class="stepper-box" style="width: 110px;">
+                        <button class="stepper-btn" onclick="stepValue('presetCornersCount', -1, 3, 50)">−</button>
+                        <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50">
+                        <button class="stepper-btn" onclick="stepValue('presetCornersCount', 1, 3, 50)">+</button>
+                    </div>
+                    <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Шаблон углов</button>
                 </div>
-                <div class="item-row">
-                    <label>Люстра (шт)</label>
-                    <input type="number" id="countChandeliers" class="input-field" value="1">
-                    <input type="number" id="priceChandelier" class="input-field" value="600">
-                </div>
-                <div class="item-row">
-                    <label>Карниз (м.п.)</label>
-                    <input type="number" id="countCornice" class="input-field" value="3.0" step="0.1">
-                    <input type="number" id="priceCornice" class="input-field" value="700">
-                </div>
-                <div class="item-row">
-                    <label>Обход труб (шт)</label>
-                    <input type="number" id="countPipes" class="input-field" value="1">
-                    <input type="number" id="pricePipe" class="input-field" value="350">
-                </div>
-                <div class="item-row">
-                    <label>Доп. углы (&gt;4 шт)</label>
-                    <input type="number" id="countAngles" class="input-field" value="0" readonly style="font-weight: 700; opacity: 0.8;">
-                    <input type="number" id="priceAngle" class="input-field" value="150">
+
+                <div id="wallsInputsContainer"></div>
+
+                <div style="display: none; gap: 8px; margin-top: 2px;" id="tableActionButtons">
+                    <button class="btn btn-primary" id="buildByDirBtn" onclick="buildSketchFromTable()" style="display: none; flex: 1; padding: 10px;">🔨 Построить по направлениям</button>
+                    <button class="btn" onclick="fitToScreen(true)" style="flex: 1; padding: 10px;">🔍 Вписать чертёж в экран</button>
                 </div>
             </div>
         </div>
 
-        <div class="section-card">
-            <div class="section-title">➕ Дополнительные работы (свои)</div>
-            <div class="grid-inputs">
-                <input type="text" id="customName1" class="input-field" placeholder="Название работы" value="Брус под гардину">
-                <input type="number" id="customPrice1" class="input-field" placeholder="Сумма ₽" value="0">
-                <input type="text" id="customName2" class="input-field" placeholder="Название работы" value="Обход короба">
-                <input type="number" id="customPrice2" class="input-field" placeholder="Сумма ₽" value="0">
+        <!-- ВКЛАДКА 2: ПАРАМЕТРЫ И КОМПЛЕКТАЦИЯ -->
+        <div class="tab-pane" id="tabParams">
+            <div class="section-card">
+                <div class="section-title">
+                    <span>⚙️ Материалы и Работы</span>
+                    <span style="font-size: 10px; color: var(--success); text-transform: none;">💾 Прайс сохраняется</span>
+                </div>
+                <div class="grid-inputs">
+                    <div class="input-card-box">
+                        <label>Полотно (₽ за 1 м²)</label>
+                        <input type="number" id="priceCanvas" class="input-field price-persist" value="650" oninput="saveUserPrices()">
+                    </div>
+                    <div class="input-card-box">
+                        <label>Багет / профиль (₽ за 1 м.п.)</label>
+                        <input type="number" id="priceProfile" class="input-field price-persist" value="250" oninput="saveUserPrices()">
+                    </div>
+                </div>
+
+                <div class="table-header">
+                    <span>Наименование</span>
+                    <span style="text-align: center;">Кол-во</span>
+                    <span>Цена (₽)</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="item-row">
+                        <label>Светильники (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countLights', -1, 0, 500)">−</button>
+                            <input type="number" id="countLights" class="input-field" value="4" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countLights', 1, 0, 500)">+</button>
+                        </div>
+                        <input type="number" id="priceLight" class="input-field price-persist" value="450" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Люстра (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countChandeliers', -1, 0, 100)">−</button>
+                            <input type="number" id="countChandeliers" class="input-field" value="1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countChandeliers', 1, 0, 100)">+</button>
+                        </div>
+                        <input type="number" id="priceChandelier" class="input-field price-persist" value="600" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Карниз (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countCornice', -0.5, 0, 200)">−</button>
+                            <input type="number" id="countCornice" class="input-field" value="3.0" step="0.1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countCornice', 0.5, 0, 200)">+</button>
+                        </div>
+                        <input type="number" id="priceCornice" class="input-field price-persist" value="700" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Обход труб (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countPipes', -1, 0, 100)">−</button>
+                            <input type="number" id="countPipes" class="input-field" value="1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countPipes', 1, 0, 100)">+</button>
+                        </div>
+                        <input type="number" id="pricePipe" class="input-field price-persist" value="350" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Доп. углы (&gt;4 шт)</label>
+                        <input type="number" id="countAngles" class="input-field" value="0" readonly style="font-weight: 600; text-align: center; opacity: 0.8;">
+                        <input type="number" id="priceAngle" class="input-field price-persist" value="150" oninput="saveUserPrices()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">✨ Современное освещение и Профили</div>
+                <div class="table-header">
+                    <span>Элемент</span>
+                    <span style="text-align: center;">Метраж / Шт</span>
+                    <span>Цена (₽)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="item-row">
+                        <label>Световые линии (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countLightLines', -0.5, 0, 300)">−</button>
+                            <input type="number" id="countLightLines" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countLightLines', 0.5, 0, 300)">+</button>
+                        </div>
+                        <input type="number" id="priceLightLines" class="input-field price-persist" value="2500" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Трековая система (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countTrack', -0.5, 0, 300)">−</button>
+                            <input type="number" id="countTrack" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countTrack', 0.5, 0, 300)">+</button>
+                        </div>
+                        <input type="number" id="priceTrack" class="input-field price-persist" value="1800" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Скрытая ниша ПК-5 (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countNiche', -0.5, 0, 200)">−</button>
+                            <input type="number" id="countNiche" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countNiche', 0.5, 0, 200)">+</button>
+                        </div>
+                        <input type="number" id="priceNiche" class="input-field price-persist" value="2200" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Теневой / Парящий (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countShadow', -1, 0, 500)">−</button>
+                            <input type="number" id="countShadow" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countShadow', 1, 0, 500)">+</button>
+                        </div>
+                        <input type="number" id="priceShadow" class="input-field price-persist" value="600" oninput="saveUserPrices()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">➕ Дополнительные работы (свои)</div>
+                <div class="grid-inputs">
+                    <input type="text" id="customName1" class="input-field" placeholder="Название работы" value="Брус под гардину" oninput="syncCurrentRoomState()">
+                    <input type="number" id="customPrice1" class="input-field" placeholder="Сумма ₽" value="0" oninput="syncCurrentRoomState()">
+                    <input type="text" id="customName2" class="input-field" placeholder="Название работы" value="Обход короба" oninput="syncCurrentRoomState()">
+                    <input type="number" id="customPrice2" class="input-field" placeholder="Сумма ₽" value="0" oninput="syncCurrentRoomState()">
+                </div>
             </div>
         </div>
 
-        <div class="result-card">
-            <div class="section-title">📋 Детализация расчёта (Смета)</div>
-            
-            <div class="estimate-breakdown" id="estimateBreakdown">
-                <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
-                    Начертите комнату и нажмите <b>«РАССЧИТАТЬ СМЕТУ»</b>
+        <!-- ВКЛАДКА 3: СМЕТА И ВЫГРУЗКА -->
+        <div class="tab-pane" id="tabEstimate">
+            <div class="result-card">
+                <div class="section-title">
+                    <span>📋 Детализация расчёта (Смета)</span>
+                    <span id="activeRoomEstimateTitle" style="font-size: 11px; color: var(--text-muted); text-transform: none;"></span>
                 </div>
-            </div>
-            
-            <div class="total-price">
-                <span>ИТОГО К ОПЛАТЕ:</span>
-                <span class="price-value" id="resTotal">0 ₽</span>
-            </div>
+                
+                <div class="estimate-breakdown" id="estimateBreakdown">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
+                        Начертите комнату и нажмите <b>«РАССЧИТАТЬ СМЕТУ»</b>
+                    </div>
+                </div>
+                
+                <div class="total-price">
+                    <span id="totalPriceLabel">ИТОГО К ОПЛАТЕ:</span>
+                    <span class="price-value" id="resTotal">0 ₽</span>
+                </div>
 
-            <!-- Сильно скругленная сплошная кнопка в цвете глубокий индиго -->
-            <button class="btn-calc-pill" onclick="performCalculation()">🧮 РАССЧИТАТЬ СМЕТУ</button>
+                <div class="total-price" id="allRoomsTotalRow" style="display: none; padding-top: 8px; margin-top: -6px; border-top: 1px dashed var(--border);">
+                    <span style="font-size: 13px; font-weight: 500; color: var(--text-muted);">ВСЕ КОМНАТЫ ЗАКАЗА:</span>
+                    <span style="font-size: 18px; font-weight: 700; color: var(--total-color);" id="resAllRoomsTotal">0 ₽</span>
+                </div>
 
-            <!-- Единая аккуратная кнопка вызова шторки экспорта -->
-            <button class="btn-share-trigger" onclick="openExportSheet()">📤 Поделиться / Экспорт</button>
+                <button class="btn-calc-pill" onclick="performCalculation()">🧮 РАССЧИТАТЬ СМЕТУ</button>
+                <button class="btn-share-trigger" onclick="openExportSheet()">📤 Поделиться сметой</button>
+            </div>
         </div>
     </div>
 
-    <!-- Выезжающая снизу шторка экспорта (Bottom Sheet) -->
-    <div class="bottom-sheet-overlay" id="exportSheetOverlay" onclick="closeExportSheet(event)">
+    <nav class="bottom-nav">
+        <div class="bottom-nav-inner">
+            <button class="nav-tab-btn active" id="navBtnSketch" onclick="switchTab('sketch')">
+                <span class="nav-icon">📐</span>
+                <span>Чертёж</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnParams" onclick="switchTab('params')">
+                <span class="nav-icon">⚙️</span>
+                <span>Параметры</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnEstimate" onclick="switchTab('estimate')">
+                <span class="nav-icon">📋</span>
+                <span>Смета</span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="bottom-sheet-overlay" id="wallEditSheetOverlay" onclick="closeWallEditSheet()">
         <div class="bottom-sheet" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
             <div class="sheet-header">
-                <span class="sheet-title">📤 Поделиться / Экспорт</span>
-                <button class="btn" onclick="closeExportSheet()" style="padding: 6px 10px;">✖</button>
+                <span class="sheet-title" id="wallEditSheetTitle">📏 Длина стены A–B (см)</span>
+                <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
-
-            <div class="sheet-option-card">
-                <div class="sheet-option-header">
-                    <span class="sheet-option-title">👤 Клиенту (Смета + Чертёж)</span>
-                    <span class="sheet-option-desc">Полный расчёт со стоимостью работ, материалов и чертежом</span>
-                </div>
-                <div class="share-buttons-grid">
-                    <button class="btn btn-primary" onclick="closeExportSheet(); exportClientImage()">🖼️ Картинкой (PNG)</button>
-                    <button class="btn" onclick="closeExportSheet(); exportWordDoc('client')">📄 Файлом Word (.doc)</button>
-                </div>
-            </div>
-
-            <div class="sheet-option-card">
-                <div class="sheet-option-header">
-                    <span class="sheet-option-title">🏭 В цех (Только раскрой)</span>
-                    <span class="sheet-option-desc">Чертёж, площади, длины стен и диагонали БЕЗ ЦЕН</span>
-                </div>
-                <div class="share-buttons-grid">
-                    <button class="btn btn-primary" onclick="closeExportSheet(); exportFactoryImage()">📐 Чертёж (PNG)</button>
-                    <button class="btn" onclick="closeExportSheet(); exportWordDoc('factory')">📄 Бланк Word (.doc)</button>
-                </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="см" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно загрузки и удаления клиентов -->
+    <div class="bottom-sheet-overlay" id="exportSheetOverlay" onclick="closeExportSheet()">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <span class="sheet-title">📤 Поделиться и выгрузить</span>
+                <button class="btn" onclick="closeExportSheet()" style="padding: 6px 10px;">✖</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ФОРМАТ ФАЙЛА:</span>
+                <div class="format-tabs">
+                    <button class="format-tab-btn active" id="fmtTabPng" onclick="selectExportFormat('png')">🖼️ Картинка (PNG)</button>
+                    <button class="format-tab-btn" id="fmtTabDoc" onclick="selectExportFormat('doc')">📄 Документ Word (.doc)</button>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <button class="btn-calc-pill" onclick="triggerCombinedShare('client')">
+                    📤 Поделиться сметой (Клиенту)
+                </button>
+                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px;">
+                    🏭 Отправить раскрой в цех (без цен)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="projectsModal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -852,7 +1277,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно подписки RuStore + Контактная почта Prilojeniea-p-k@mail.ru -->
     <div class="modal-overlay" id="paywallModal">
         <div class="modal-content">
             <div style="font-size: 32px;">🔒</div>
@@ -885,20 +1309,30 @@
     </div>
 
     <script>
-        // Автономная работа без интернета (Service Worker)
+        // Умный Service Worker: сначала свежая сеть, а без интернета — офлайн-кэш
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v4';
+                    const CACHE_NAME = 'potolok-pro-offline-v7.1';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
                     });
                     self.addEventListener('activate', e => {
-                        e.waitUntil(self.clients.claim());
+                        e.waitUntil(
+                            caches.keys().then(keys => Promise.all(
+                                keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null)
+                            )).then(() => self.clients.claim())
+                        );
                     });
                     self.addEventListener('fetch', e => {
-                        e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+                        e.respondWith(
+                            fetch(e.request).then(res => {
+                                const copy = res.clone();
+                                caches.open(CACHE_NAME).then(c => c.put(e.request, copy));
+                                return res;
+                            }).catch(() => caches.match(e.request))
+                        );
                     });
                 `;
                 try {
@@ -908,20 +1342,173 @@
             });
         }
 
-        // Открытие и закрытие нижней шторки экспорта
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast-msg ${type === 'error' ? 'toast-error' : (type === 'success' ? 'toast-success' : '')}`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 250);
+            }, 2600);
+        }
+
+        let isTabMode = localStorage.getItem('_pz_view_mode') !== 'classic';
+
+        function applyViewMode() {
+            const btn = document.getElementById('viewModeBtn');
+            if (isTabMode) {
+                document.body.classList.add('tab-mode');
+                if (btn) btn.innerText = '📑 Вкладки';
+            } else {
+                document.body.classList.remove('tab-mode');
+                if (btn) btn.innerText = '📜 Список';
+            }
+            setTimeout(() => resizeCanvas(), 50);
+        }
+
+        function toggleViewMode() {
+            isTabMode = !isTabMode;
+            localStorage.setItem('_pz_view_mode', isTabMode ? 'tabs' : 'classic');
+            applyViewMode();
+            showToast(isTabMode ? 'Режим быстрых вкладок включён' : 'Классический длинный вид включён');
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('tabSketch').classList.toggle('active', tabName === 'sketch');
+            document.getElementById('tabParams').classList.toggle('active', tabName === 'params');
+            document.getElementById('tabEstimate').classList.toggle('active', tabName === 'estimate');
+
+            document.getElementById('navBtnSketch').classList.toggle('active', tabName === 'sketch');
+            document.getElementById('navBtnParams').classList.toggle('active', tabName === 'params');
+            document.getElementById('navBtnEstimate').classList.toggle('active', tabName === 'estimate');
+
+            if (tabName === 'sketch') {
+                setTimeout(() => resizeCanvas(), 40);
+            }
+        }
+
+        let showWallDirections = false;
+        function toggleDirectionsMode() {
+            showWallDirections = !showWallDirections;
+            const container = document.getElementById('wallsInputsContainer');
+            const buildBtn = document.getElementById('buildByDirBtn');
+            container.classList.toggle('show-directions', showWallDirections);
+            buildBtn.style.display = showWallDirections ? 'flex' : 'none';
+            showToast(showWallDirections ? 'Показаны направления стен' : 'Компактный режим длин');
+        }
+
+        function stepValue(inputId, delta, minVal, maxVal) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            let current = parseFloat(el.value) || 0;
+            let next = Math.round((current + delta) * 100) / 100;
+            if (minVal !== undefined) next = Math.max(minVal, next);
+            if (maxVal !== undefined) next = Math.min(maxVal, next);
+            el.value = next;
+            syncCurrentRoomState();
+        }
+
+        const PRICE_FIELDS = [
+            'priceCanvas', 'priceProfile', 'priceLight', 'priceChandelier',
+            'priceCornice', 'pricePipe', 'priceAngle',
+            'priceLightLines', 'priceTrack', 'priceNiche', 'priceShadow'
+        ];
+
+        function saveUserPrices() {
+            let prices = {};
+            PRICE_FIELDS.forEach(id => {
+                let el = document.getElementById(id);
+                if (el) prices[id] = el.value;
+            });
+            localStorage.setItem('_pz_user_prices', JSON.stringify(prices));
+        }
+
+        function loadUserPrices() {
+            try {
+                let saved = JSON.parse(localStorage.getItem('_pz_user_prices') || '{}');
+                PRICE_FIELDS.forEach(id => {
+                    if (saved[id] !== undefined && document.getElementById(id)) {
+                        document.getElementById(id).value = saved[id];
+                    }
+                });
+            } catch (e) {}
+        }
+
+        let selectedExportFormat = 'png';
+
+        function selectExportFormat(fmt) {
+            selectedExportFormat = fmt;
+            document.getElementById('fmtTabPng').classList.toggle('active', fmt === 'png');
+            document.getElementById('fmtTabDoc').classList.toggle('active', fmt === 'doc');
+        }
+
+        function triggerCombinedShare(target) {
+            closeExportSheet();
+            if (selectedExportFormat === 'png') {
+                if (target === 'client') exportClientImage();
+                else exportFactoryImage();
+            } else {
+                exportWordDoc(target);
+            }
+        }
+
         function openExportSheet() {
             if (!lastCalcData || points.length < 3) {
-                alert('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!');
+                showToast('Сначала начертите комнату и нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
                 return;
             }
             document.getElementById('exportSheetOverlay').classList.add('open');
         }
 
-        function closeExportSheet(e) {
+        function closeExportSheet() {
             document.getElementById('exportSheetOverlay').classList.remove('open');
         }
 
-        // Переключение темы (День / Ночь)
+        let editingWallIdx = null;
+        let wallHitBoxes = [];
+
+        function openWallEditSheet(wallIdx) {
+            editingWallIdx = wallIdx;
+            let p1 = points[wallIdx];
+            let p2 = points[(wallIdx + 1) % points.length];
+            let inp = document.getElementById(`wall-input-${wallIdx}`);
+            let curVal = inp ? inp.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
+
+            document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (см)`;
+            const sheetInput = document.getElementById('wallSheetInput');
+            sheetInput.value = curVal;
+            document.getElementById('wallEditSheetOverlay').classList.add('open');
+            setTimeout(() => {
+                sheetInput.focus();
+                sheetInput.select();
+            }, 120);
+        }
+
+        function closeWallEditSheet() {
+            document.getElementById('wallEditSheetOverlay').classList.remove('open');
+            editingWallIdx = null;
+        }
+
+        function applyWallSheetValue() {
+            if (editingWallIdx === null) return;
+            let val = parseFloat(document.getElementById('wallSheetInput').value);
+            if (val && val > 0) {
+                let inp = document.getElementById(`wall-input-${editingWallIdx}`);
+                if (inp) inp.value = Math.round(val);
+                onWallLengthEdit(editingWallIdx, val);
+                showToast(`Стена обновлена: ${Math.round(val)} см`, 'success');
+            }
+            closeWallEditSheet();
+        }
+
         let isLightTheme = localStorage.getItem('_pz_theme') === 'light';
 
         function applyTheme() {
@@ -1095,7 +1682,7 @@
             saveSecurityState();
             updateAttemptsUI();
             document.getElementById('paywallModal').style.display = 'none';
-            alert(message);
+            showToast(message, 'success');
             calculate();
         }
 
@@ -1116,7 +1703,7 @@
             ) {
                 grantAccess(90, 'Подписка PRO на 3 месяца (90 дней) успешно активирована!');
             } else {
-                alert('Неверный ключ активации!');
+                showToast('Неверный ключ активации!', 'error');
             }
         }
 
@@ -1129,7 +1716,7 @@
         function copySupportInfo() {
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
-                    alert(`Почта ${SUPPORT_EMAIL} скопирована!\nНе забудьте указать в письме ваш ID: ${deviceId}`);
+                    showToast(`Почта скопирована! Ваш ID: ${deviceId}`, 'success');
                 });
             } else {
                 prompt("Скопируйте адрес почты:", SUPPORT_EMAIL);
@@ -1140,7 +1727,7 @@
             if (window.RuStoreBilling) {
                 window.RuStoreBilling.purchaseProduct("sub_3m_500");
             } else {
-                alert(`Для оформления подписки (500 ₽ на 3 месяца) напишите нам на почту:\n${SUPPORT_EMAIL}\n\nВ письме укажите ваш ID устройства: ${deviceId}`);
+                showToast(`Напишите на ${SUPPORT_EMAIL} (ID: ${deviceId})`);
                 sendEmailToSupport();
             }
         }
@@ -1150,8 +1737,9 @@
         };
 
         loadSecurityState();
+        loadUserPrices();
+        applyViewMode();
 
-        // --- ЧИСТЫЙ ХОЛСТ ПРИ ЗАПУСКЕ ---
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -1165,11 +1753,149 @@
         let lastBreakdownItems = [];
         let lastCalcData = null;
 
+        function createDefaultRoom(title = 'Комната 1') {
+            return {
+                title,
+                points: [],
+                isClosed: false,
+                scale: 2.5,
+                walls: [],
+                countLights: 4,
+                countChandeliers: 1,
+                countCornice: 3.0,
+                countPipes: 1,
+                countLightLines: 0,
+                countTrack: 0,
+                countNiche: 0,
+                countShadow: 0,
+                customName1: 'Брус под гардину',
+                customPrice1: 0,
+                customName2: 'Обход короба',
+                customPrice2: 0,
+                lastTotal: 0
+            };
+        }
+
+        let rooms = [createDefaultRoom('Зал / Комната 1')];
+        let activeRoomIdx = 0;
+
+        function syncCurrentRoomState() {
+            let r = rooms[activeRoomIdx];
+            if (!r) return;
+            r.points = points.map(p => ({ x: p.x, y: p.y, label: p.label }));
+            r.isClosed = isClosed;
+            r.scale = cmPerPixel;
+            r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
+            r.countLights = parseFloat(document.getElementById('countLights').value) || 0;
+            r.countChandeliers = parseFloat(document.getElementById('countChandeliers').value) || 0;
+            r.countCornice = parseFloat(document.getElementById('countCornice').value) || 0;
+            r.countPipes = parseFloat(document.getElementById('countPipes').value) || 0;
+            r.countLightLines = parseFloat(document.getElementById('countLightLines').value) || 0;
+            r.countTrack = parseFloat(document.getElementById('countTrack').value) || 0;
+            r.countNiche = parseFloat(document.getElementById('countNiche').value) || 0;
+            r.countShadow = parseFloat(document.getElementById('countShadow').value) || 0;
+            r.customName1 = document.getElementById('customName1').value;
+            r.customPrice1 = parseFloat(document.getElementById('customPrice1').value) || 0;
+            r.customName2 = document.getElementById('customName2').value;
+            r.customPrice2 = parseFloat(document.getElementById('customPrice2').value) || 0;
+        }
+
+        function loadRoomIntoUI(idx) {
+            activeRoomIdx = idx;
+            let r = rooms[activeRoomIdx];
+            points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label }));
+            isClosed = !!r.isClosed;
+            cmPerPixel = r.scale || 2.5;
+            historyState = [];
+
+            document.getElementById('countLights').value = r.countLights ?? 4;
+            document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
+            document.getElementById('countCornice').value = r.countCornice ?? 3.0;
+            document.getElementById('countPipes').value = r.countPipes ?? 1;
+            document.getElementById('countLightLines').value = r.countLightLines ?? 0;
+            document.getElementById('countTrack').value = r.countTrack ?? 0;
+            document.getElementById('countNiche').value = r.countNiche ?? 0;
+            document.getElementById('countShadow').value = r.countShadow ?? 0;
+            document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
+            document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
+            document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
+            document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
+
+            if (points.length >= 3) {
+                document.getElementById('presetCornersCount').value = points.length;
+            }
+            rebuildWallInputs();
+            if (r.walls && r.walls.length > 0) {
+                let wallInputs = document.querySelectorAll('.wall-len');
+                r.walls.forEach((val, i) => {
+                    if (wallInputs[i]) wallInputs[i].value = val;
+                });
+            }
+
+            renderRoomsBar();
+            updateHint();
+            fitToScreen(false);
+        }
+
+        function renderRoomsBar() {
+            const bar = document.getElementById('roomsBar');
+            const badge = document.getElementById('roomsCountBadge');
+            if (badge) badge.innerText = `Комнат: ${rooms.length}`;
+
+            let html = rooms.map((r, idx) => `
+                <button class="room-tab ${idx === activeRoomIdx ? 'active' : ''}" onclick="switchRoom(${idx})">
+                    <span>${r.title}</span>
+                </button>
+            `).join('');
+
+            html += `<button class="room-btn-act" onclick="addNewRoom()">+ Помещение</button>`;
+            if (rooms.length > 1) {
+                html += `<button class="room-btn-act" onclick="renameCurrentRoom()" title="Переименовать">✏️</button>`;
+                html += `<button class="room-btn-act" style="color: var(--danger);" onclick="deleteCurrentRoom()" title="Удалить комнату">🗑️</button>`;
+            }
+            bar.innerHTML = html;
+        }
+
+        function switchRoom(idx) {
+            if (idx === activeRoomIdx) return;
+            syncCurrentRoomState();
+            loadRoomIntoUI(idx);
+        }
+
+        function addNewRoom() {
+            syncCurrentRoomState();
+            const presets = ['Спальня', 'Кухня', 'Коридор', 'Детская', 'Санузел', 'Балкон'];
+            let nextName = presets[(rooms.length - 1) % presets.length] || `Комната ${rooms.length + 1}`;
+            rooms.push(createDefaultRoom(nextName));
+            loadRoomIntoUI(rooms.length - 1);
+            showToast(`Добавлено помещение: ${nextName}`, 'success');
+        }
+
+        function renameCurrentRoom() {
+            let curr = rooms[activeRoomIdx];
+            let newTitle = prompt('Название помещения:', curr.title);
+            if (newTitle && newTitle.trim()) {
+                curr.title = newTitle.trim();
+                renderRoomsBar();
+            }
+        }
+
+        function deleteCurrentRoom() {
+            if (rooms.length <= 1) return;
+            let curr = rooms[activeRoomIdx];
+            if (confirm(`Удалить помещение "${curr.title}" из заказа?`)) {
+                rooms.splice(activeRoomIdx, 1);
+                loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
+                showToast('Помещение удалено');
+            }
+        }
+
         applyTheme();
+        renderRoomsBar();
 
         function resizeCanvas() {
             canvas.width = canvas.clientWidth || 350;
-            canvas.height = canvas.clientHeight || 290;
+            canvas.height = canvas.clientHeight || 320;
             fitToScreen(false);
         }
 
@@ -1183,8 +1909,7 @@
         function toggleFullscreen() {
             const card = document.getElementById('canvasCard');
             const isFull = card.classList.toggle('fullscreen');
-            document.getElementById('topFullscreenBtn').innerText = isFull ? '✖ Свернуть экран' : '⛶ На весь экран';
-            document.getElementById('bottomFullscreenBtn').innerText = isFull ? '✖ Свернуть' : '⛶ Развернуть';
+            document.getElementById('bottomFullscreenBtn').classList.toggle('fab-active', isFull);
             setTimeout(() => {
                 canvas.width = canvas.clientWidth;
                 canvas.height = canvas.clientHeight;
@@ -1210,29 +1935,28 @@
         function updateHint() {
             const hint = document.getElementById('actionHint');
             const closeBtn = document.getElementById('closeContourBtn');
+            const lockSvg = document.getElementById('lockIconSvg');
 
             if (points.length === 0) {
-                hint.innerText = 'Тапните на экран для точки А или нажмите «📋 Создать таблицу»';
-                closeBtn.innerText = '🔗 Замкнуть';
+                hint.innerText = 'Тапните на холст для точки А или создайте шаблон углов';
+                closeBtn.classList.remove('fab-active');
             } else if (!isClosed) {
                 let nextLabel = getPointLabel(points.length);
-                if (points.length < 3) {
-                    hint.innerText = `Ставьте по очереди точку ${nextLabel}`;
-                } else if (points.length >= MAX_CORNERS) {
-                    hint.innerText = `Достигнут предел 50 углов! Нажмите «🔗 Замкнуть»`;
-                } else {
-                    hint.innerText = `Ставьте точку ${nextLabel} или нажмите «🔗 Замкнуть» (или на точку А)`;
-                }
-                closeBtn.innerText = '🔗 Замкнуть';
+                hint.innerText = points.length < 3
+                    ? `Ставьте по очереди точку ${nextLabel}`
+                    : `Ставьте точку ${nextLabel} или нажмите замочек 🔒`;
+                closeBtn.classList.remove('fab-active');
+                if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
             } else {
-                hint.innerText = `Контур замкнут (${points.length} угл.)! Тяните углы или меняйте таблицу`;
-                closeBtn.innerText = '🔓 Разомкнуть';
+                hint.innerText = `Тяните углы или тапните по размеру стены для ввода длины`;
+                closeBtn.classList.add('fab-active');
+                if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
             }
         }
 
         function closePolygon() {
             if (points.length < 3) {
-                alert('Для замыкания комнаты нужно поставить минимум 3 точки (A, B, C)!');
+                showToast('Поставьте минимум 3 точки (A, B, C)!', 'error');
                 return;
             }
             saveState();
@@ -1240,6 +1964,7 @@
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            syncCurrentRoomState();
         }
 
         function snapOrthogonal() {
@@ -1268,6 +1993,8 @@
             fitToScreen(false);
             syncInputsValuesOnly();
             drawSketch();
+            syncCurrentRoomState();
+            showToast('Углы выровнены под 90°');
         }
 
         function rotateSketch() {
@@ -1284,6 +2011,7 @@
             fitToScreen(true);
             rebuildWallInputs();
             drawSketch();
+            syncCurrentRoomState();
         }
 
         function fitToScreen(forceFit = false) {
@@ -1301,7 +2029,7 @@
 
             let polyW = Math.max(maxX - minX, 20);
             let polyH = Math.max(maxY - minY, 20);
-            let pad = 44;
+            let pad = 52;
 
             let availW = Math.max(canvas.width - pad * 2, 60);
             let availH = Math.max(canvas.height - pad * 2, 60);
@@ -1312,7 +2040,7 @@
                 let centerX = (minX + maxX) / 2;
                 let centerY = (minY + maxY) / 2;
                 let canvasCX = canvas.width / 2;
-                let canvasCY = canvas.height / 2;
+                let canvasCY = (canvas.height - 16) / 2;
 
                 points.forEach(p => {
                     p.x = canvasCX + (p.x - centerX) * factor;
@@ -1329,17 +2057,19 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 32) {
+            if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
                 saveState();
                 isClosed = true;
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
+                syncCurrentRoomState();
+                showToast('Контур замкнут!', 'success');
                 return;
             }
 
             for (let i = 0; i < points.length; i++) {
-                if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
+                if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
                     saveState();
                     draggedPointIndex = i;
                     isDragging = true;
@@ -1348,8 +2078,15 @@
                 }
             }
 
+            for (let box of wallHitBoxes) {
+                if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
+                    openWallEditSheet(box.wallIdx);
+                    return;
+                }
+            }
+
             if (points.length >= MAX_CORNERS) {
-                alert('Достигнуто максимальное количество углов — 50!');
+                showToast('Максимум 50 углов!', 'error');
                 return;
             }
 
@@ -1361,6 +2098,7 @@
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
+                syncCurrentRoomState();
             } else {
                 saveState();
                 let bestWallIdx = points.length - 1;
@@ -1382,6 +2120,7 @@
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
+                syncCurrentRoomState();
             }
         });
 
@@ -1398,6 +2137,7 @@
         });
 
         canvas.addEventListener('pointerup', () => {
+            if (isDragging) syncCurrentRoomState();
             isDragging = false;
             draggedPointIndex = null;
         });
@@ -1419,6 +2159,7 @@
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            syncCurrentRoomState();
         }
 
         function resetSketch() {
@@ -1429,6 +2170,8 @@
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            syncCurrentRoomState();
+            showToast('Чертёж очищен');
         }
 
         function getWallCount() {
@@ -1454,7 +2197,7 @@
 
             cmPerPixel = 2.5;
             let cx = (canvas.width || 350) / 2;
-            let cy = (canvas.height || 290) / 2;
+            let cy = (canvas.height || 320) / 2;
 
             if (count === 4) {
                 let w = 400 / cmPerPixel, h = 300 / cmPerPixel;
@@ -1504,6 +2247,8 @@
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            syncCurrentRoomState();
+            showToast(`Создан шаблон на ${count} угл.`, 'success');
         }
 
         function rebuildWallInputs() {
@@ -1532,12 +2277,9 @@
                 let row = document.createElement('div');
                 row.className = 'wall-row-input';
                 row.innerHTML = `
-                    <div class="input-group">
-                        <label>Отрезок <b>${p1.label}–${p2.label}</b> (см)</label>
-                        <input type="number" class="input-field wall-len" id="wall-input-${i}" value="${distCm}" step="1" oninput="onWallLengthEdit(${i}, this.value)">
-                    </div>
-                    <div class="input-group">
-                        <label>Направление от ${p1.label} к ${p2.label}</label>
+                    <span class="wall-row-label"><b>${p1.label}–${p2.label}</b></span>
+                    <input type="number" class="input-field wall-len" id="wall-input-${i}" value="${distCm}" step="1" oninput="onWallLengthEdit(${i}, this.value)">
+                    <div class="wall-dir-wrap">
                         <select class="dir-select" id="wall-dir-${i}" onchange="onWallDirEdit(${i})">
                             <option value="U" ${dir === 'U' ? 'selected' : ''}>⬆️ Вверх</option>
                             <option value="R" ${dir === 'R' ? 'selected' : ''}>➡️ Вправо</option>
@@ -1568,6 +2310,7 @@
             if (!cm || cm <= 0) return;
             if (wallIndex >= points.length - 1 && isClosed) {
                 drawSketch();
+                syncCurrentRoomState();
                 return;
             }
 
@@ -1593,6 +2336,7 @@
                 points[j].y += shiftY;
             }
             fitToScreen(true);
+            syncCurrentRoomState();
         }
 
         function onWallDirEdit(wallIndex) {
@@ -1631,6 +2375,8 @@
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            syncCurrentRoomState();
+            showToast('Чертёж перестроен по размерам', 'success');
         }
 
         function isPointInsidePoly(px, py) {
@@ -1696,16 +2442,17 @@
         function drawSketch() {
             if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            wallHitBoxes = [];
 
             const gridColor = isLightTheme ? '#f1f5f9' : '#1e293b';
             const mainStrokeColor = isLightTheme ? '#0f172a' : '#e2e8f0';
             const polyFillColor = isLightTheme ? 'rgba(15, 23, 42, 0.04)' : 'rgba(79, 70, 229, 0.08)';
             const diagLineColor = isLightTheme ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
-            const badgeBgColor = isLightTheme ? 'rgba(255, 255, 255, 0.92)' : 'rgba(15, 23, 42, 0.88)';
+            const badgeBgColor = isLightTheme ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 23, 42, 0.9)';
             const wallTextColor = isLightTheme ? '#0f172a' : '#f8fafc';
             const diagTextColor = isLightTheme ? '#475569' : '#94a3b8';
             const pointLabelColor = isLightTheme ? '#0f172a' : '#ffffff';
-            const strictFont = '600 11px "Roboto Mono", "Consolas", "SF Mono", monospace';
+            const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
             ctx.strokeStyle = gridColor;
             ctx.lineWidth = 1;
@@ -1743,7 +2490,7 @@
                     ctx.fillStyle = badgeBgColor;
                     ctx.fillRect(mx - 18, my - 9, 36, 13);
                     ctx.fillStyle = diagTextColor;
-                    ctx.font = '500 10px "Roboto Mono", "Consolas", monospace';
+                    ctx.font = '500 10px "Inter", "Roboto", sans-serif';
                     ctx.textAlign = 'center';
                     ctx.fillText(`${d.len}`, mx, my + 1);
                 });
@@ -1795,11 +2542,13 @@
                 let labelX = midX + (outX / outLen) * 14;
                 let labelY = midY + (outY / outLen) * 14;
 
-                labelX = Math.max(26, Math.min(canvas.width - 26, labelX));
-                labelY = Math.max(14, Math.min(canvas.height - 8, labelY));
+                labelX = Math.max(28, Math.min(canvas.width - 28, labelX));
+                labelY = Math.max(16, Math.min(canvas.height - 54, labelY));
+
+                wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
 
                 ctx.fillStyle = badgeBgColor;
-                ctx.fillRect(labelX - 24, labelY - 11, 48, 15);
+                ctx.fillRect(labelX - 24, labelY - 11, 48, 16);
 
                 ctx.fillStyle = wallTextColor;
                 ctx.font = strictFont;
@@ -1819,10 +2568,10 @@
                 let ly = p.y + (vy / vLen) * 16 + 4;
 
                 lx = Math.min(canvas.width - 14, Math.max(14, lx));
-                ly = Math.min(canvas.height - 6, Math.max(14, ly));
+                ly = Math.min(canvas.height - 52, Math.max(14, ly));
 
                 ctx.fillStyle = pointLabelColor;
-                ctx.font = '700 12px "Roboto Mono", "Consolas", sans-serif';
+                ctx.font = '700 12px "Inter", "Roboto", sans-serif';
                 ctx.fillText(p.label, lx, ly);
             });
             ctx.textAlign = 'start';
@@ -1843,7 +2592,8 @@
 
         function performCalculation() {
             if (points.length < 3) {
-                alert('Поставьте минимум 3 точки на чертеже!');
+                showToast('Поставьте минимум 3 точки на чертеже!', 'error');
+                if (isTabMode) switchTab('sketch');
                 return;
             }
             if (!isClosed) {
@@ -1862,9 +2612,12 @@
                 updateAttemptsUI();
             }
             calculate();
+            if (isTabMode) switchTab('estimate');
+            showToast('Смета успешно рассчитана!', 'success');
         }
 
         function calculate() {
+            syncCurrentRoomState();
             let wallsData = [];
             let roomPerimCm = 0;
             let wallCount = getWallCount();
@@ -1892,6 +2645,15 @@
             let cPipes = parseFloat(document.getElementById('countPipes').value) || 0;
             let pPipe = parseFloat(document.getElementById('pricePipe').value) || 0;
 
+            let cLightLines = parseFloat(document.getElementById('countLightLines').value) || 0;
+            let pLightLines = parseFloat(document.getElementById('priceLightLines').value) || 0;
+            let cTrack = parseFloat(document.getElementById('countTrack').value) || 0;
+            let pTrack = parseFloat(document.getElementById('priceTrack').value) || 0;
+            let cNiche = parseFloat(document.getElementById('countNiche').value) || 0;
+            let pNiche = parseFloat(document.getElementById('priceNiche').value) || 0;
+            let cShadow = parseFloat(document.getElementById('countShadow').value) || 0;
+            let pShadow = parseFloat(document.getElementById('priceShadow').value) || 0;
+
             let totalAngles = points.length;
             let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
             document.getElementById('countAngles').value = extraAngles;
@@ -1909,8 +2671,16 @@
             let costChandelier = Math.round(cChandeliers * pChandelier);
             let costCornice = Math.round(cCornice * pCornice);
             let costPipes = Math.round(cPipes * pPipe);
+            let costLightLines = Math.round(cLightLines * pLightLines);
+            let costTrack = Math.round(cTrack * pTrack);
+            let costNiche = Math.round(cNiche * pNiche);
+            let costShadow = Math.round(cShadow * pShadow);
 
-            let total = costCanvas + costProfile + costAngles + costLights + costChandelier + costCornice + costPipes + custom1 + custom2;
+            let total = costCanvas + costProfile + costAngles + costLights + costChandelier + costCornice + costPipes + costLightLines + costTrack + costNiche + costShadow + custom1 + custom2;
+
+            rooms[activeRoomIdx].lastTotal = total;
+            let currentRoomTitle = rooms[activeRoomIdx].title;
+            document.getElementById('activeRoomEstimateTitle').innerText = currentRoomTitle;
 
             lastBreakdownItems = [
                 { title: 'Полотно потолка', sub: `${area.toFixed(2)} м² × ${pCanvas} ₽`, val: `${costCanvas.toLocaleString()} ₽` },
@@ -1922,6 +2692,10 @@
             if (cChandeliers > 0) lastBreakdownItems.push({ title: 'Люстра', sub: `${cChandeliers} шт. × ${pChandelier} ₽`, val: `${costChandelier.toLocaleString()} ₽` });
             if (cCornice > 0) lastBreakdownItems.push({ title: 'Монтаж карниза', sub: `${cCornice} м.п. × ${pCornice} ₽`, val: `${costCornice.toLocaleString()} ₽` });
             if (cPipes > 0) lastBreakdownItems.push({ title: 'Обход труб', sub: `${cPipes} шт. × ${pPipe} ₽`, val: `${costPipes.toLocaleString()} ₽` });
+            if (cLightLines > 0) lastBreakdownItems.push({ title: 'Световые линии', sub: `${cLightLines} м.п. × ${pLightLines} ₽`, val: `${costLightLines.toLocaleString()} ₽` });
+            if (cTrack > 0) lastBreakdownItems.push({ title: 'Трековая система', sub: `${cTrack} м.п. × ${pTrack} ₽`, val: `${costTrack.toLocaleString()} ₽` });
+            if (cNiche > 0) lastBreakdownItems.push({ title: 'Скрытая ниша ПК-5', sub: `${cNiche} м.п. × ${pNiche} ₽`, val: `${costNiche.toLocaleString()} ₽` });
+            if (cShadow > 0) lastBreakdownItems.push({ title: 'Теневой / Парящий профиль', sub: `${cShadow} м.п. × ${pShadow} ₽`, val: `${costShadow.toLocaleString()} ₽` });
             if (custom1 > 0) lastBreakdownItems.push({ title: name1, sub: 'Доп. работа', val: `${custom1.toLocaleString()} ₽` });
             if (custom2 > 0) lastBreakdownItems.push({ title: name2, sub: 'Доп. работа', val: `${custom2.toLocaleString()} ₽` });
 
@@ -1938,12 +2712,21 @@
             document.getElementById('estimateBreakdown').innerHTML = rowsHtml;
             document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
 
+            let allRoomsSum = rooms.reduce((acc, r) => acc + (r.lastTotal || 0), 0);
+            const allRoomsRow = document.getElementById('allRoomsTotalRow');
+            if (rooms.length > 1) {
+                allRoomsRow.style.display = 'flex';
+                document.getElementById('resAllRoomsTotal').innerText = Math.round(allRoomsSum).toLocaleString() + ' ₽';
+            } else {
+                allRoomsRow.style.display = 'none';
+            }
+
             let clientName = document.getElementById('clientName').value || 'Заказчик';
             let clientAddr = document.getElementById('clientAddress').value || 'Не указан';
             let diags = getCleanDiagonals();
 
             lastCalcData = {
-                clientName,
+                clientName: `${clientName} (${currentRoomTitle})`,
                 clientAddr,
                 area: area.toFixed(2),
                 perimeter: roomPerimeterM.toFixed(2),
@@ -1954,7 +2737,7 @@
             };
 
             lastEstimateText =
-                `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК\n` +
+                `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
                 `👤 Клиент: ${clientName}\n` +
                 `📍 Адрес: ${clientAddr}\n` +
                 `──────────────────\n` +
@@ -1965,14 +2748,19 @@
                 (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽\n` : '') +
                 (cCornice > 0 ? `🔹 Карниз (${cCornice} м.п.): ${costCornice} ₽\n` : '') +
                 (cPipes > 0 ? `🔹 Обход труб (${cPipes} шт): ${costPipes} ₽\n` : '') +
+                (cLightLines > 0 ? `🔹 Световые линии (${cLightLines} м.п.): ${costLightLines} ₽\n` : '') +
+                (cTrack > 0 ? `🔹 Трековая система (${cTrack} м.п.): ${costTrack} ₽\n` : '') +
+                (cNiche > 0 ? `🔹 Скрытая ниша ПК-5 (${cNiche} м.п.): ${costNiche} ₽\n` : '') +
+                (cShadow > 0 ? `🔹 Теневой/Парящий (${cShadow} м.п.): ${costShadow} ₽\n` : '') +
                 (custom1 > 0 ? `🔹 ${name1}: ${custom1} ₽\n` : '') +
                 (custom2 > 0 ? `🔹 ${name2}: ${custom2} ₽\n` : '') +
                 `──────────────────\n` +
-                `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽`;
+                `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽` +
+                (rooms.length > 1 ? `\n🏢 ВСЕ КОМНАТЫ ЗАКАЗА: ${Math.round(allRoomsSum).toLocaleString()} ₽` : '');
 
             lastFactoryText =
                 `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
-                `📍 Объект: ${clientName} (${clientAddr})\n` +
+                `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
                 `──────────────────\n` +
                 `📐 Площадь: ${area.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${totalAngles} шт.\n` +
                 `📏 СТЕНЫ (см):\n` +
@@ -1981,10 +2769,11 @@
         }
 
         function saveProject() {
+            syncCurrentRoomState();
             let name = document.getElementById('clientName').value.trim();
             let address = document.getElementById('clientAddress').value.trim();
             if (!name) {
-                alert('Введите имя клиента для сохранения!');
+                showToast('Введите имя клиента для сохранения!', 'error');
                 return;
             }
 
@@ -1995,13 +2784,14 @@
                 closed: isClosed,
                 scale: cmPerPixel,
                 walls: Array.from(document.querySelectorAll('.wall-len')).map(i => i.value),
+                rooms: rooms,
                 date: new Date().toLocaleDateString()
             };
 
             let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
             saved.push(projectData);
             localStorage.setItem('pro_projects', JSON.stringify(saved));
-            alert(`Замер для клиента "${name}" сохранен!`);
+            showToast(`Замер клиента "${name}" сохранён!`, 'success');
         }
 
         function openProjectsModal() {
@@ -2022,18 +2812,20 @@
                 return;
             }
 
-            listEl.innerHTML = saved.map((p, idx) => `
+            listEl.innerHTML = saved.map((p, idx) => {
+                let rCount = (p.rooms && p.rooms.length) ? ` • Комнат: ${p.rooms.length}` : '';
+                return `
                 <div class="saved-item">
                     <div class="saved-item-info">
                         <span class="saved-item-name">${idx + 1}. ${p.name}</span>
-                        <span class="saved-item-sub">📍 ${p.address || 'Без адреса'} • ${p.date}</span>
+                        <span class="saved-item-sub">📍 ${p.address || 'Без адреса'} • ${p.date}${rCount}</span>
                     </div>
                     <div style="display: flex; gap: 6px;">
                         <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 10px;">📂 Открыть</button>
                         <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 10px;">🗑️</button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function loadSavedProject(index) {
@@ -2042,21 +2834,21 @@
             let proj = saved[index];
             document.getElementById('clientName').value = proj.name;
             document.getElementById('clientAddress').value = proj.address || '';
-            points = proj.points;
-            relabelPoints();
-            isClosed = proj.closed !== undefined ? proj.closed : true;
-            cmPerPixel = proj.scale || 2.5;
-            document.getElementById('presetCornersCount').value = points.length;
-            rebuildWallInputs();
 
-            let wallInputs = document.querySelectorAll('.wall-len');
-            proj.walls.forEach((val, idx) => {
-                if (wallInputs[idx]) wallInputs[idx].value = val;
-            });
+            if (proj.rooms && Array.isArray(proj.rooms) && proj.rooms.length > 0) {
+                rooms = proj.rooms;
+                loadRoomIntoUI(0);
+            } else {
+                rooms = [createDefaultRoom('Комната 1')];
+                rooms[0].points = proj.points || [];
+                rooms[0].isClosed = proj.closed !== undefined ? proj.closed : true;
+                rooms[0].scale = proj.scale || 2.5;
+                rooms[0].walls = proj.walls || [];
+                loadRoomIntoUI(0);
+            }
 
-            updateHint();
-            fitToScreen(false);
             closeProjectsModal();
+            showToast(`Загружен клиент: ${proj.name}`, 'success');
         }
 
         function deleteSavedProject(index) {
@@ -2066,12 +2858,13 @@
                 saved.splice(index, 1);
                 localStorage.setItem('pro_projects', JSON.stringify(saved));
                 renderProjectsList();
+                showToast('Замер удалён');
             }
         }
 
         async function exportClientImage() {
             if (!lastCalcData || points.length < 3) {
-                alert('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!');
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
                 return;
             }
 
@@ -2092,16 +2885,16 @@
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#4f46e5';
-            tCtx.font = 'bold 16px Segoe UI, sans-serif';
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
             tCtx.fillText(`📋 Смета и чертёж — ${lastCalcData.clientName}`, pad, 28);
 
             tCtx.fillStyle = textMutedExport;
-            tCtx.font = '13px Segoe UI, sans-serif';
+            tCtx.font = '13px Inter, Roboto, sans-serif';
             tCtx.fillText(`📍 Адрес: ${lastCalcData.clientAddr}`, pad, 50);
 
             tCtx.fillStyle = '#059669';
-            tCtx.font = 'bold 14px Segoe UI, sans-serif';
+            tCtx.font = 'bold 14px Inter, Roboto, sans-serif';
             tCtx.fillText(`Площадь: ${lastCalcData.area} м² | Периметр: ${lastCalcData.perimeter} м.п.`, pad, 70);
 
             let offsetX = (tempCanvas.width - canvas.width) / 2;
@@ -2111,15 +2904,15 @@
             lastBreakdownItems.forEach((item, idx) => {
                 let y = startY + idx * rowH;
                 tCtx.fillStyle = textMainExport;
-                tCtx.font = 'bold 13px Segoe UI, sans-serif';
+                tCtx.font = '400 13px Inter, Roboto, sans-serif';
                 tCtx.fillText(item.title, pad, y);
 
                 tCtx.fillStyle = textMutedExport;
-                tCtx.font = '11px Segoe UI, sans-serif';
+                tCtx.font = '400 11px Inter, Roboto, sans-serif';
                 tCtx.fillText(item.sub, pad, y + 15);
 
                 tCtx.fillStyle = textMainExport;
-                tCtx.font = 'bold 13px Segoe UI, sans-serif';
+                tCtx.font = '600 13px Inter, Roboto, sans-serif';
                 let valW = tCtx.measureText(item.val).width;
                 tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 8);
             });
@@ -2129,11 +2922,11 @@
             tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
 
             tCtx.fillStyle = textMainExport;
-            tCtx.font = 'bold 15px Segoe UI, sans-serif';
+            tCtx.font = '600 15px Inter, Roboto, sans-serif';
             tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
 
-            tCtx.fillStyle = '#4f46e5';
-            tCtx.font = 'bold 17px Segoe UI, sans-serif';
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '700 18px Inter, Roboto, sans-serif';
             let totW = tCtx.measureText(lastCalcData.totalText).width;
             tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
 
@@ -2142,7 +2935,7 @@
 
         async function exportFactoryImage() {
             if (!lastCalcData || points.length < 3) {
-                alert('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!');
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
                 return;
             }
 
@@ -2163,29 +2956,29 @@
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#4f46e5';
-            tCtx.font = 'bold 16px Segoe UI, sans-serif';
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
             tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 28);
 
             tCtx.fillStyle = textMainExport;
-            tCtx.font = '13px Segoe UI, sans-serif';
+            tCtx.font = '13px Inter, Roboto, sans-serif';
             tCtx.fillText(`Объект: ${lastCalcData.clientName} (${lastCalcData.clientAddr})`, pad, 50);
 
             tCtx.fillStyle = textMutedExport;
-            tCtx.font = 'bold 13px Segoe UI, sans-serif';
+            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
             tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}`, pad, 70);
 
             let offsetX = (tempCanvas.width - canvas.width) / 2;
             tCtx.drawImage(canvas, offsetX, headerH);
 
             let y = headerH + canvas.height + 24;
-            tCtx.fillStyle = '#4f46e5';
-            tCtx.font = 'bold 13px Segoe UI, sans-serif';
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
             tCtx.fillText('📏 ДЛИНЫ СТЕН (см):', pad, y);
             y += 22;
 
             tCtx.fillStyle = textMainExport;
-            tCtx.font = '12px "Roboto Mono", monospace';
+            tCtx.font = '12px Inter, Roboto, monospace';
             lastCalcData.wallsData.forEach((w, i) => {
                 let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                 tCtx.fillText(`Стена ${w.name}: ${w.cm} см`, colX, y);
@@ -2194,13 +2987,13 @@
 
             if (lastCalcData.diags.length > 0) {
                 y += 8;
-                tCtx.fillStyle = '#4f46e5';
-                tCtx.font = 'bold 13px Segoe UI, sans-serif';
+                tCtx.fillStyle = textMainExport;
+                tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
                 tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ (см):', pad, y);
                 y += 22;
 
                 tCtx.fillStyle = textMutedExport;
-                tCtx.font = '12px "Roboto Mono", monospace';
+                tCtx.font = '12px Inter, Roboto, monospace';
                 lastCalcData.diags.forEach((d, i) => {
                     let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
                     tCtx.fillText(`Диагональ ${d.name}: ${d.len} см`, colX, y);
@@ -2231,7 +3024,7 @@
 
         async function exportWordDoc(target = 'client') {
             if (!lastCalcData || points.length < 3) {
-                alert('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!');
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
                 return;
             }
 
@@ -2247,7 +3040,7 @@
                     <h3>Расчёт стоимости материалов и работ:</h3>
                     <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
                         <tr style="background:#f1f5f9;"><th>Наименование</th><th>Объём / Кол-во</th><th>Стоимость</th></tr>
-                        ${lastBreakdownItems.map(i => `<tr><td><b>${i.title}</b></td><td>${i.sub}</td><td><b>${i.val}</b></td></tr>`).join('')}
+                        ${lastBreakdownItems.map(i => `<tr><td>${i.title}</td><td>${i.sub}</td><td><b>${i.val}</b></td></tr>`).join('')}
                         <tr style="background:#e2e8f0; font-size:16px;"><td colspan="2"><b>ИТОГО К ОПЛАТЕ:</b></td><td><b>${lastCalcData.totalText}</b></td></tr>
                     </table>
                 `;
@@ -2271,7 +3064,7 @@
                 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
                 <head><meta charset='utf-8'><title>${docTitle}</title></head>
                 <body style="font-family: Arial, sans-serif; color: #111;">
-                    <h2 style="color: #0b5394;">${docTitle}</h2>
+                    <h2 style="color: #1e293b;">${docTitle}</h2>
                     <p><b>Клиент / Объект:</b> ${lastCalcData.clientName}<br>
                     <b>Адрес:</b> ${lastCalcData.clientAddr}<br>
                     <b>Дата замера:</b> ${new Date().toLocaleDateString()}</p>
