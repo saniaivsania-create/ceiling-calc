@@ -14,7 +14,8 @@
             --input-bg: #0f172a;
             --sub-block-bg: #151e2e;
             --accent: #2563eb;
-            --accent-text: #ffffff;
+            --indigo-main: #4f46e5;
+            --accent-text: #f8fafc;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --border: #334155;
@@ -34,6 +35,7 @@
             --input-bg: #f8fafc;
             --sub-block-bg: #f1f5f9;
             --accent: #2563eb;
+            --indigo-main: #4338ca;
             --accent-text: #ffffff;
             --text-main: #0f172a;
             --text-muted: #64748b;
@@ -240,7 +242,6 @@
             gap: 8px;
         }
 
-        /* Аккуратные карточки для полей ввода */
         .input-card-box {
             background: var(--sub-block-bg);
             border: 1px solid var(--border);
@@ -364,28 +365,71 @@
             align-items: center;
             justify-content: center;
             gap: 5px;
-            transition: opacity 0.12s ease;
+            transition: opacity 0.12s ease, transform 0.1s ease;
         }
 
-        .btn:active { opacity: 0.8; }
+        .btn:active { opacity: 0.8; transform: scale(0.99); }
 
-        /* Главный акцентный цвет (подтверждающие действия) */
         .btn-primary, .btn-success {
             background: var(--accent);
             color: var(--accent-text);
             font-weight: 600;
         }
 
-        /* Опасные действия (Сброс, Удаление) */
         .btn-danger {
             background: var(--danger);
             color: var(--danger-text);
         }
 
-        /* Остальные кнопки — нейтральные графитовые/серые */
         .btn-warning {
             background: var(--btn-neutral);
             color: var(--btn-neutral-text);
+        }
+
+        /* Главная кнопка РАССЧИТАТЬ СМЕТУ: сильно скругленная, глубокий индиго, матовый белый текст */
+        .btn-calc-pill {
+            width: 100%;
+            background: var(--indigo-main);
+            color: #f8fafc;
+            border: none;
+            border-radius: 999px;
+            padding: 15px 20px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.15s ease, transform 0.1s ease;
+        }
+
+        .btn-calc-pill:active {
+            opacity: 0.88;
+            transform: scale(0.99);
+        }
+
+        /* Кнопка вызова шторки экспорта */
+        .btn-share-trigger {
+            width: 100%;
+            background: var(--sub-block-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 13px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background-color 0.15s ease;
+        }
+
+        .btn-share-trigger:active {
+            background: var(--btn-neutral);
         }
 
         .result-card {
@@ -438,25 +482,93 @@
         }
 
         .total-price span { font-size: 14px; font-weight: 700; }
-        .total-price .price-value { font-size: 22px; color: var(--accent); font-weight: 800; }
+        .total-price .price-value { font-size: 22px; color: var(--indigo-main); font-weight: 800; }
+        body:not(.light-theme) .total-price .price-value { color: #818cf8; }
 
-        .export-block {
-            background: var(--sub-block-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
+        /* Выезжающая снизу шторка (Bottom Sheet) */
+        .bottom-sheet-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--modal-overlay);
+            backdrop-filter: blur(4px);
+            z-index: 25000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            justify-content: flex-end;
+            align-items: center;
         }
 
-        .export-block-title {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
+        .bottom-sheet-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .bottom-sheet {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            border-radius: 20px 20px 0 0;
+            padding: 12px 16px 24px 16px;
             display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transform: translateY(100%);
+            transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+        }
+
+        .bottom-sheet-overlay.open .bottom-sheet {
+            transform: translateY(0);
+        }
+
+        .sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 4px;
+            margin: 0 auto 2px auto;
+        }
+
+        .sheet-header {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 6px;
+        }
+
+        .sheet-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .sheet-option-card {
+            background: var(--sub-block-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sheet-option-header {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .sheet-option-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .sheet-option-desc {
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
         .share-buttons-grid {
@@ -688,21 +800,42 @@
                 <span class="price-value" id="resTotal">0 ₽</span>
             </div>
 
-            <button class="btn btn-primary" onclick="performCalculation()" style="padding: 14px; font-size: 14px; width: 100%;">🧮 РАССЧИТАТЬ СМЕТУ</button>
+            <!-- Сильно скругленная сплошная кнопка в цвете глубокий индиго -->
+            <button class="btn-calc-pill" onclick="performCalculation()">🧮 РАССЧИТАТЬ СМЕТУ</button>
 
-            <div class="export-block">
-                <div class="export-block-title">👤 Отправить КЛИЕНТУ (Смета с ценами + Чертёж):</div>
+            <!-- Единая аккуратная кнопка вызова шторки экспорта -->
+            <button class="btn-share-trigger" onclick="openExportSheet()">📤 Поделиться / Экспорт</button>
+        </div>
+    </div>
+
+    <!-- Выезжающая снизу шторка экспорта (Bottom Sheet) -->
+    <div class="bottom-sheet-overlay" id="exportSheetOverlay" onclick="closeExportSheet(event)">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <span class="sheet-title">📤 Поделиться / Экспорт</span>
+                <button class="btn" onclick="closeExportSheet()" style="padding: 6px 10px;">✖</button>
+            </div>
+
+            <div class="sheet-option-card">
+                <div class="sheet-option-header">
+                    <span class="sheet-option-title">👤 Клиенту (Смета + Чертёж)</span>
+                    <span class="sheet-option-desc">Полный расчёт со стоимостью работ, материалов и чертежом</span>
+                </div>
                 <div class="share-buttons-grid">
-                    <button class="btn" onclick="exportClientImage()">🖼️ Картинкой (PNG)</button>
-                    <button class="btn" onclick="exportWordDoc('client')">📄 Файлом Word (.doc)</button>
+                    <button class="btn btn-primary" onclick="closeExportSheet(); exportClientImage()">🖼️ Картинкой (PNG)</button>
+                    <button class="btn" onclick="closeExportSheet(); exportWordDoc('client')">📄 Файлом Word (.doc)</button>
                 </div>
             </div>
 
-            <div class="export-block">
-                <div class="export-block-title">🏭 Отправить В ЦЕХ (Только раскрой, стены и диагонали БЕЗ ЦЕН):</div>
+            <div class="sheet-option-card">
+                <div class="sheet-option-header">
+                    <span class="sheet-option-title">🏭 В цех (Только раскрой)</span>
+                    <span class="sheet-option-desc">Чертёж, площади, длины стен и диагонали БЕЗ ЦЕН</span>
+                </div>
                 <div class="share-buttons-grid">
-                    <button class="btn" onclick="exportFactoryImage()">📐 Чертёж в цех (PNG)</button>
-                    <button class="btn" onclick="exportWordDoc('factory')">📄 Бланк Word (.doc)</button>
+                    <button class="btn btn-primary" onclick="closeExportSheet(); exportFactoryImage()">📐 Чертёж (PNG)</button>
+                    <button class="btn" onclick="closeExportSheet(); exportWordDoc('factory')">📄 Бланк Word (.doc)</button>
                 </div>
             </div>
         </div>
@@ -756,7 +889,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v3';
+                    const CACHE_NAME = 'potolok-pro-offline-v4';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -773,6 +906,19 @@
                     navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
                 } catch (e) {}
             });
+        }
+
+        // Открытие и закрытие нижней шторки экспорта
+        function openExportSheet() {
+            if (!lastCalcData || points.length < 3) {
+                alert('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!');
+                return;
+            }
+            document.getElementById('exportSheetOverlay').classList.add('open');
+        }
+
+        function closeExportSheet(e) {
+            document.getElementById('exportSheetOverlay').classList.remove('open');
         }
 
         // Переключение темы (День / Ночь)
@@ -1551,10 +1697,9 @@
             if (!canvas.width || !canvas.height) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Цвета чертежа в зависимости от выбранного режима (День / Ночь)
             const gridColor = isLightTheme ? '#f1f5f9' : '#1e293b';
             const mainStrokeColor = isLightTheme ? '#0f172a' : '#e2e8f0';
-            const polyFillColor = isLightTheme ? 'rgba(15, 23, 42, 0.04)' : 'rgba(37, 99, 235, 0.08)';
+            const polyFillColor = isLightTheme ? 'rgba(15, 23, 42, 0.04)' : 'rgba(79, 70, 229, 0.08)';
             const diagLineColor = isLightTheme ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
             const badgeBgColor = isLightTheme ? 'rgba(255, 255, 255, 0.92)' : 'rgba(15, 23, 42, 0.88)';
             const wallTextColor = isLightTheme ? '#0f172a' : '#f8fafc';
@@ -1947,7 +2092,7 @@
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#2563eb';
+            tCtx.fillStyle = '#4f46e5';
             tCtx.font = 'bold 16px Segoe UI, sans-serif';
             tCtx.fillText(`📋 Смета и чертёж — ${lastCalcData.clientName}`, pad, 28);
 
@@ -1987,7 +2132,7 @@
             tCtx.font = 'bold 15px Segoe UI, sans-serif';
             tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
 
-            tCtx.fillStyle = '#2563eb';
+            tCtx.fillStyle = '#4f46e5';
             tCtx.font = 'bold 17px Segoe UI, sans-serif';
             let totW = tCtx.measureText(lastCalcData.totalText).width;
             tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
@@ -2018,7 +2163,7 @@
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-            tCtx.fillStyle = '#2563eb';
+            tCtx.fillStyle = '#4f46e5';
             tCtx.font = 'bold 16px Segoe UI, sans-serif';
             tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 28);
 
@@ -2034,7 +2179,7 @@
             tCtx.drawImage(canvas, offsetX, headerH);
 
             let y = headerH + canvas.height + 24;
-            tCtx.fillStyle = '#2563eb';
+            tCtx.fillStyle = '#4f46e5';
             tCtx.font = 'bold 13px Segoe UI, sans-serif';
             tCtx.fillText('📏 ДЛИНЫ СТЕН (см):', pad, y);
             y += 22;
@@ -2049,7 +2194,7 @@
 
             if (lastCalcData.diags.length > 0) {
                 y += 8;
-                tCtx.fillStyle = '#2563eb';
+                tCtx.fillStyle = '#4f46e5';
                 tCtx.font = 'bold 13px Segoe UI, sans-serif';
                 tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ (см):', pad, y);
                 y += 22;
