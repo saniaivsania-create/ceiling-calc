@@ -12,7 +12,7 @@
     <script>
         // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
         (function() {
-            const APP_VERSION = 'v9.2';
+            const APP_VERSION = 'v9.3';
             const lastVer = localStorage.getItem('_pz_app_version');
             if (lastVer !== APP_VERSION) {
                 localStorage.setItem('_pz_app_version', APP_VERSION);
@@ -1443,7 +1443,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.2';
+                    const CACHE_NAME = 'potolok-pro-offline-v9.3';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -1874,7 +1874,6 @@
         loadUserPrices();
         applyViewMode();
 
-        // БЛОКНОТ И ИНТЕРАКТИВНЫЙ ЧЕК-ЛИСТ МОНТАЖНИКА
         document.getElementById('zamerNotebook').value = localStorage.getItem('_pz_notebook') || '';
         function saveNotebook() {
             let text = document.getElementById('zamerNotebook').value;
@@ -2222,6 +2221,39 @@
             });
         }
 
+        // АВТОМАТИЧЕСКОЕ РАСПУТЫВАНИЕ ПЕРЕСЕКАЮЩИХСЯ ЛИНИЙ (УСТРАНЕНИЕ БАГА "ПЕСОЧНЫЕ ЧАСЫ")
+        function untanglePolygon() {
+            if (!isClosed || points.length < 4) return;
+            let n = points.length;
+            let improved = true;
+            let iterations = 0;
+            while (improved && iterations < 15) {
+                improved = false;
+                iterations++;
+                for (let i = 0; i < n; i++) {
+                    for (let j = i + 2; j < n; j++) {
+                        if (i === 0 && j === n - 1) continue;
+                        let a = points[i], b = points[(i + 1) % n];
+                        let c = points[j], d = points[(j + 1) % n];
+                        if (segmentsStrictlyIntersect(a, b, c, d)) {
+                            // Разворачиваем порядок вершин между i+1 и j
+                            let start = (i + 1) % n;
+                            let end = j;
+                            while (start !== end && ((start + 1) % n) !== end) {
+                                let temp = points[start];
+                                points[start] = points[end];
+                                points[end] = temp;
+                                start = (start + 1) % n;
+                                end = (end - 1 + n) % n;
+                            }
+                            improved = true;
+                        }
+                    }
+                }
+            }
+            relabelPoints();
+        }
+
         function updateHint() {
             const hint = document.getElementById('actionHint');
             const closeBtn = document.getElementById('closeContourBtn');
@@ -2257,10 +2289,12 @@
             }
             saveState();
             isClosed = !isClosed;
+            if (isClosed) untanglePolygon();
             rebuildWallInputs();
             updateHint();
             drawSketch();
             syncCurrentRoomState();
+            if (isClosed) showToast('Контур замкнут!', 'success');
         }
 
         function snapOrthogonal() {
@@ -2285,6 +2319,7 @@
                 } else {
                     last.y = first.y;
                 }
+                untanglePolygon();
             }
             fitToScreen(false);
             syncInputsValuesOnly();
@@ -2304,6 +2339,7 @@
                 p.x = cx - dy;
                 p.y = cy + dx;
             });
+            if (isClosed) untanglePolygon();
             fitToScreen(true);
             rebuildWallInputs();
             drawSketch();
@@ -2360,6 +2396,7 @@
             if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
                 saveState();
                 isClosed = true;
+                untanglePolygon();
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
@@ -2415,7 +2452,7 @@
                     }
                 }
                 points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
-                relabelPoints();
+                untanglePolygon();
                 document.getElementById('presetCornersCount').value = points.length;
                 rebuildWallInputs();
                 updateHint();
@@ -2432,12 +2469,17 @@
             p.x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
             p.y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
 
+            if (isClosed) untanglePolygon();
             syncInputsValuesOnly();
             drawSketch();
         });
 
         canvas.addEventListener('pointerup', () => {
-            if (isDragging) syncCurrentRoomState();
+            if (isDragging) {
+                if (isClosed) untanglePolygon();
+                syncCurrentRoomState();
+                rebuildWallInputs();
+            }
             isDragging = false;
             draggedPointIndex = null;
         });
@@ -2533,6 +2575,7 @@
             }
 
             isClosed = true;
+            untanglePolygon();
             fitToScreen(true);
             rebuildWallInputs();
             updateHint();
@@ -2608,6 +2651,7 @@
             }
 
             if (wallIndex >= points.length - 1 && isClosed) {
+                if (isClosed) untanglePolygon();
                 drawSketch();
                 syncCurrentRoomState();
                 return;
@@ -2634,6 +2678,7 @@
                 points[j].x += shiftX;
                 points[j].y += shiftY;
             }
+            if (isClosed) untanglePolygon();
             fitToScreen(true);
             syncCurrentRoomState();
         }
@@ -2670,6 +2715,7 @@
 
             points = newPts;
             isClosed = true;
+            untanglePolygon();
             fitToScreen(true);
             rebuildWallInputs();
             updateHint();
@@ -2897,6 +2943,7 @@
             }
             if (!isClosed) {
                 isClosed = true;
+                if (isClosed) untanglePolygon();
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
