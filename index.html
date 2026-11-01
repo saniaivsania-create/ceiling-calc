@@ -12,7 +12,7 @@
     <script>
         // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
         (function() {
-            const APP_VERSION = 'v9.3';
+            const APP_VERSION = 'v9.4';
             const lastVer = localStorage.getItem('_pz_app_version');
             if (lastVer !== APP_VERSION) {
                 localStorage.setItem('_pz_app_version', APP_VERSION);
@@ -947,7 +947,6 @@
             gap: 6px;
         }
 
-        /* СТИЛИ ИНТЕРАКТИВНОГО ЧЕК-ЛИСТА */
         .checklist-container {
             display: flex;
             flex-direction: column;
@@ -1036,7 +1035,10 @@
         <div class="section-card">
             <div class="section-title">
                 <span>👤 Клиент и Помещения</span>
-                <span id="roomsCountBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Комнат: 1</span>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button class="theme-toggle-btn" onclick="startNewProject()" style="padding: 3px 7px; font-size: 10px;" title="Очистить и создать новый замер">✨ Новый замер</button>
+                    <span id="roomsCountBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Комнат: 1</span>
+                </div>
             </div>
             <div class="grid-inputs">
                 <div class="input-card-box">
@@ -1391,8 +1393,8 @@
                 <button class="btn-calc-pill" onclick="triggerCombinedShare('client')">
                     📤 Поделиться сметой (Клиенту)
                 </button>
-                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px;">
-                    🏭 Отправить раскрой в цех (без цен)
+                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px; background: var(--indigo-main); color: #fff;">
+                    🏭 Отправить в цех (раскрой)
                 </button>
             </div>
         </div>
@@ -1443,7 +1445,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.3';
+                    const CACHE_NAME = 'potolok-pro-offline-v9.4';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -2050,6 +2052,18 @@
         let rooms = [createDefaultRoom('Зал / Комната 1')];
         let activeRoomIdx = 0;
 
+        function startNewProject() {
+            if (confirm('Начать новый замер? Все текущие данные и чертежи будут сброшены.')) {
+                document.getElementById('clientName').value = '';
+                document.getElementById('clientAddress').value = '';
+                document.getElementById('clientPhone').value = '';
+                document.getElementById('clientDate').value = '';
+                rooms = [createDefaultRoom('Зал / Комната 1')];
+                loadRoomIntoUI(0);
+                showToast('Создан новый замер', 'success');
+            }
+        }
+
         function syncCurrentRoomState() {
             let r = rooms[activeRoomIdx];
             if (!r) return;
@@ -2221,36 +2235,19 @@
             });
         }
 
-        // АВТОМАТИЧЕСКОЕ РАСПУТЫВАНИЕ ПЕРЕСЕКАЮЩИХСЯ ЛИНИЙ (УСТРАНЕНИЕ БАГА "ПЕСОЧНЫЕ ЧАСЫ")
+        // НАДЕЖНОЕ УСТРАНЕНИЕ ПЕРЕСЕЧЕНИЙ ЛИНИЙ (СОРТИРОВКА ВЕРШИН ПО ЦЕНТРУ)
         function untanglePolygon() {
             if (!isClosed || points.length < 4) return;
-            let n = points.length;
-            let improved = true;
-            let iterations = 0;
-            while (improved && iterations < 15) {
-                improved = false;
-                iterations++;
-                for (let i = 0; i < n; i++) {
-                    for (let j = i + 2; j < n; j++) {
-                        if (i === 0 && j === n - 1) continue;
-                        let a = points[i], b = points[(i + 1) % n];
-                        let c = points[j], d = points[(j + 1) % n];
-                        if (segmentsStrictlyIntersect(a, b, c, d)) {
-                            // Разворачиваем порядок вершин между i+1 и j
-                            let start = (i + 1) % n;
-                            let end = j;
-                            while (start !== end && ((start + 1) % n) !== end) {
-                                let temp = points[start];
-                                points[start] = points[end];
-                                points[end] = temp;
-                                start = (start + 1) % n;
-                                end = (end - 1 + n) % n;
-                            }
-                            improved = true;
-                        }
-                    }
-                }
-            }
+            let cx = 0, cy = 0;
+            points.forEach(p => { cx += p.x; cy += p.y; });
+            cx /= points.length;
+            cy /= points.length;
+
+            points.sort((a, b) => {
+                let angA = Math.atan2(a.y - cy, a.x - cx);
+                let angB = Math.atan2(b.y - cy, b.x - cx);
+                return angA - angB;
+            });
             relabelPoints();
         }
 
@@ -3186,7 +3183,8 @@
                 let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
                 let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
                 let callBtn = p.phone ? `<a href="tel:${p.phone}" class="btn btn-primary" style="padding: 7px 10px; text-decoration:none;" title="Позвонить">📞</a>` : '';
-                let waBtn = p.phone ? `<a href="https://wa.me/${p.phone.replace(/[^0-9]/g,'')}" target="_blank" class="btn" style="padding: 7px 10px; background:#059669; color:#fff; text-decoration:none;" title="WhatsApp">💬</a>` : '';
+                let cleanPhone = p.phone ? p.phone.replace(/[^0-9]/g,'') : '';
+                let maxBtn = cleanPhone ? `<a href="https://max.ru/${cleanPhone}" target="_blank" class="btn" style="padding: 7px 10px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
 
                 return `
                 <div class="saved-item">
@@ -3199,7 +3197,7 @@
                     </div>
                     <div style="display: flex; gap: 4px; align-items: center;">
                         ${callBtn}
-                        ${waBtn}
+                        ${maxBtn}
                         <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 10px;">📂 Открыть</button>
                         <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 10px;">🗑️</button>
                     </div>
@@ -3237,7 +3235,7 @@
             if (!saved[index]) return;
             if (confirm(`Удалить замер клиента "${saved[index].name}"?`)) {
                 saved.splice(index, 1);
-                localStorage.setItem('pro_projects', JSON.stringify(saved));
+                localStorage.setItem('_pz_projects', JSON.stringify(saved));
                 renderProjectsList();
                 showToast('Замер удалён');
             }
@@ -3398,7 +3396,6 @@
                     link.download = fileName;
                     link.href = URL.createObjectURL(blob);
                     link.click();
-                    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
                 }
             }, 'image/png');
         }
