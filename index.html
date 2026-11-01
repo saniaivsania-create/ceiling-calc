@@ -12,7 +12,7 @@
     <script>
         // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
         (function() {
-            const APP_VERSION = 'v9.1';
+            const APP_VERSION = 'v9.2';
             const lastVer = localStorage.getItem('_pz_app_version');
             if (lastVer !== APP_VERSION) {
                 localStorage.setItem('_pz_app_version', APP_VERSION);
@@ -946,6 +946,77 @@
             flex-direction: column;
             gap: 6px;
         }
+
+        /* СТИЛИ ИНТЕРАКТИВНОГО ЧЕК-ЛИСТА */
+        .checklist-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 290px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: var(--sub-block-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            transition: opacity 0.15s ease;
+        }
+
+        .checklist-item.checked {
+            opacity: 0.6;
+        }
+
+        .checklist-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .checklist-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--indigo-main);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .checklist-text {
+            font-size: 13px;
+            color: var(--text-main);
+            word-break: break-word;
+            line-height: 1.3;
+        }
+
+        .checklist-item.checked .checklist-text {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .checklist-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .checklist-act-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 4px 7px;
+            font-size: 11px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="tab-mode">
@@ -1015,11 +1086,9 @@
                             <button class="canvas-fab" onclick="undoPoint()" title="Шаг назад">
                                 <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
                             </button>
-                            <!-- Убран дублирующий замочек, оставлена одна кнопка замыкания контура -->
                             <button class="canvas-fab" id="closeContourBtn" onclick="closePolygon()" title="Замкнуть / Разомкнуть контур">
                                 <svg id="lockIconSvg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
                             </button>
-                            <!-- Кнопка блокировки чертежа щитом -->
                             <button class="canvas-fab" id="lockSketchBtn" onclick="toggleSketchLock()" title="Заблокировать чертёж">
                                 <svg id="sketchLockSvg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                             </button>
@@ -1056,7 +1125,6 @@
                         <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50">
                         <button class="stepper-btn" onclick="stepValue('presetCornersCount', 1, 3, 50)">+</button>
                     </div>
-                    <!-- Универсальное название кнопки построения -->
                     <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать по числу углов</button>
                 </div>
 
@@ -1234,15 +1302,36 @@
             </div>
         </div>
 
-        <!-- ВКЛАДКА 4: БЛОКНОТ ЗАМЕРЩИКА -->
+        <!-- ВКЛАДКА 4: ЧЕК-ЛИСТ И БЛОКНОТ ЗАМЕРЩИКА -->
         <div class="tab-pane" id="tabNote">
-            <div class="section-card" style="height: calc(100vh - 160px); display: flex; flex-direction: column;">
+            <div class="section-card">
                 <div class="section-title">
-                    <span>📝 Блокнот и Заметки по объекту</span>
+                    <span>✅ Чек-лист на монтаж</span>
+                    <span id="checklistProgress" style="font-size: 11px; color: var(--success); text-transform: none;">0 / 0</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">Добавляйте свои позиции, отмечайте галочками перед выездом (всё сохраняется автоматически):</div>
+                
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="newChecklistItemInput" class="input-field" placeholder="Новый пункт (напр: Гарпун, Кольца...)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
+                    <button class="btn btn-primary" onclick="addChecklistItem()" style="white-space: nowrap; padding: 0 14px;">➕ Добавить</button>
+                </div>
+
+                <div class="checklist-container" id="checklistContainer"></div>
+
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button class="btn" onclick="uncheckAllChecklist()" style="flex: 1; padding: 8px; font-size: 11px;">🔄 Сбросить галочки</button>
+                    <button class="btn" onclick="restoreDefaultChecklist()" style="flex: 1; padding: 8px; font-size: 11px;">📋 Стандартный набор</button>
+                    <button class="btn btn-danger" onclick="clearAllChecklist()" style="padding: 8px 10px; font-size: 11px;" title="Очистить всё">🗑️</button>
+                </div>
+            </div>
+
+            <div class="section-card" style="display: flex; flex-direction: column;">
+                <div class="section-title">
+                    <span>📝 Быстрые заметки по объекту</span>
                     <button class="btn btn-primary" onclick="saveNotebook()" style="padding: 4px 10px; font-size: 11px;">💾 Сохранить</button>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания по объекту (высота, особенности стен, материалы, долги):</div>
-                <textarea id="zamerNotebook" class="input-field" style="flex: 1; resize: none; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, нужен спец. крепеж..."></textarea>
+                <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания (высота, особенности стен, что докупить, долги):</div>
+                <textarea id="zamerNotebook" class="input-field" style="min-height: 160px; resize: vertical; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, нужен спец. крепеж..." oninput="autoSaveNotebook()"></textarea>
             </div>
         </div>
     </div>
@@ -1250,19 +1339,19 @@
     <nav class="bottom-nav">
         <div class="bottom-nav-inner">
             <button class="nav-tab-btn active" id="navBtnSketch" onclick="switchTab('sketch')">
-                <span class="nav-icon">📐</span>
+                <span class="nav-icon">&#128208;</span>
                 <span>Чертёж</span>
             </button>
             <button class="nav-tab-btn" id="navBtnParams" onclick="switchTab('params')">
-                <span class="nav-icon">⚙️</span>
+                <span class="nav-icon">&#9881;&#65039;</span>
                 <span>Параметры</span>
             </button>
             <button class="nav-tab-btn" id="navBtnEstimate" onclick="switchTab('estimate')">
-                <span class="nav-icon">📋</span>
+                <span class="nav-icon">&#128203;</span>
                 <span>Смета</span>
             </button>
             <button class="nav-tab-btn" id="navBtnNote" onclick="switchTab('note')">
-                <span class="nav-icon">📝</span>
+                <span class="nav-icon">&#128221;</span>
                 <span>Блокнот</span>
             </button>
         </div>
@@ -1350,12 +1439,11 @@
             </div>
         </div>
     </div>
-
-    <script>
+<script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.1';
+                    const CACHE_NAME = 'potolok-pro-offline-v9.2';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -1786,12 +1874,141 @@
         loadUserPrices();
         applyViewMode();
 
+        // БЛОКНОТ И ИНТЕРАКТИВНЫЙ ЧЕК-ЛИСТ МОНТАЖНИКА
         document.getElementById('zamerNotebook').value = localStorage.getItem('_pz_notebook') || '';
         function saveNotebook() {
             let text = document.getElementById('zamerNotebook').value;
             localStorage.setItem('_pz_notebook', text);
             showToast('Блокнот сохранён!', 'success');
         }
+        function autoSaveNotebook() {
+            localStorage.setItem('_pz_notebook', document.getElementById('zamerNotebook').value);
+        }
+
+        const DEFAULT_CHECKLIST = [
+            { text: 'Гарпун / Полотно по накладной', checked: false },
+            { text: 'Вставка по периметру (белая / чёрная)', checked: false },
+            { text: 'Багет стеновой / профили (ПК-5, парящий)', checked: false },
+            { text: 'Закладные под люстру и светильники', checked: false },
+            { text: 'Термокольца нужных диаметров и клей', checked: false },
+            { text: 'Клеммники WAGO, провод ПВС, изолента', checked: false },
+            { text: 'Саморезы, дюбели, буры, подвесы', checked: false },
+            { text: 'Газовый баллон (заправлен) и пушка', checked: false }
+        ];
+
+        let checklistData = [];
+
+        function loadChecklist() {
+            try {
+                let raw = localStorage.getItem('_pz_checklist_v1');
+                if (raw === null) {
+                    checklistData = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
+                    saveChecklist();
+                } else {
+                    checklistData = JSON.parse(raw);
+                }
+            } catch (e) {
+                checklistData = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
+            }
+            renderChecklist();
+        }
+
+        function saveChecklist() {
+            localStorage.setItem('_pz_checklist_v1', JSON.stringify(checklistData));
+        }
+
+        function renderChecklist() {
+            const container = document.getElementById('checklistContainer');
+            const badge = document.getElementById('checklistProgress');
+            if (!container) return;
+
+            let doneCount = checklistData.filter(item => item.checked).length;
+            if (badge) badge.innerText = `Собрано: ${doneCount} из ${checklistData.length}`;
+
+            if (checklistData.length === 0) {
+                container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 18px 0; font-size: 12px;">Список пуст. Добавьте свой пункт выше или нажмите «Стандартный набор»</div>`;
+                return;
+            }
+
+            container.innerHTML = checklistData.map((item, idx) => `
+                <div class="checklist-item ${item.checked ? 'checked' : ''}">
+                    <label class="checklist-left" onclick="toggleChecklistItem(${idx}); return false;">
+                        <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem(${idx})">
+                        <span class="checklist-text">${item.text}</span>
+                    </label>
+                    <div class="checklist-actions">
+                        <button class="checklist-act-btn" onclick="editChecklistItem(${idx})" title="Изменить">✏️</button>
+                        <button class="checklist-act-btn" style="color:var(--danger);" onclick="deleteChecklistItem(${idx})" title="Удалить">✖</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addChecklistItem() {
+            const inp = document.getElementById('newChecklistItemInput');
+            if (!inp) return;
+            let text = inp.value.trim();
+            if (!text) {
+                showToast('Введите название пункта!', 'error');
+                return;
+            }
+            checklistData.push({ text, checked: false });
+            inp.value = '';
+            saveChecklist();
+            renderChecklist();
+            showToast('Пункт добавлен в чек-лист', 'success');
+        }
+
+        function toggleChecklistItem(idx) {
+            if (!checklistData[idx]) return;
+            checklistData[idx].checked = !checklistData[idx].checked;
+            saveChecklist();
+            renderChecklist();
+        }
+
+        function editChecklistItem(idx) {
+            if (!checklistData[idx]) return;
+            let newText = prompt('Изменить пункт чек-листа:', checklistData[idx].text);
+            if (newText !== null && newText.trim() !== '') {
+                checklistData[idx].text = newText.trim();
+                saveChecklist();
+                renderChecklist();
+            }
+        }
+
+        function deleteChecklistItem(idx) {
+            if (!checklistData[idx]) return;
+            checklistData.splice(idx, 1);
+            saveChecklist();
+            renderChecklist();
+        }
+
+        function uncheckAllChecklist() {
+            checklistData.forEach(item => item.checked = false);
+            saveChecklist();
+            renderChecklist();
+            showToast('Все галочки сброшены');
+        }
+
+        function restoreDefaultChecklist() {
+            if (checklistData.length > 0 && !confirm('Вернуть стандартный заводской список? Текущий список заменится.')) return;
+            checklistData = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
+            saveChecklist();
+            renderChecklist();
+            showToast('Стандартный набор восстановлен', 'success');
+        }
+
+        function clearAllChecklist() {
+            if (checklistData.length === 0) return;
+            if (confirm('Очистить весь чек-лист полностью?')) {
+                checklistData = [];
+                saveChecklist();
+                renderChecklist();
+                showToast('Чек-лист очищен');
+            }
+        }
+
+        loadChecklist();
 
         const canvas = document.getElementById('sketchCanvas');
         const ctx = canvas.getContext('2d');
