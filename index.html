@@ -12,7 +12,7 @@
     <script>
         // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
         (function() {
-            const APP_VERSION = 'v9.0';
+            const APP_VERSION = 'v9.1';
             const lastVer = localStorage.getItem('_pz_app_version');
             if (lastVer !== APP_VERSION) {
                 localStorage.setItem('_pz_app_version', APP_VERSION);
@@ -298,7 +298,7 @@
             width: 100%;
             max-width: 480px;
             display: grid;
-            grid-template-columns: repeat(4, 1fr); /* 4 вкладки: Чертёж, Параметры, Смета, Блокнот */
+            grid-template-columns: repeat(4, 1fr);
             gap: 6px;
         }
 
@@ -977,7 +977,6 @@
                     <input type="text" id="clientAddress" class="input-field" placeholder="Введите адрес" onkeydown="if(event.key==='Enter') this.blur()">
                 </div>
             </div>
-            <!-- ПУНКТ 8: Телефон и Дата замера/монтажа в шапке клиента -->
             <div class="grid-inputs" style="margin-top: 2px;">
                 <div class="input-card-box">
                     <label>Телефон</label>
@@ -1002,7 +1001,6 @@
             <div class="canvas-card" id="canvasCard">
                 <div class="canvas-header">
                     <span class="action-hint" id="actionHint">Тапните на холст для точки А</span>
-                    <!-- ПУНКТ 4: Дублированная кнопка выхода из полноэкранного режима прямо на панели -->
                     <button class="btn" id="fsCloseTopBtn" onclick="toggleFullscreen()" style="display: none; padding: 4px 10px; font-size: 11px;">✖ Закрыть</button>
                 </div>
                 
@@ -1017,10 +1015,11 @@
                             <button class="canvas-fab" onclick="undoPoint()" title="Шаг назад">
                                 <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
                             </button>
+                            <!-- Убран дублирующий замочек, оставлена одна кнопка замыкания контура -->
                             <button class="canvas-fab" id="closeContourBtn" onclick="closePolygon()" title="Замкнуть / Разомкнуть контур">
                                 <svg id="lockIconSvg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
                             </button>
-                            <!-- ПУНКТ 5: Блокировка чертежа -->
+                            <!-- Кнопка блокировки чертежа щитом -->
                             <button class="canvas-fab" id="lockSketchBtn" onclick="toggleSketchLock()" title="Заблокировать чертёж">
                                 <svg id="sketchLockSvg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                             </button>
@@ -1057,8 +1056,8 @@
                         <input type="number" id="presetCornersCount" class="input-field" value="4" min="3" max="50">
                         <button class="stepper-btn" onclick="stepValue('presetCornersCount', 1, 3, 50)">+</button>
                     </div>
-                    <!-- ПУНКТ 3: Быстрое построение прямоугольника -->
-                    <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📐 Построить прямоугольник</button>
+                    <!-- Универсальное название кнопки построения -->
+                    <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать по числу углов</button>
                 </div>
 
                 <div id="wallsInputsContainer"></div>
@@ -1095,7 +1094,6 @@
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <!-- ПУНКТ 7: Маскировочная Вставка по периметру -->
                     <div class="item-row">
                         <label>Вставка (м.п.)</label>
                         <div class="stepper-box">
@@ -1236,7 +1234,7 @@
             </div>
         </div>
 
-        <!-- ПУНКТ 9: ВКЛАДКА 4 — БЛОКНОТ ЗАМЕРЩИКА -->
+        <!-- ВКЛАДКА 4: БЛОКНОТ ЗАМЕРЩИКА -->
         <div class="tab-pane" id="tabNote">
             <div class="section-card" style="height: calc(100vh - 160px); display: flex; flex-direction: column;">
                 <div class="section-title">
@@ -1244,12 +1242,11 @@
                     <button class="btn btn-primary" onclick="saveNotebook()" style="padding: 4px 10px; font-size: 11px;">💾 Сохранить</button>
                 </div>
                 <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания по объекту (высота, особенности стен, материалы, долги):</div>
-                <textarea id="zamerNotebook" class="input-field" style="flex: 1; resize: none; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, нужен спец. крепеж. Закладные под гардину 3 метра заказаны..."></textarea>
+                <textarea id="zamerNotebook" class="input-field" style="flex: 1; resize: none; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, нужен спец. крепеж..."></textarea>
             </div>
         </div>
     </div>
 
-    <!-- Нижняя панель навигации (4 вкладки) -->
     <nav class="bottom-nav">
         <div class="bottom-nav-inner">
             <button class="nav-tab-btn active" id="navBtnSketch" onclick="switchTab('sketch')">
@@ -1312,7 +1309,6 @@
         </div>
     </div>
 
-    <!-- ПУНКТ 8: Модальное окно базы клиентов в стиле телефонной книги с календарём -->
     <div class="modal-overlay" id="projectsModal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1359,7 +1355,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.0';
+                    const CACHE_NAME = 'potolok-pro-offline-v9.1';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -1790,7 +1786,6 @@
         loadUserPrices();
         applyViewMode();
 
-        // Загрузка сохраненного блокнота
         document.getElementById('zamerNotebook').value = localStorage.getItem('_pz_notebook') || '';
         function saveNotebook() {
             let text = document.getElementById('zamerNotebook').value;
@@ -1968,7 +1963,6 @@
             drawSketch();
         }, 120);
 
-        // ПУНКТ 4: Полноэкранный режим с кнопкой закрытия в шапке
         function toggleFullscreen() {
             const card = document.getElementById('canvasCard');
             const isFull = card.classList.toggle('fullscreen');
@@ -2867,7 +2861,6 @@
                 (diags.length > 0 ? `📐 ДИАГОНАЛИ (см):\n` + diags.map(d => `  • Диагональ ${d.name}: ${d.len} см`).join('\n') : '');
         }
 
-        // ПУНКТ 8: Сохранение телефона и даты в замер
         function saveProject() {
             syncCurrentRoomState();
             let name = document.getElementById('clientName').value.trim();
@@ -2907,7 +2900,6 @@
             document.getElementById('projectsModal').style.display = 'none';
         }
 
-        // ПУНКТ 8: Телефонная книга с поиском и кнопками быстрого звонка / WhatsApp
         function renderProjectsList() {
             const listEl = document.getElementById('savedProjectsList');
             const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase();
@@ -2927,7 +2919,6 @@
             }
 
             listEl.innerHTML = saved.map((p, idx) => {
-                let rCount = (p.rooms && p.rooms.length) ? ` • Комнат: ${p.rooms.length}` : '';
                 let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
                 let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
                 let callBtn = p.phone ? `<a href="tel:${p.phone}" class="btn btn-primary" style="padding: 7px 10px; text-decoration:none;" title="Позвонить">📞</a>` : '';
