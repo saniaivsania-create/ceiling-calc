@@ -10,6 +10,12 @@ let draggedPointIndex = null;
 let isDragging = false;
 let cmPerPixel = 2.5;
 
+// Переменные для перемещения и поворота люка
+let isDraggingHatch = false;
+let hatchDragOffset = { x: 0, y: 0 };
+let hatchPos = null; // { x, y } в координатах экрана
+let isHatchRotated = false;
+
 let editingWallIdx = null;
 let wallHitBoxes = [];
 
@@ -34,7 +40,9 @@ function saveState() {
     historyState.push({
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
         closed: isClosed,
-        scale: cmPerPixel
+        scale: cmPerPixel,
+        hatchPos: hatchPos ? { ...hatchPos } : null,
+        isHatchRotated
     });
     if (historyState.length > 40) historyState.shift();
 }
@@ -46,10 +54,14 @@ function undoPoint() {
         points = st.pts;
         isClosed = st.closed;
         cmPerPixel = st.scale;
+        hatchPos = st.hatchPos ? { ...st.hatchPos } : null;
+        isHatchRotated = !!st.isHatchRotated;
     } else {
         points = [];
         isClosed = false;
         cmPerPixel = 2.5;
+        hatchPos = null;
+        isHatchRotated = false;
     }
     const presetCorners = document.getElementById('presetCornersCount');
     if (presetCorners && points.length >= 3) {
@@ -67,6 +79,8 @@ function resetSketch() {
     points = [];
     isClosed = false;
     cmPerPixel = 2.5;
+    hatchPos = null;
+    isHatchRotated = false;
     rebuildWallInputs();
     updateHint();
     drawSketch();
@@ -115,7 +129,7 @@ setTimeout(() => {
     drawSketch();
 }, 120);
 
-// --- ГЕОМЕТРИЯ И УПРАВЛЕНИЕ ТОЧКАМИ ---
+// --- ГЕОМЕТРИЯ ---
 function untanglePolygon() {
     if (!isClosed || points.length < 4) return;
     let cx = 0, cy = 0;
@@ -167,7 +181,7 @@ function updateHint() {
         closeBtn.classList.remove('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
     } else {
-        hint.innerText = `Тяните углы или тапните по размеру стены для ввода длины`;
+        hint.innerText = `Тяните углы или люк; тапните на стену для ввода длины`;
         closeBtn.classList.add('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
     }
@@ -231,6 +245,13 @@ function rotateSketch() {
         p.x = cx - dy;
         p.y = cy + dx;
     });
+    if (hatchPos) {
+        let hdx = hatchPos.x - cx;
+        let hdy = hatchPos.y - cy;
+        hatchPos.x = cx - hdy;
+        hatchPos.y = cy + hdx;
+        isHatchRotated = !isHatchRotated;
+    }
     if (isClosed) untanglePolygon();
     fitToScreen(true);
     rebuildWallInputs();
@@ -270,12 +291,17 @@ function fitToScreen(forceFit = false) {
             p.x = canvasCX + (p.x - centerX) * factor;
             p.y = canvasCY + (p.y - centerY) * factor;
         });
+
+        if (hatchPos) {
+            hatchPos.x = canvasCX + (hatchPos.x - centerX) * factor;
+            hatchPos.y = canvasCY + (hatchPos.y - centerY) * factor;
+        }
+
         cmPerPixel = cmPerPixel / factor;
     }
     drawSketch();
 }
 
-// --- ПРОВЕРКИ ПЕРЕСЕЧЕНИЙ И ДИАГОНАЛЕЙ ---
 function isPointInsidePoly(px, py) {
     let inside = false;
     for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -337,7 +363,43 @@ function getCleanDiagonals() {
     return diags;
 }
 
-// --- ОТРИСОВКА ХОЛСТА (С УЧЕТОМ ЛЮКОВ) ---
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ЛЮКА ---
+function getHatchBounds() {
+    const countHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
+    if (countHatch <= 0 || !isClosed || points.length < 3) return null;
+
+    let hLen = parseFloat(document.getElementById('hatchLength')?.value) || 120;
+    let hWid = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
+
+    let w = (isHatchRotated ? hWid : hLen) / cmPerPixel;
+    let h = (isHatchRotated ? hLen : hWid) / cmPerPixel;
+
+    if (!hatchPos) {
+        let cx = 0, cy = 0;
+        points.forEach(p => { cx += p.x; cy += p.y; });
+        hatchPos = { x: cx / points.length, y: cy / points.length };
+    }
+
+    return {
+        x: hatchPos.x - w / 2,
+        y: hatchPos.y - h / 2,
+        w,
+        h,
+        cx: hatchPos.x,
+        cy: hatchPos.y,
+        lenCm: hLen,
+        widCm: hWid
+    };
+}
+
+function rotateHatch() {
+    isHatchRotated = !isHatchRotated;
+    drawSketch();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast(isHatchRotated ? 'Люк повернут вертикально' : 'Люк повернут горизонтально');
+}
+
+// --- ОТРИСОВКА ХОЛСТА ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -354,7 +416,7 @@ function drawSketch() {
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
     const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
-    // 1. Координатная сетка
+    // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 20) {
@@ -428,32 +490,25 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка чердачного люка внутри (если задан)
-    const countHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
-    if (isClosed && countHatch > 0) {
-        let hLen = parseFloat(document.getElementById('hatchLength')?.value) || 120;
-        let hWid = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
-        let hWpx = hLen / cmPerPixel;
-        let hHpx = hWid / cmPerPixel;
-
-        let hX = centerX - hWpx / 2;
-        let hY = centerY - hHpx / 2;
-
+    // 4. Отрисовка перемещаемого люка
+    let hb = getHatchBounds();
+    if (hb) {
         ctx.save();
         ctx.strokeStyle = '#2563eb';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2;
         ctx.setLineDash([5, 3]);
-        ctx.strokeRect(hX, hY, hWpx, hHpx);
+        ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
 
-        ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.08)' : 'rgba(37, 99, 235, 0.15)';
-        ctx.fillRect(hX, hY, hWpx, hHpx);
+        ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.22)';
+        ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
 
+        // Плашка с размерами
         ctx.fillStyle = badgeBgColor;
-        ctx.fillRect(centerX - 35, centerY - 8, 70, 16);
+        ctx.fillRect(hb.cx - 40, hb.cy - 9, 80, 18);
         ctx.fillStyle = '#2563eb';
         ctx.font = '700 10px "Inter", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`Люк ${Math.round(hLen)}×${Math.round(hWid)}`, centerX, centerY + 4);
+        ctx.fillText(`Люк ${Math.round(hb.lenCm)}×${Math.round(hb.widCm)}`, hb.cx, hb.cy + 4);
         ctx.restore();
     }
 
@@ -488,7 +543,7 @@ function drawSketch() {
         ctx.fillText(`${lenCm} см`, labelX, labelY);
     }
 
-    // 6. Вершины и метки углов
+    // 6. Углы (вершины)
     points.forEach((p, idx) => {
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
         ctx.beginPath();
@@ -511,7 +566,7 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
-// --- ТАЧ-СОБЫТИЯ И ВВОД НА ХОЛСТЕ ---
+// --- ТАЧ-СОБЫТИЯ И ПЕРЕТАСКИВАНИЕ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -522,6 +577,7 @@ canvas.addEventListener('pointerdown', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // 1. Проверка замыкания контура в первую точку
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         saveState();
         isClosed = true;
@@ -534,6 +590,7 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
+    // 2. Проверка нажатия на вершину комнаты
     for (let i = 0; i < points.length; i++) {
         if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
             saveState();
@@ -544,6 +601,17 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
+    // 3. Проверка нажатия на люк для его перемещения
+    let hb = getHatchBounds();
+    if (hb && x >= hb.x && x <= hb.x + hb.w && y >= hb.y && y <= hb.y + hb.h) {
+        saveState();
+        isDraggingHatch = true;
+        hatchDragOffset = { x: x - hb.cx, y: y - hb.cy };
+        canvas.setPointerCapture(e.pointerId);
+        return;
+    }
+
+    // 4. Проверка клика по плашке стены (вызов шторки ввода длины)
     for (let box of wallHitBoxes) {
         if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
             openWallEditSheet(box.wallIdx);
@@ -556,6 +624,7 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
+    // 5. Добавление новой точки
     if (!isClosed) {
         saveState();
         let label = getPointLabel(points.length);
@@ -593,16 +662,31 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 canvas.addEventListener('pointermove', (e) => {
-    if (isSketchLocked || !isDragging || draggedPointIndex === null) return;
-    e.preventDefault();
+    if (isSketchLocked) return;
     const rect = canvas.getBoundingClientRect();
-    let p = points[draggedPointIndex];
-    p.x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
-    p.y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
+    const curX = e.clientX - rect.left;
+    const curY = e.clientY - rect.top;
 
-    if (isClosed) untanglePolygon();
-    syncInputsValuesOnly();
-    drawSketch();
+    // Перемещение вершины комнаты
+    if (isDragging && draggedPointIndex !== null) {
+        e.preventDefault();
+        let p = points[draggedPointIndex];
+        p.x = Math.max(20, Math.min(canvas.width - 20, curX));
+        p.y = Math.max(20, Math.min(canvas.height - 20, curY));
+
+        if (isClosed) untanglePolygon();
+        syncInputsValuesOnly();
+        drawSketch();
+        return;
+    }
+
+    // Перемещение люка
+    if (isDraggingHatch && hatchPos) {
+        e.preventDefault();
+        hatchPos.x = Math.max(30, Math.min(canvas.width - 30, curX - hatchDragOffset.x));
+        hatchPos.y = Math.max(30, Math.min(canvas.height - 30, curY - hatchDragOffset.y));
+        drawSketch();
+    }
 });
 
 canvas.addEventListener('pointerup', () => {
@@ -611,8 +695,12 @@ canvas.addEventListener('pointerup', () => {
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         rebuildWallInputs();
     }
+    if (isDraggingHatch) {
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    }
     isDragging = false;
     draggedPointIndex = null;
+    isDraggingHatch = false;
 });
 
 // --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
@@ -811,7 +899,7 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
-// --- УПРАВЛЕНИЕ ШТОРКОЙ РЕДАКТИРОВАНИЯ СТЕНЫ ---
+// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
