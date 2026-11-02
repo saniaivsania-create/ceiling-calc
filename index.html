@@ -11,7 +11,7 @@
 
     <script>
         (function() {
-            const APP_VERSION = 'v9.4';
+            const APP_VERSION = 'v9.5';
             const lastVer = localStorage.getItem('_pz_app_version');
             if (lastVer !== APP_VERSION) {
                 localStorage.setItem('_pz_app_version', APP_VERSION);
@@ -41,31 +41,6 @@
 
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --input-bg: #0f172a;
-            --sub-block-bg: #151e2e;
-            --accent: #2563eb;
-            --indigo-main: #4f46e5;
-            --accent-text: #f8fafc;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-            --btn-neutral: #334155;
-            --btn-neutral-text: #f1f5f9;
-            --danger: #dc2626;
-            --danger-text: #ffffff;
-            --success: #059669;
-            --canvas-bg: #0f172a;
-            --modal-overlay: rgba(15, 23, 42, 0.85);
-            --nav-bg: rgba(30, 41, 59, 0.96);
-            --fab-bg: rgba(30, 41, 59, 0.84);
-            --fab-border: rgba(148, 163, 184, 0.25);
-            --fab-icon: #e2e8f0;
-            --total-color: #f8fafc;
-        }
-
-        body.light-theme {
             --bg-color: #f1f5f9;
             --card-bg: #ffffff;
             --input-bg: #f8fafc;
@@ -109,7 +84,6 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            transition: background-color 0.15s ease, color 0.15s ease;
         }
 
         .container {
@@ -199,7 +173,7 @@
             border-radius: 10px;
             font-size: 13px;
             font-weight: 600;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -209,11 +183,7 @@
             transition: opacity 0.22s ease, transform 0.22s ease;
         }
 
-        .toast-msg.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
+        .toast-msg.show { opacity: 1; transform: translateY(0); }
         .toast-msg.toast-error { border-left-color: var(--danger); }
         .toast-msg.toast-success { border-left-color: var(--success); }
 
@@ -241,7 +211,6 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            transition: all 0.12s ease;
         }
 
         .room-tab.active {
@@ -262,22 +231,13 @@
             white-space: nowrap;
         }
 
-        body.tab-mode .tab-pane {
+        .tab-pane {
             display: none;
             flex-direction: column;
             gap: 12px;
         }
 
-        body.tab-mode .tab-pane.active { display: flex; }
-
-        body:not(.tab-mode) .tab-pane {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        body:not(.tab-mode) .bottom-nav { display: none; }
-        body:not(.tab-mode) .container { padding-bottom: 28px; }
+        .tab-pane.active { display: flex; }
 
         .bottom-nav {
             position: fixed;
@@ -314,7 +274,6 @@
             flex-direction: column;
             align-items: center;
             gap: 3px;
-            transition: all 0.15s ease;
         }
 
         .nav-tab-btn .nav-icon { font-size: 16px; }
@@ -415,8 +374,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-            transition: transform 0.12s ease, background-color 0.15s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
         }
 
         .canvas-fab:active { transform: scale(0.92); }
@@ -500,9 +458,7 @@
             padding-right: 2px;
         }
 
-        #wallsInputsContainer.show-directions {
-            grid-template-columns: 1fr;
-        }
+        #wallsInputsContainer.show-directions { grid-template-columns: 1fr; }
 
         .wall-row-input {
             display: flex;
@@ -531,14 +487,8 @@
             padding: 6px 8px;
         }
 
-        .wall-dir-wrap {
-            display: none;
-            flex: 1;
-        }
-
-        #wallsInputsContainer.show-directions .wall-dir-wrap {
-            display: block;
-        }
+        .wall-dir-wrap { display: none; flex: 1; }
+        #wallsInputsContainer.show-directions .wall-dir-wrap { display: block; }
 
         .input-field {
             background: var(--input-bg);
@@ -550,10 +500,7 @@
             width: 100%;
         }
 
-        .input-field:focus {
-            border-color: var(--accent);
-            outline: none;
-        }
+        .input-field:focus { border-color: var(--accent); outline: none; }
 
         .dir-select {
             background: var(--input-bg);
@@ -583,11 +530,7 @@
             align-items: center;
         }
 
-        .item-row label {
-            font-size: 12px;
-            color: var(--text-main);
-            line-height: 1.2;
-        }
+        .item-row label { font-size: 12px; color: var(--text-main); line-height: 1.2; }
 
         .stepper-box {
             display: flex;
@@ -614,8 +557,6 @@
             flex-shrink: 0;
         }
 
-        .stepper-btn:active { opacity: 0.75; }
-
         .stepper-box .input-field {
             border: none;
             background: transparent;
@@ -629,10 +570,7 @@
         }
 
         .stepper-box .input-field::-webkit-outer-spin-button,
-        .stepper-box .input-field::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
+        .stepper-box .input-field::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
         .btn {
             background: var(--btn-neutral);
@@ -648,21 +586,10 @@
             align-items: center;
             justify-content: center;
             gap: 5px;
-            transition: opacity 0.12s ease, transform 0.1s ease;
         }
 
-        .btn:active { opacity: 0.8; transform: scale(0.99); }
-
-        .btn-primary, .btn-success {
-            background: var(--accent);
-            color: var(--accent-text);
-            font-weight: 600;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: var(--danger-text);
-        }
+        .btn-primary, .btn-success { background: var(--accent); color: var(--accent-text); }
+        .btn-danger { background: var(--danger); color: var(--danger-text); }
 
         .btn-calc-pill {
             width: 100%;
@@ -673,18 +600,11 @@
             padding: 15px 20px;
             font-size: 14px;
             font-weight: 600;
-            letter-spacing: 0.3px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            transition: opacity 0.15s ease, transform 0.1s ease;
-        }
-
-        .btn-calc-pill:active {
-            opacity: 0.88;
-            transform: scale(0.99);
         }
 
         .btn-share-trigger {
@@ -736,25 +656,13 @@
 
         .breakdown-label {
             color: var(--text-main);
-            font-weight: 400;
             display: flex;
             flex-direction: column;
             gap: 2px;
         }
 
-        .breakdown-sub {
-            font-size: 11px;
-            font-weight: 400;
-            color: var(--text-muted);
-        }
-
-        .breakdown-val {
-            color: var(--text-main);
-            font-weight: 600;
-            font-size: 14px;
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-        }
+        .breakdown-sub { font-size: 11px; color: var(--text-muted); }
+        .breakdown-val { color: var(--text-main); font-weight: 600; font-size: 14px; white-space: nowrap; }
 
         .total-price {
             display: flex;
@@ -762,22 +670,10 @@
             align-items: baseline;
             border-top: 1px solid var(--border);
             padding-top: 14px;
-            margin-top: 2px;
         }
 
-        .total-price span {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--total-color);
-            letter-spacing: 0.2px;
-        }
-
-        .total-price .price-value {
-            font-size: 26px;
-            color: var(--total-color);
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
+        .total-price span { font-size: 15px; font-weight: 600; color: var(--total-color); }
+        .total-price .price-value { font-size: 26px; color: var(--total-color); font-weight: 700; }
 
         .bottom-sheet-overlay {
             position: fixed;
@@ -794,10 +690,7 @@
             align-items: center;
         }
 
-        .bottom-sheet-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .bottom-sheet-overlay.open { opacity: 1; pointer-events: auto; }
 
         .bottom-sheet {
             width: 100%;
@@ -810,32 +703,14 @@
             flex-direction: column;
             gap: 14px;
             transform: translateY(100%);
-            transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+            transition: transform 0.28s ease;
         }
 
-        .bottom-sheet-overlay.open .bottom-sheet {
-            transform: translateY(0);
-        }
+        .bottom-sheet-overlay.open .bottom-sheet { transform: translateY(0); }
 
-        .sheet-handle {
-            width: 40px;
-            height: 4px;
-            background: var(--border);
-            border-radius: 4px;
-            margin: 0 auto 2px auto;
-        }
-
-        .sheet-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sheet-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-main);
-        }
+        .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 2px auto; }
+        .sheet-header { display: flex; justify-content: space-between; align-items: center; }
+        .sheet-title { font-size: 15px; font-weight: 600; color: var(--text-main); }
 
         .format-tabs {
             display: grid;
@@ -856,14 +731,9 @@
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.15s ease;
         }
 
-        .format-tab-btn.active {
-            background: var(--card-bg);
-            color: var(--text-main);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-        }
+        .format-tab-btn.active { background: var(--card-bg); color: var(--text-main); }
 
         .modal-overlay {
             position: fixed;
@@ -892,15 +762,7 @@
             overflow-y: auto;
         }
 
-        .saved-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            overflow-y: auto;
-            max-height: 55vh;
-            text-align: left;
-            padding-right: 4px;
-        }
+        .saved-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 55vh; text-align: left; }
 
         .saved-item {
             background: var(--sub-block-bg);
@@ -913,26 +775,9 @@
             gap: 8px;
         }
 
-        .saved-item-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            overflow: hidden;
-        }
-
-        .saved-item-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-main);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .saved-item-sub {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
+        .saved-item-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+        .saved-item-name { font-size: 14px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .saved-item-sub { font-size: 11px; color: var(--text-muted); }
 
         .device-id-box {
             background: var(--sub-block-bg);
@@ -946,14 +791,7 @@
             gap: 6px;
         }
 
-        .checklist-container {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 290px;
-            overflow-y: auto;
-            padding-right: 2px;
-        }
+        .checklist-container { display: flex; flex-direction: column; gap: 6px; max-height: 290px; overflow-y: auto; }
 
         .checklist-item {
             display: flex;
@@ -964,60 +802,18 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 8px 10px;
-            transition: opacity 0.15s ease;
         }
 
-        .checklist-item.checked {
-            opacity: 0.6;
-        }
-
-        .checklist-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex: 1;
-            cursor: pointer;
-            overflow: hidden;
-        }
-
-        .checklist-checkbox {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--indigo-main);
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
-        .checklist-text {
-            font-size: 13px;
-            color: var(--text-main);
-            word-break: break-word;
-            line-height: 1.3;
-        }
-
-        .checklist-item.checked .checklist-text {
-            text-decoration: line-through;
-            color: var(--text-muted);
-        }
-
-        .checklist-actions {
-            display: flex;
-            gap: 4px;
-            flex-shrink: 0;
-        }
-
-        .checklist-act-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            border-radius: 6px;
-            padding: 4px 7px;
-            font-size: 11px;
-            cursor: pointer;
-        }
+        .checklist-item.checked { opacity: 0.6; }
+        .checklist-left { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; overflow: hidden; }
+        .checklist-checkbox { width: 18px; height: 18px; accent-color: var(--indigo-main); cursor: pointer; flex-shrink: 0; }
+        .checklist-text { font-size: 13px; color: var(--text-main); word-break: break-word; }
+        .checklist-item.checked .checklist-text { text-decoration: line-through; color: var(--text-muted); }
+        .checklist-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .checklist-act-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 4px 7px; font-size: 11px; cursor: pointer; }
     </style>
 </head>
-<body class="tab-mode">
+<body>
 
     <div class="toast-container" id="toastContainer"></div>
 
@@ -1026,8 +822,6 @@
             <div class="logo-title">📐 Замер PRO</div>
             <div class="header-right">
                 <div class="attempts-counter" id="attemptsCounter">...</div>
-                <button class="theme-toggle-btn" id="viewModeBtn" onclick="toggleViewMode()" title="Переключить вид">📑 Вкладки</button>
-                <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">☀️ День</button>
             </div>
         </header>
 
@@ -1440,12 +1234,11 @@
             </div>
         </div>
     </div>
-
 <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.4';
+                    const CACHE_NAME = 'potolok-pro-offline-v9.5';
                     self.addEventListener('install', e => {
                         e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
                         self.skipWaiting();
@@ -1490,27 +1283,6 @@
                 toast.classList.remove('show');
                 setTimeout(() => toast.remove(), 250);
             }, 2600);
-        }
-
-        let isTabMode = localStorage.getItem('_pz_view_mode') !== 'classic';
-
-        function applyViewMode() {
-            const btn = document.getElementById('viewModeBtn');
-            if (isTabMode) {
-                document.body.classList.add('tab-mode');
-                if (btn) btn.innerText = '📑 Вкладки';
-            } else {
-                document.body.classList.remove('tab-mode');
-                if (btn) btn.innerText = '📜 Список';
-            }
-            setTimeout(() => resizeCanvas(), 50);
-        }
-
-        function toggleViewMode() {
-            isTabMode = !isTabMode;
-            localStorage.setItem('_pz_view_mode', isTabMode ? 'tabs' : 'classic');
-            applyViewMode();
-            showToast(isTabMode ? 'Режим быстрых вкладок включён' : 'Классический длинный вид включён');
         }
 
         function switchTab(tabName) {
@@ -1643,27 +1415,6 @@
                 showToast(`Стена обновлена: ${Math.round(val)} см`, 'success');
             }
             closeWallEditSheet();
-        }
-
-        let isLightTheme = localStorage.getItem('_pz_theme') === 'light';
-
-        function applyTheme() {
-            if (isLightTheme) {
-                document.body.classList.add('light-theme');
-                document.getElementById('themeToggleBtn').innerText = '🌙 Ночь';
-            } else {
-                document.body.classList.remove('light-theme');
-                document.getElementById('themeToggleBtn').innerText = '☀️ День';
-            }
-            if (typeof drawSketch === 'function') {
-                drawSketch();
-            }
-        }
-
-        function toggleTheme() {
-            isLightTheme = !isLightTheme;
-            localStorage.setItem('_pz_theme', isLightTheme ? 'light' : 'dark');
-            applyTheme();
         }
 
         let cmPerPixel = 2.5;
@@ -1874,7 +1625,6 @@
 
         loadSecurityState();
         loadUserPrices();
-        applyViewMode();
 
         document.getElementById('zamerNotebook').value = localStorage.getItem('_pz_notebook') || '';
         function saveNotebook() {
@@ -2177,7 +1927,6 @@
             }
         }
 
-        applyTheme();
         renderRoomsBar();
 
         function resizeCanvas() {
@@ -2785,14 +2534,14 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             wallHitBoxes = [];
 
-            const gridColor = isLightTheme ? '#f1f5f9' : '#1e293b';
-            const mainStrokeColor = isLightTheme ? '#0f172a' : '#e2e8f0';
-            const polyFillColor = isLightTheme ? 'rgba(15, 23, 42, 0.04)' : 'rgba(79, 70, 229, 0.08)';
-            const diagLineColor = isLightTheme ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
-            const badgeBgColor = isLightTheme ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 23, 42, 0.9)';
-            const wallTextColor = isLightTheme ? '#0f172a' : '#f8fafc';
-            const diagTextColor = isLightTheme ? '#475569' : '#94a3b8';
-            const pointLabelColor = isLightTheme ? '#0f172a' : '#ffffff';
+            const gridColor = '#f1f5f9';
+            const mainStrokeColor = '#0f172a';
+            const polyFillColor = 'rgba(15, 23, 42, 0.04)';
+            const diagLineColor = 'rgba(15, 23, 42, 0.3)';
+            const badgeBgColor = 'rgba(255, 255, 255, 0.94)';
+            const wallTextColor = '#0f172a';
+            const diagTextColor = '#475569';
+            const pointLabelColor = '#0f172a';
             const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
             ctx.strokeStyle = gridColor;
@@ -2934,12 +2683,12 @@
         function performCalculation() {
             if (points.length < 3) {
                 showToast('Поставьте минимум 3 точки на чертеже!', 'error');
-                if (isTabMode) switchTab('sketch');
+                switchTab('sketch');
                 return;
             }
             if (!isClosed) {
                 isClosed = true;
-                if (isClosed) untanglePolygon();
+                untanglePolygon();
                 rebuildWallInputs();
                 updateHint();
                 drawSketch();
@@ -2954,7 +2703,7 @@
                 updateAttemptsUI();
             }
             calculate();
-            if (isTabMode) switchTab('estimate');
+            switchTab('estimate');
             showToast('Смета успешно рассчитана!', 'success');
         }
 
@@ -3256,9 +3005,9 @@
             tempCanvas.height = headerH + canvas.height + footerH;
             const tCtx = tempCanvas.getContext('2d');
 
-            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
-            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
-            const textMutedExport = isLightTheme ? '#64748b' : '#94a3b8';
+            const bgExport = '#ffffff';
+            const textMainExport = '#0f172a';
+            const textMutedExport = '#64748b';
 
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -3296,7 +3045,7 @@
             });
 
             let totalY = startY + lastBreakdownItems.length * rowH + 16;
-            tCtx.fillStyle = isLightTheme ? '#f1f5f9' : '#1e293b';
+            tCtx.fillStyle = '#f1f5f9';
             tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
 
             tCtx.fillStyle = textMainExport;
@@ -3327,9 +3076,9 @@
             tempCanvas.height = headerH + canvas.height + footerH;
             const tCtx = tempCanvas.getContext('2d');
 
-            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
-            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
-            const textMutedExport = isLightTheme ? '#475569' : '#cbd5e1';
+            const bgExport = '#ffffff';
+            const textMainExport = '#0f172a';
+            const textMutedExport = '#475569';
 
             tCtx.fillStyle = bgExport;
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -3477,38 +3226,6 @@
             link.download = fileName;
             link.click();
         }
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                const swCode = `
-                    const CACHE_NAME = 'potolok-pro-offline-v9.4';
-                    self.addEventListener('install', e => {
-                        e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(['./', './index.html'])));
-                        self.skipWaiting();
-                    });
-                    self.addEventListener('activate', e => {
-                        e.waitUntil(
-                            caches.keys().then(keys => Promise.all(
-                                keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null)
-                            )).then(() => self.clients.claim())
-                        );
-                    });
-                    self.addEventListener('fetch', e => {
-                        e.respondWith(
-                            fetch(e.request).then(res => {
-                                const copy = res.clone();
-                                caches.open(CACHE_NAME).then(c => c.put(e.request, copy));
-                                return res;
-                            }).catch(() => caches.match(e.request))
-                        );
-                    });
-                `;
-                try {
-                    const blob = new Blob([swCode], { type: 'application/javascript' });
-                    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
-                } catch (e) {}
-            });
-        }
-    </script>
+</script>
 </body>
 </html>
