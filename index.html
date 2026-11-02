@@ -10,7 +10,6 @@
     <link rel="manifest" href="manifest.json">
 
     <script>
-        // АВТОМАТИЧЕСКИЙ СБРОС СТАРОГО КЭША ПРИ ОБНОВЛЕНИИ ВЕРСИИ
         (function() {
             const APP_VERSION = 'v9.4';
             const lastVer = localStorage.getItem('_pz_app_version');
@@ -1138,6 +1137,310 @@
                 </div>
             </div>
         </div>
+
+        <!-- ВКЛАДКА 2: ПАРАМЕТРЫ И КОМПЛЕКТАЦИЯ -->
+        <div class="tab-pane" id="tabParams">
+            <div class="section-card">
+                <div class="section-title">
+                    <span>⚙️ Материалы и Работы</span>
+                    <span style="font-size: 10px; color: var(--success); text-transform: none;">💾 Прайс сохраняется</span>
+                </div>
+                <div class="grid-inputs">
+                    <div class="input-card-box">
+                        <label>Полотно (₽ за 1 м²)</label>
+                        <input type="number" id="priceCanvas" class="input-field price-persist" value="650" oninput="saveUserPrices()">
+                    </div>
+                    <div class="input-card-box">
+                        <label>Багет / профиль (₽ за 1 м.п.)</label>
+                        <input type="number" id="priceProfile" class="input-field price-persist" value="250" oninput="saveUserPrices()">
+                    </div>
+                </div>
+
+                <div class="table-header">
+                    <span>Наименование</span>
+                    <span style="text-align: center;">Кол-во</span>
+                    <span>Цена (₽)</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="item-row">
+                        <label>Вставка (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countInsert', -1, 0, 300)">−</button>
+                            <input type="number" id="countInsert" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countInsert', 1, 0, 300)">+</button>
+                        </div>
+                        <input type="number" id="priceInsert" class="input-field price-persist" value="50" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Светильники (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countLights', -1, 0, 500)">−</button>
+                            <input type="number" id="countLights" class="input-field" value="4" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countLights', 1, 0, 500)">+</button>
+                        </div>
+                        <input type="number" id="priceLight" class="input-field price-persist" value="450" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Люстра (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countChandeliers', -1, 0, 100)">−</button>
+                            <input type="number" id="countChandeliers" class="input-field" value="1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countChandeliers', 1, 0, 100)">+</button>
+                        </div>
+                        <input type="number" id="priceChandelier" class="input-field price-persist" value="600" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Карниз (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countCornice', -0.5, 0, 200)">−</button>
+                            <input type="number" id="countCornice" class="input-field" value="3.0" step="0.1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countCornice', 0.5, 0, 200)">+</button>
+                        </div>
+                        <input type="number" id="priceCornice" class="input-field price-persist" value="700" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Обход труб (шт)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countPipes', -1, 0, 100)">−</button>
+                            <input type="number" id="countPipes" class="input-field" value="1" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countPipes', 1, 0, 100)">+</button>
+                        </div>
+                        <input type="number" id="pricePipe" class="input-field price-persist" value="350" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Доп. углы (&gt;4 шт)</label>
+                        <input type="number" id="countAngles" class="input-field" value="0" readonly style="font-weight: 600; text-align: center; opacity: 0.8;">
+                        <input type="number" id="priceAngle" class="input-field price-persist" value="150" oninput="saveUserPrices()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">✨ Современное освещение и Профили</div>
+                <div class="table-header">
+                    <span>Элемент</span>
+                    <span style="text-align: center;">Метраж / Шт</span>
+                    <span>Цена (₽)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="item-row">
+                        <label>Световые линии (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countLightLines', -0.5, 0, 300)">−</button>
+                            <input type="number" id="countLightLines" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countLightLines', 0.5, 0, 300)">+</button>
+                        </div>
+                        <input type="number" id="priceLightLines" class="input-field price-persist" value="2500" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Трековая система (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countTrack', -0.5, 0, 300)">−</button>
+                            <input type="number" id="countTrack" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countTrack', 0.5, 0, 300)">+</button>
+                        </div>
+                        <input type="number" id="priceTrack" class="input-field price-persist" value="1800" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Скрытая ниша ПК-5 (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countNiche', -0.5, 0, 200)">−</button>
+                            <input type="number" id="countNiche" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countNiche', 0.5, 0, 200)">+</button>
+                        </div>
+                        <input type="number" id="priceNiche" class="input-field price-persist" value="2200" oninput="saveUserPrices()">
+                    </div>
+                    <div class="item-row">
+                        <label>Теневой / Парящий (м.п.)</label>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="stepValue('countShadow', -1, 0, 500)">−</button>
+                            <input type="number" id="countShadow" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
+                            <button class="stepper-btn" onclick="stepValue('countShadow', 1, 0, 500)">+</button>
+                        </div>
+                        <input type="number" id="priceShadow" class="input-field price-persist" value="600" oninput="saveUserPrices()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">➕ Дополнительные работы (свои)</div>
+                <div class="grid-inputs">
+                    <input type="text" id="customName1" class="input-field" placeholder="Название работы" value="Брус под гардину" oninput="syncCurrentRoomState()">
+                    <input type="number" id="customPrice1" class="input-field" placeholder="Сумма ₽" value="0" oninput="syncCurrentRoomState()">
+                    <input type="text" id="customName2" class="input-field" placeholder="Название работы" value="Обход короба" oninput="syncCurrentRoomState()">
+                    <input type="number" id="customPrice2" class="input-field" placeholder="Сумма ₽" value="0" oninput="syncCurrentRoomState()">
+                </div>
+            </div>
+        </div>
+
+        <!-- ВКЛАДКА 3: СМЕТА И ВЫГРУЗКА -->
+        <div class="tab-pane" id="tabEstimate">
+            <div class="result-card">
+                <div class="section-title">
+                    <span>📋 Детализация расчёта (Смета)</span>
+                    <span id="activeRoomEstimateTitle" style="font-size: 11px; color: var(--text-muted); text-transform: none;"></span>
+                </div>
+                
+                <div class="estimate-breakdown" id="estimateBreakdown">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
+                        Начертите комнату и нажмите <b>«РАССЧИТАТЬ СМЕТУ»</b>
+                    </div>
+                </div>
+                
+                <div class="total-price">
+                    <span id="totalPriceLabel">ИТОГО К ОПЛАТЕ:</span>
+                    <span class="price-value" id="resTotal">0 ₽</span>
+                </div>
+
+                <div class="total-price" id="allRoomsTotalRow" style="display: none; padding-top: 8px; margin-top: -6px; border-top: 1px dashed var(--border);">
+                    <span style="font-size: 13px; font-weight: 500; color: var(--text-muted);">ВСЕ КОМНАТЫ ЗАКАЗА:</span>
+                    <span style="font-size: 18px; font-weight: 700; color: var(--total-color);" id="resAllRoomsTotal">0 ₽</span>
+                </div>
+
+                <button class="btn-calc-pill" onclick="performCalculation()">🧮 РАССЧИТАТЬ СМЕТУ</button>
+                <button class="btn-share-trigger" onclick="openExportSheet()">📤 Поделиться сметой</button>
+            </div>
+        </div>
+
+        <!-- ВКЛАДКА 4: ЧЕК-ЛИСТ И БЛОКНОТ ЗАМЕРЩИКА -->
+        <div class="tab-pane" id="tabNote">
+            <div class="section-card">
+                <div class="section-title">
+                    <span>✅ Чек-лист на монтаж</span>
+                    <span id="checklistProgress" style="font-size: 11px; color: var(--success); text-transform: none;">0 / 0</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">Добавляйте свои позиции, отмечайте галочками перед выездом (всё сохраняется автоматически):</div>
+                
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="newChecklistItemInput" class="input-field" placeholder="Новый пункт (напр: Гарпун, Кольца...)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
+                    <button class="btn btn-primary" onclick="addChecklistItem()" style="white-space: nowrap; padding: 0 14px;">➕ Добавить</button>
+                </div>
+
+                <div class="checklist-container" id="checklistContainer"></div>
+
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button class="btn" onclick="uncheckAllChecklist()" style="flex: 1; padding: 8px; font-size: 11px;">🔄 Сбросить галочки</button>
+                    <button class="btn" onclick="restoreDefaultChecklist()" style="flex: 1; padding: 8px; font-size: 11px;">📋 Стандартный набор</button>
+                    <button class="btn btn-danger" onclick="clearAllChecklist()" style="padding: 8px 10px; font-size: 11px;" title="Очистить всё">🗑️</button>
+                </div>
+            </div>
+
+            <div class="section-card" style="display: flex; flex-direction: column;">
+                <div class="section-title">
+                    <span>📝 Быстрые заметки по объекту</span>
+                    <button class="btn btn-primary" onclick="saveNotebook()" style="padding: 4px 10px; font-size: 11px;">💾 Сохранить</button>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания (высота, особенности стен, что докупить, долги):</div>
+                <textarea id="zamerNotebook" class="input-field" style="min-height: 160px; resize: vertical; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, нужен спец. крепеж..." oninput="autoSaveNotebook()"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="bottom-nav-inner">
+            <button class="nav-tab-btn active" id="navBtnSketch" onclick="switchTab('sketch')">
+                <span class="nav-icon">&#128208;</span>
+                <span>Чертёж</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnParams" onclick="switchTab('params')">
+                <span class="nav-icon">&#9881;&#65039;</span>
+                <span>Параметры</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnEstimate" onclick="switchTab('estimate')">
+                <span class="nav-icon">&#128203;</span>
+                <span>Смета</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnNote" onclick="switchTab('note')">
+                <span class="nav-icon">&#128221;</span>
+                <span>Блокнот</span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="bottom-sheet-overlay" id="wallEditSheetOverlay" onclick="closeWallEditSheet()">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <span class="sheet-title" id="wallEditSheetTitle">📏 Длина стены A–B (см)</span>
+                <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="см" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="exportSheetOverlay" onclick="closeExportSheet()">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <span class="sheet-title">📤 Поделиться и выгрузить</span>
+                <button class="btn" onclick="closeExportSheet()" style="padding: 6px 10px;">✖</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ФОРМАТ ФАЙЛА:</span>
+                <div class="format-tabs">
+                    <button class="format-tab-btn active" id="fmtTabPng" onclick="selectExportFormat('png')">🖼️ Картинка (PNG)</button>
+                    <button class="format-tab-btn" id="fmtTabDoc" onclick="selectExportFormat('doc')">📄 Документ Word (.doc)</button>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <button class="btn-calc-pill" onclick="triggerCombinedShare('client')">
+                    📤 Поделиться сметой (Клиенту)
+                </button>
+                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px; background: var(--indigo-main); color: #fff;">
+                    🏭 Отправить в цех (раскрой)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="projectsModal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 15px; font-weight: 700;">📂 База клиентов (Контакты)</span>
+                <button class="btn btn-danger" onclick="closeProjectsModal()" style="padding: 6px 10px;">✖</button>
+            </div>
+            <input type="text" id="projectSearchInput" class="input-field" placeholder="🔍 Поиск по имени, адресу или телефону..." oninput="renderProjectsList()">
+            <div class="saved-list" id="savedProjectsList"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="paywallModal">
+        <div class="modal-content">
+            <div style="font-size: 32px;">🔒</div>
+            <div style="font-size: 16px; font-weight: 700;">Бесплатный лимит (3 замера) исчерпан</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                Оформите подписку через <b>RuStore</b> или получите ключ активации у разработчика по электронной почте:
+            </div>
+            
+            <div style="background: var(--sub-block-bg); border: 1px solid var(--border); padding: 14px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 700;">ПОДПИСКА PRO (НА 3 МЕСЯЦА)</div>
+                <div style="font-size: 24px; font-weight: 800; margin: 4px 0;">500 ₽</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Безлимитные расчёты, чертежи и выгрузка в Word</div>
+                <button class="btn btn-primary" onclick="buyViaRuStore()" style="width: 100%; padding: 12px; font-size: 13px;">🛒 Оплатить подписку (500 ₽)</button>
+            </div>
+
+            <div class="device-id-box">
+                <div>Ваш ID устройства: <b id="deviceIdLabel" style="color: var(--text-main); font-size: 13px;">—</b></div>
+                <div>Почта для получения ключа: <b style="color: var(--accent);">Prilojeniea-p-k@mail.ru</b></div>
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button class="btn" onclick="sendEmailToSupport()" style="flex: 1; padding: 8px; font-size: 11px;">✉️ Написать на почту</button>
+                    <button class="btn" onclick="copySupportInfo()" style="flex: 1; padding: 8px; font-size: 11px;">📋 Скопировать почту и ID</button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+                <input type="text" id="licenseKeyInput" class="input-field" placeholder="Введите полученный ключ">
+                <button class="btn btn-primary" onclick="activateByCode()" style="white-space: nowrap; padding: 0 16px;">Активировать</button>
+            </div>
+        </div>
+    </div>
+
 <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -2931,12 +3234,250 @@
             if (!saved[index]) return;
             if (confirm(`Удалить замер клиента "${saved[index].name}"?`)) {
                 saved.splice(index, 1);
-                localStorage.setItem('_pz_projects', JSON.stringify(saved));
+                localStorage.setItem('pro_projects', JSON.stringify(saved));
                 renderProjectsList();
                 showToast('Замер удалён');
             }
         }
-<script>
+
+        async function exportClientImage() {
+            if (!lastCalcData || points.length < 3) {
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
+                return;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            const pad = 18;
+            const headerH = 78;
+            const rowH = 36;
+            const footerH = lastBreakdownItems.length * rowH + 70;
+
+            tempCanvas.width = Math.max(canvas.width, 380);
+            tempCanvas.height = headerH + canvas.height + footerH;
+            const tCtx = tempCanvas.getContext('2d');
+
+            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
+            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
+            const textMutedExport = isLightTheme ? '#64748b' : '#94a3b8';
+
+            tCtx.fillStyle = bgExport;
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
+            tCtx.fillText(`📋 Смета и чертёж — ${lastCalcData.clientName}`, pad, 28);
+
+            tCtx.fillStyle = textMutedExport;
+            tCtx.font = '13px Inter, Roboto, sans-serif';
+            tCtx.fillText(`📍 Адрес: ${lastCalcData.clientAddr}`, pad, 50);
+
+            tCtx.fillStyle = '#059669';
+            tCtx.font = 'bold 14px Inter, Roboto, sans-serif';
+            tCtx.fillText(`Площадь: ${lastCalcData.area} м² | Периметр: ${lastCalcData.perimeter} м.п.`, pad, 70);
+
+            let offsetX = (tempCanvas.width - canvas.width) / 2;
+            tCtx.drawImage(canvas, offsetX, headerH);
+
+            let startY = headerH + canvas.height + 24;
+            lastBreakdownItems.forEach((item, idx) => {
+                let y = startY + idx * rowH;
+                tCtx.fillStyle = textMainExport;
+                tCtx.font = '400 13px Inter, Roboto, sans-serif';
+                tCtx.fillText(item.title, pad, y);
+
+                tCtx.fillStyle = textMutedExport;
+                tCtx.font = '400 11px Inter, Roboto, sans-serif';
+                tCtx.fillText(item.sub, pad, y + 15);
+
+                tCtx.fillStyle = textMainExport;
+                tCtx.font = '600 13px Inter, Roboto, sans-serif';
+                let valW = tCtx.measureText(item.val).width;
+                tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 8);
+            });
+
+            let totalY = startY + lastBreakdownItems.length * rowH + 16;
+            tCtx.fillStyle = isLightTheme ? '#f1f5f9' : '#1e293b';
+            tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '600 15px Inter, Roboto, sans-serif';
+            tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '700 18px Inter, Roboto, sans-serif';
+            let totW = tCtx.measureText(lastCalcData.totalText).width;
+            tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
+
+            shareOrDownloadBlob(tempCanvas, `Smeta_${lastCalcData.clientName}.png`, lastEstimateText);
+        }
+
+        async function exportFactoryImage() {
+            if (!lastCalcData || points.length < 3) {
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
+                return;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            const pad = 18;
+            const headerH = 78;
+            const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + 3;
+            const footerH = linesCount * 24 + 45;
+
+            tempCanvas.width = Math.max(canvas.width, 380);
+            tempCanvas.height = headerH + canvas.height + footerH;
+            const tCtx = tempCanvas.getContext('2d');
+
+            const bgExport = isLightTheme ? '#ffffff' : '#0f172a';
+            const textMainExport = isLightTheme ? '#0f172a' : '#ffffff';
+            const textMutedExport = isLightTheme ? '#475569' : '#cbd5e1';
+
+            tCtx.fillStyle = bgExport;
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
+            tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 28);
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '13px Inter, Roboto, sans-serif';
+            tCtx.fillText(`Объект: ${lastCalcData.clientName} (${lastCalcData.clientAddr})`, pad, 50);
+
+            tCtx.fillStyle = textMutedExport;
+            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+            tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}`, pad, 70);
+
+            let offsetX = (tempCanvas.width - canvas.width) / 2;
+            tCtx.drawImage(canvas, offsetX, headerH);
+
+            let y = headerH + canvas.height + 24;
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+            tCtx.fillText('📏 ДЛИНЫ СТЕН (см):', pad, y);
+            y += 22;
+
+            tCtx.fillStyle = textMainExport;
+            tCtx.font = '12px Inter, Roboto, monospace';
+            lastCalcData.wallsData.forEach((w, i) => {
+                let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
+                tCtx.fillText(`Стена ${w.name}: ${w.cm} см`, colX, y);
+                if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 22;
+            });
+
+            if (lastCalcData.diags.length > 0) {
+                y += 8;
+                tCtx.fillStyle = textMainExport;
+                tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+                tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ (см):', pad, y);
+                y += 22;
+
+                tCtx.fillStyle = textMutedExport;
+                tCtx.font = '12px Inter, Roboto, monospace';
+                lastCalcData.diags.forEach((d, i) => {
+                    let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
+                    tCtx.fillText(`Диагональ ${d.name}: ${d.len} см`, colX, y);
+                    if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 22;
+                });
+            }
+
+            shareOrDownloadBlob(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`, lastFactoryText);
+        }
+
+        function shareOrDownloadBlob(tempCanvas, fileName, shareText) {
+            tempCanvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const file = new File([blob], fileName, { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({ title: fileName, text: shareText, files: [file] });
+                    } catch (err) {}
+                } else {
+                    const link = document.createElement('a');
+                    link.download = fileName;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                }
+            }, 'image/png');
+        }
+
+        async function exportWordDoc(target = 'client') {
+            if (!lastCalcData || points.length < 3) {
+                showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
+                return;
+            }
+
+            let sketchDataUrl = canvas.toDataURL('image/png');
+            let isClient = target === 'client';
+            let docTitle = isClient
+                ? `СМЕТА НА МОНТАЖ НАТЯЖНОГО ПОТОЛКА`
+                : `ТЕХНИЧЕСКОЕ ЗАДАНИЕ В ЦЕХ (РАСКРОЙ ПОЛОТНА)`;
+
+            let tableHtml = '';
+            if (isClient) {
+                tableHtml = `
+                    <h3>Расчёт стоимости материалов и работ:</h3>
+                    <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
+                        <tr style="background:#f1f5f9;"><th>Наименование</th><th>Объём / Кол-во</th><th>Стоимость</th></tr>
+                        ${lastBreakdownItems.map(i => `<tr><td>${i.title}</td><td>${i.sub}</td><td><b>${i.val}</b></td></tr>`).join('')}
+                        <tr style="background:#e2e8f0; font-size:16px;"><td colspan="2"><b>ИТОГО К ОПЛАТЕ:</b></td><td><b>${lastCalcData.totalText}</b></td></tr>
+                    </table>
+                `;
+            } else {
+                tableHtml = `
+                    <h3>Таблица длин стен (см):</h3>
+                    <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
+                        <tr style="background:#f1f5f9;"><th>Стена</th><th>Длина (см)</th></tr>
+                        ${lastCalcData.wallsData.map(w => `<tr><td>Стена <b>${w.name}</b></td><td><b>${w.cm} см</b></td></tr>`).join('')}
+                    </table>
+                    ${lastCalcData.diags.length > 0 ? `
+                    <h3>Таблица диагоналей для раскроя (см):</h3>
+                    <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
+                        <tr style="background:#f1f5f9;"><th>Диагональ</th><th>Длина (см)</th></tr>
+                        ${lastCalcData.diags.map(d => `<tr><td>Диагональ <b>${d.name}</b></td><td><b>${d.len} см</b></td></tr>`).join('')}
+                    </table>` : ''}
+                `;
+            }
+
+            let wordHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>${docTitle}</title></head>
+                <body style="font-family: Arial, sans-serif; color: #111;">
+                    <h2 style="color: #1e293b;">${docTitle}</h2>
+                    <p><b>Клиент / Объект:</b> ${lastCalcData.clientName}<br>
+                    <b>Адрес:</b> ${lastCalcData.clientAddr}<br>
+                    <b>Дата замера:</b> ${new Date().toLocaleDateString()}</p>
+                    <p><b>Площадь потолка:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов:</b> ${lastCalcData.totalAngles} шт.</p>
+                    <hr>
+                    <h3>Чертёж помещения:</h3>
+                    <p><img src="${sketchDataUrl}" width="420"></p>
+                    ${tableHtml}
+                </body>
+                </html>
+            `;
+
+            let blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
+            let fileName = isClient
+                ? `Smeta_${lastCalcData.clientName.replace(/\s+/g, '_')}.doc`
+                : `Ceh_Raskroy_${lastCalcData.clientName.replace(/\s+/g, '_')}.doc`;
+
+            let file = new File([blob], fileName, { type: 'application/msword' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: fileName,
+                        text: isClient ? lastEstimateText : lastFactoryText,
+                        files: [file]
+                    });
+                    return;
+                } catch (e) {}
+            }
+
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+        }
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
