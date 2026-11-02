@@ -327,7 +327,7 @@ window.onRuStorePurchaseSuccess = function() {
     grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
 };
 
-// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (С УЧЁТОМ ЛЮКОВ) ---
+// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (С КООРДИНАТАМИ И ПОВОРОТОМ ЛЮКА) ---
 function createDefaultRoom(title = 'Комната 1') {
     return {
         title,
@@ -340,11 +340,13 @@ function createDefaultRoom(title = 'Комната 1') {
         countChandeliers: 1,
         countCornice: 3.0,
         countPipes: 1,
-        // Модуль люка
+        // Параметры, координаты и ориентация люка
         countHatch: 0,
         hatchLength: 120,
         hatchWidth: 60,
         hatchSubtractArea: true,
+        hatchPos: null,          // Точные координаты на Canvas
+        isHatchRotated: false,   // Поворот 90°
         // Освещение и профили
         countLightLines: 0,
         countTrack: 0,
@@ -375,11 +377,13 @@ function syncCurrentRoomState() {
     r.countCornice = parseFloat(document.getElementById('countCornice')?.value) || 0;
     r.countPipes = parseFloat(document.getElementById('countPipes')?.value) || 0;
 
-    // Синхронизация люка
+    // Сохранение состояния люка текущей комнаты
     r.countHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
     r.hatchLength = parseFloat(document.getElementById('hatchLength')?.value) || 120;
     r.hatchWidth = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
     r.hatchSubtractArea = document.getElementById('hatchSubtractArea')?.checked ?? true;
+    r.hatchPos = (typeof hatchPos !== 'undefined' && hatchPos) ? { ...hatchPos } : null;
+    r.isHatchRotated = (typeof isHatchRotated !== 'undefined') ? isHatchRotated : false;
 
     const hatchBadge = document.getElementById('hatchBadge');
     if (hatchBadge) hatchBadge.innerText = `${r.countHatch} шт.`;
@@ -402,13 +406,21 @@ function loadRoomIntoUI(idx) {
     cmPerPixel = r.scale || 2.5;
     historyState = [];
 
+    // Восстановление координат и поворота люка
+    if (typeof hatchPos !== 'undefined') {
+        hatchPos = r.hatchPos ? { ...r.hatchPos } : null;
+    }
+    if (typeof isHatchRotated !== 'undefined') {
+        isHatchRotated = !!r.isHatchRotated;
+    }
+
     document.getElementById('countInsert').value = r.countInsert ?? 0;
     document.getElementById('countLights').value = r.countLights ?? 4;
     document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
     document.getElementById('countCornice').value = r.countCornice ?? 3.0;
     document.getElementById('countPipes').value = r.countPipes ?? 1;
 
-    // Загрузка люка
+    // Загрузка полей ввода люка
     document.getElementById('countHatch').value = r.countHatch ?? 0;
     document.getElementById('hatchLength').value = r.hatchLength ?? 120;
     document.getElementById('hatchWidth').value = r.hatchWidth ?? 60;
