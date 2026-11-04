@@ -1,43 +1,13 @@
-// --- ИНИЦИАЛИЗАЦИЯ И РЕГИСТРАЦИЯ SERVICE WORKER (БЕЗ ДУБЛИРОВАНИЯ) ---
+// ==========================================================================
+// ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
+// ==========================================================================
+
+// --- РЕГИСТРАЦИЯ ОФФЛАЙН РЕЖИМА (SERVICE WORKER) ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        const swCode = `
-            const CACHE_NAME = 'potolok-pro-offline-v9.5';
-            self.addEventListener('install', e => {
-                e.waitUntil(
-                    caches.open(CACHE_NAME).then(c => c.addAll([
-                        './',
-                        './index.html',
-                        './styles.css',
-                        './canvas-view.js',
-                        './calc-export.js',
-                        './app-core.js'
-                    ]))
-                );
-                self.skipWaiting();
-            });
-            self.addEventListener('activate', e => {
-                e.waitUntil(
-                    caches.keys().then(keys => Promise.all(
-                        keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null)
-                    )).then(() => self.clients.claim())
-                );
-            });
-            self.addEventListener('fetch', e => {
-                e.respondWith(
-                    fetch(e.request).then(res => {
-                        const copy = res.clone();
-                        caches.open(CACHE_NAME).then(c => c.put(e.request, copy));
-                        return res;
-                    }).catch(() => caches.match(e.request))
-                );
-            });
-        `;
-        try {
-            const blob = new Blob([swCode], { type: 'application/javascript' });
-            const swUrl = URL.createObjectURL(blob);
-            navigator.serviceWorker.register(swUrl).catch(() => {});
-        } catch (e) {}
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('Оффлайн-режим активен'))
+            .catch((err) => console.log('Ошибка SW:', err));
     });
 }
 
@@ -324,7 +294,7 @@ window.onRuStorePurchaseSuccess = function() {
     grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
 };
 
-// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (С СОХРАНЕНИЕМ ВСЕХ ВНУТРЕННИХ КОРОБОВ И КОЛОНН) ---
+// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (СОХРАНЕНИЕ ТОЧЕК И ВНУТРЕННИХ ВЫРЕЗОВ) ---
 function createDefaultRoom(title = 'Комната 1') {
     return {
         title,
@@ -332,13 +302,13 @@ function createDefaultRoom(title = 'Комната 1') {
         isClosed: false,
         scale: 2.5,
         walls: [],
-        innerElements: [], // Массив коробов, люков и колонн
+        innerElements: [],
         countInsert: 0,
+        useInsert: false,
         countLights: 4,
         countChandeliers: 1,
         countCornice: 3.0,
         countPipes: 1,
-        // Освещение и профили
         countLightLines: 0,
         countTrack: 0,
         countNiche: 0,
@@ -357,17 +327,19 @@ let activeRoomIdx = 0;
 function syncCurrentRoomState() {
     let r = rooms[activeRoomIdx];
     if (!r) return;
-    r.points = points.map(p => ({ x: p.x, y: p.y, label: p.label }));
-    r.isClosed = isClosed;
-    r.scale = cmPerPixel;
+    if (typeof points !== 'undefined') {
+        r.points = points.map(p => ({ x: p.x, y: p.y, label: p.label }));
+    }
+    if (typeof isClosed !== 'undefined') r.isClosed = isClosed;
+    if (typeof cmPerPixel !== 'undefined') r.scale = cmPerPixel;
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
 
-    // Сохранение внутренних элементов комнаты
     if (typeof innerElements !== 'undefined') {
         r.innerElements = JSON.parse(JSON.stringify(innerElements));
     }
     
     r.countInsert = parseFloat(document.getElementById('countInsert')?.value) || 0;
+    r.useInsert = document.getElementById('useInsertCheckbox')?.checked || false;
     r.countLights = parseFloat(document.getElementById('countLights')?.value) || 0;
     r.countChandeliers = parseFloat(document.getElementById('countChandeliers')?.value) || 0;
     r.countCornice = parseFloat(document.getElementById('countCornice')?.value) || 0;
@@ -386,34 +358,38 @@ function syncCurrentRoomState() {
 function loadRoomIntoUI(idx) {
     activeRoomIdx = idx;
     let r = rooms[activeRoomIdx];
-    points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label }));
-    isClosed = !!r.isClosed;
-    cmPerPixel = r.scale || 2.5;
-    historyState = [];
+    if (!r) return;
 
-    // Загрузка внутренних элементов для активной комнаты
+    if (typeof points !== 'undefined') {
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label }));
+    }
+    if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
+    if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
+    if (typeof historyState !== 'undefined') historyState = [];
+
     if (typeof innerElements !== 'undefined') {
         innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
     }
 
-    document.getElementById('countInsert').value = r.countInsert ?? 0;
-    document.getElementById('countLights').value = r.countLights ?? 4;
-    document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
-    document.getElementById('countCornice').value = r.countCornice ?? 3.0;
-    document.getElementById('countPipes').value = r.countPipes ?? 1;
+    if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
+    if (document.getElementById('useInsertCheckbox')) document.getElementById('useInsertCheckbox').checked = !!r.useInsert;
+    if (document.getElementById('countLights')) document.getElementById('countLights').value = r.countLights ?? 4;
+    if (document.getElementById('countChandeliers')) document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
+    if (document.getElementById('countCornice')) document.getElementById('countCornice').value = r.countCornice ?? 3.0;
+    if (document.getElementById('countPipes')) document.getElementById('countPipes').value = r.countPipes ?? 1;
 
-    document.getElementById('countLightLines').value = r.countLightLines ?? 0;
-    document.getElementById('countTrack').value = r.countTrack ?? 0;
-    document.getElementById('countNiche').value = r.countNiche ?? 0;
-    document.getElementById('countShadow').value = r.countShadow ?? 0;
-    document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
-    document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
-    document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
-    document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
+    if (document.getElementById('countLightLines')) document.getElementById('countLightLines').value = r.countLightLines ?? 0;
+    if (document.getElementById('countTrack')) document.getElementById('countTrack').value = r.countTrack ?? 0;
+    if (document.getElementById('countNiche')) document.getElementById('countNiche').value = r.countNiche ?? 0;
+    if (document.getElementById('countShadow')) document.getElementById('countShadow').value = r.countShadow ?? 0;
+    if (document.getElementById('customName1')) document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
+    if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
+    if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
+    if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
 
     const presetCorners = document.getElementById('presetCornersCount');
-    if (presetCorners && points.length >= 3) {
+    if (presetCorners && points && points.length >= 3) {
         presetCorners.value = points.length;
     }
 
@@ -513,9 +489,9 @@ function saveProject() {
         address,
         phone,
         dateVal: dateVal || new Date().toLocaleDateString(),
-        points,
-        closed: isClosed,
-        scale: cmPerPixel,
+        points: typeof points !== 'undefined' ? points : [],
+        closed: typeof isClosed !== 'undefined' ? isClosed : true,
+        scale: typeof cmPerPixel !== 'undefined' ? cmPerPixel : 2.5,
         walls: Array.from(document.querySelectorAll('.wall-len')).map(i => i.value),
         rooms: rooms,
         date: new Date().toLocaleDateString()
