@@ -32,33 +32,20 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-// --- УМНЫЙ ВВОД РАЗМЕРОВ (КАК НА ЛАЗЕРНОЙ РУЛЕТКЕ) ---
-function formatLaserInput(rawVal) {
+// --- БАНКОМАТНЫЙ ВВОД РАЗМЕРОВ (СДВИГ СПРАВА НАЛЕВО) ---
+function formatLaserShift(rawVal) {
     if (!rawVal) return '';
-    // Заменяем запятую на точку и убираем всё лишнее
-    let val = rawVal.toString().replace(',', '.').replace(/[^0-9.]/g, '');
-    
-    // Если точку уже поставили вручную — просто убираем лишние точки
-    if (val.includes('.')) {
-        let parts = val.split('.');
-        return parts[0] + '.' + parts.slice(1).join('').substring(0, 3);
-    }
-    
-    // Если вбивают подряд сплошные цифры:
-    if (val.length === 3) {
-        // Например 361 -> 3.610 м, или 650 -> 0.650 м
-        let num = parseInt(val, 10);
-        if (num < 100) return val;
-        let m = (num / 100).toFixed(3);
-        return m;
-    } else if (val.length >= 4) {
-        // Например 3615 -> 3.615 м
-        let num = parseInt(val.substring(0, 5), 10);
-        let m = (num / 1000).toFixed(3);
-        return m;
-    }
-    
-    return val;
+    // Извлекаем только чистые цифры
+    let digits = rawVal.toString().replace(/\D/g, '');
+    if (!digits) return '';
+
+    // Ограничиваем ввод максимум 5 цифрами (до 99.999 м)
+    if (digits.length > 5) digits = digits.slice(-5);
+
+    let num = parseInt(digits, 10);
+    if (isNaN(num) || num === 0) return '0.000';
+
+    return (num / 1000).toFixed(3);
 }
 
 // --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
@@ -271,7 +258,6 @@ function updateHint() {
     }
 }
 
-// Замыкание: сохраняет точки на своих местах
 function closePolygon() {
     if (isSketchLocked) return;
     if (points.length < 3) {
@@ -1305,7 +1291,7 @@ canvas.addEventListener('pointerup', () => {
     draggedInnerIdx = null;
 });
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ (С УМНЫМ ВВОДОМ) ---
+// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ (БАНКОМАТНЫЙ ВВОД) ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -1337,7 +1323,7 @@ function rebuildWallInputs() {
         row.className = 'wall-row-input';
         row.innerHTML = `
             <span class="wall-row-label"><b>${p1.label}–${p2.label}</b></span>
-            <input type="text" inputmode="decimal" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
+            <input type="text" inputmode="numeric" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
             <div class="wall-dir-wrap">
                 <select class="dir-select" id="wall-dir-${i}" onchange="onWallDirEdit(${i})">
                     <option value="U" ${dir === 'U' ? 'selected' : ''}>⬆️ Вверх</option>
@@ -1352,9 +1338,14 @@ function rebuildWallInputs() {
 }
 
 function handleWallSmartInput(wallIndex, inputEl) {
-    let formatted = formatLaserInput(inputEl.value);
+    let formatted = formatLaserShift(inputEl.value);
     inputEl.value = formatted;
-    onWallLengthEdit(wallIndex, formatted);
+
+    let m = parseFloat(formatted);
+    // Применяем к чертежу, только если введено реальное расстояние от 10 см до 50 метров
+    if (m && m >= 0.1 && m <= 50) {
+        onWallLengthEdit(wallIndex, formatted);
+    }
 }
 
 function syncInputsValuesOnly() {
@@ -1503,7 +1494,7 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
-// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ (С УМНЫМ ВВОДОМ) ---
+// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ (БАНКОМАТНЫЙ ВВОД) ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
@@ -1514,10 +1505,11 @@ function openWallEditSheet(wallIdx) {
     document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (м)`;
     const sheetInput = document.getElementById('wallSheetInput');
     sheetInput.type = "text";
-    sheetInput.setAttribute("inputmode", "decimal");
+    sheetInput.setAttribute("inputmode", "numeric");
     sheetInput.value = curVal;
+    
     sheetInput.oninput = function() {
-        this.value = formatLaserInput(this.value);
+        this.value = formatLaserShift(this.value);
     };
 
     document.getElementById('wallEditSheetOverlay').classList.add('open');
@@ -1535,9 +1527,9 @@ function closeWallEditSheet() {
 function applyWallSheetValue() {
     if (editingWallIdx === null) return;
     let raw = document.getElementById('wallSheetInput').value;
-    let formatted = formatLaserInput(raw);
+    let formatted = formatLaserShift(raw);
     let val = parseFloat(formatted);
-    if (val && val > 0) {
+    if (val && val >= 0.1 && val <= 50) {
         let inp = document.getElementById(`wall-input-${editingWallIdx}`);
         if (inp) inp.value = val.toFixed(3);
         onWallLengthEdit(editingWallIdx, val);
