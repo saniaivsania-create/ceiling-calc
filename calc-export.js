@@ -446,7 +446,6 @@ async function triggerCombinedShare(target) {
         return;
     }
 
-    // 1. Пытаемся открыть меню Android "Поделиться"
     if (navigator.share) {
         try {
             await navigator.share({
@@ -455,11 +454,10 @@ async function triggerCombinedShare(target) {
             });
             return;
         } catch (err) {
-            if (err.name === 'AbortError') return; // Пользователь сам отменил
+            if (err.name === 'AbortError') return;
         }
     }
 
-    // 2. Если браузер заблокировал вызов — копируем текст в буфер
     if (navigator.clipboard) {
         navigator.clipboard.writeText(shareText).then(() => {
             showToast('📋 Текст скопирован! Вставьте в нужный чат', 'success');
@@ -469,7 +467,7 @@ async function triggerCombinedShare(target) {
     }
 }
 
-// Прямая отправка текста в Telegram
+// Прямая отправка текста напрямую в приложение Telegram
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -477,8 +475,17 @@ function shareDirectTelegram(target) {
         showToast('Сначала рассчитайте смету!', 'error');
         return;
     }
-    let url = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    
+    // Прямой вызов установленного Telegram на Android через мобильный протокол
+    let tgAppUrl = `tg://msg_url?url=&text=${encodeURIComponent(text)}`;
+    let webFallback = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
+    
+    window.location.href = tgAppUrl;
+    
+    setTimeout(() => {
+        if (document.hidden) return;
+        window.open(webFallback, '_blank');
+    }, 700);
 }
 
 // Прямая отправка текста в MAX
@@ -591,6 +598,7 @@ function exportFactoryImage() {
     tCtx.fillStyle = isLight ? '#ffffff' : '#0f172a';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
+    const textMainExport = isLight ? '#0f172a' : '#ffffff';
     tCtx.fillStyle = textMainExport;
     tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
     tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 26);
@@ -640,7 +648,7 @@ function exportFactoryImage() {
 
     if (lastCalcData.diags.length > 0) {
         y += 8;
-        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+        tCtx.fillStyle = textMainExport;
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
         tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
         y += 20;
