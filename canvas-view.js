@@ -32,6 +32,35 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
+// --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
+function persistSketchToStorage() {
+    try {
+        const payload = {
+            pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
+            closed: isClosed,
+            scale: cmPerPixel,
+            inner: innerElements
+        };
+        localStorage.setItem('_pz_active_sketch_backup', JSON.stringify(payload));
+    } catch (e) {}
+}
+
+function restoreSketchFromStorage() {
+    try {
+        const raw = localStorage.getItem('_pz_active_sketch_backup');
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        if (data && data.pts && data.pts.length > 0) {
+            points = data.pts;
+            isClosed = !!data.closed;
+            cmPerPixel = data.scale || 2.5;
+            innerElements = data.inner || [];
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
 function saveState() {
     historyState.push({
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
@@ -41,6 +70,7 @@ function saveState() {
         editMode
     });
     if (historyState.length > 40) historyState.shift();
+    persistSketchToStorage();
 }
 
 function undoPoint() {
@@ -68,6 +98,7 @@ function undoPoint() {
     renderInnerElementsList();
     updateHint();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -81,6 +112,7 @@ function resetSketch() {
     activeDrawingPoly = [];
     editMode = 'room';
     selectedInnerIdx = null;
+    localStorage.removeItem('_pz_active_sketch_backup');
     rebuildWallInputs();
     renderInnerElementsList();
     updateHint();
@@ -148,6 +180,10 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 setTimeout(() => {
     resizeCanvas();
+    if (restoreSketchFromStorage()) {
+        rebuildWallInputs();
+        renderInnerElementsList();
+    }
     updateHint();
     drawSketch();
 }, 120);
@@ -206,7 +242,7 @@ function updateHint() {
     }
 }
 
-// Замыкание: сохраняет буквы A, B, C, D... на своих местах БЕЗ ПЕРЕМЕШИВАНИЯ
+// Замыкание: сохраняет точки на своих местах
 function closePolygon() {
     if (isSketchLocked) return;
     if (points.length < 3) {
@@ -218,6 +254,7 @@ function closePolygon() {
     rebuildWallInputs();
     updateHint();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
@@ -248,6 +285,7 @@ function snapOrthogonal() {
     fitToScreen(false);
     syncInputsValuesOnly();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Углы выровнены под 90°');
 }
@@ -290,6 +328,7 @@ function rotateSketch() {
     rebuildWallInputs();
     renderInnerElementsList();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -462,7 +501,6 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
         return { edgePoint, proj, distPx };
     }
 
-    // Для произвольного короба
     let bestDist = Infinity;
     let bestEdgePt = el.pts ? el.pts[0] : { x: el.x, y: el.y };
     let bestProj = getClosestPointOnSegment(bestEdgePt, p1, p2);
@@ -552,6 +590,7 @@ function addQuickRectHatch() {
     document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
     renderInnerElementsList();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Добавлен люк 120×60 см');
 }
@@ -584,6 +623,7 @@ function addQuickCircleColumn() {
     document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
     renderInnerElementsList();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast(`Добавлена колонна ⌀${dCm} см`);
 }
@@ -732,6 +772,7 @@ function applyInnerSheetSettings() {
     closeInnerEditSheet();
     renderInnerElementsList();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Параметры и отступы применены!', 'success');
 }
@@ -748,6 +789,7 @@ function deleteInnerElement(idx) {
     innerElements.splice(idx, 1);
     renderInnerElementsList();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Элемент удалён');
 }
@@ -787,7 +829,7 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА (С КОРОБАМИ, ИХ РАЗМЕРАМИ И ЧИСТЫМИ ОТСТУПАМИ) ---
+// --- ОТРИСОВКА ХОЛСТА (С ПРОВЕРКОЙ ЧИТАЕМОСТИ И БЕЗ НАЛОЖЕНИЙ) ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -879,7 +921,7 @@ function drawSketch() {
     }
 
     // 4. Отрисовка внутренних элементов
-    innerElements.forEach((el, idx) => {
+    innerElements.forEach((el) => {
         let nearest = getElementWallDistances(el);
 
         ctx.save();
@@ -1007,8 +1049,8 @@ function drawSketch() {
         let outX = midX - centerX;
         let outY = midY - centerY;
         let outLen = Math.hypot(outX, outY) || 1;
-        let labelX = midX + (outX / outLen) * 14;
-        let labelY = midY + (outY / outLen) * 14;
+        let labelX = midX + (outX / outLen) * 18;
+        let labelY = midY + (outY / outLen) * 18;
 
         labelX = Math.max(28, Math.min(canvas.width - 28, labelX));
         labelY = Math.max(16, Math.min(canvas.height - 54, labelY));
@@ -1016,7 +1058,7 @@ function drawSketch() {
         wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
 
         ctx.fillStyle = badgeBgColor;
-        ctx.fillRect(labelX - 26, labelY - 11, 52, 16);
+        ctx.fillRect(labelX - 28, labelY - 11, 56, 16);
 
         ctx.fillStyle = wallTextColor;
         ctx.font = strictFont;
@@ -1075,6 +1117,7 @@ canvas.addEventListener('pointerdown', (e) => {
             renderInnerElementsList();
             updateHint();
             drawSketch();
+            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast('Произвольный короб создан!', 'success');
             return;
@@ -1154,6 +1197,7 @@ canvas.addEventListener('pointerdown', (e) => {
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         } else {
             saveState();
@@ -1176,6 +1220,7 @@ canvas.addEventListener('pointerdown', (e) => {
             rebuildWallInputs();
             updateHint();
             drawSketch();
+            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         }
     }
@@ -1220,10 +1265,12 @@ canvas.addEventListener('pointermove', (e) => {
 
 canvas.addEventListener('pointerup', () => {
     if (isDragging) {
+        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         rebuildWallInputs();
     }
     if (draggedInnerIdx !== null) {
+        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     isDragging = false;
@@ -1290,7 +1337,6 @@ function syncInputsValuesOnly() {
     }
 }
 
-// Стабильный расчёт длины стены: без перекручивания углов и без смены букв
 function onWallLengthEdit(wallIndex, valStr) {
     let m = parseFloat(valStr);
     if (!m || m <= 0) return;
@@ -1298,6 +1344,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     if (wallIndex >= points.length - 1 && isClosed) {
         drawSketch();
+        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         return;
     }
@@ -1326,6 +1373,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     fitToScreen(false);
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -1366,6 +1414,7 @@ function buildSketchFromTable() {
     rebuildWallInputs();
     updateHint();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Чертёж перестроен по размерам', 'success');
 }
@@ -1416,6 +1465,7 @@ function createFromTablePreset() {
     rebuildWallInputs();
     updateHint();
     drawSketch();
+    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
