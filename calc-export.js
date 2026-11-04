@@ -103,12 +103,31 @@ function getCurrentRoomPerimeterM() {
     return totalM;
 }
 
+// Переключение галочки: включить/выключить вставку
+function toggleInsertUsage() {
+    let chk = document.getElementById('useInsertCheckbox');
+    let insertInp = document.getElementById('countInsert');
+    if (!chk || !insertInp) return;
+
+    if (chk.checked) {
+        let perimM = getCurrentRoomPerimeterM();
+        insertInp.value = Math.round(perimM * 10) / 10;
+        showToast(`Вставка включена (${insertInp.value} м.п.)`, 'success');
+    } else {
+        insertInp.value = 0;
+        showToast('Вставка отключена');
+    }
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+}
+
 // Быстрая кнопка: подставить весь периметр во вставку
 function setInsertToFullPerimeter() {
     let perimM = getCurrentRoomPerimeterM();
     let insertInput = document.getElementById('countInsert');
+    let chk = document.getElementById('useInsertCheckbox');
     if (insertInput) {
         insertInput.value = Math.round(perimM * 10) / 10;
+        if (chk) chk.checked = true;
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         showToast(`Вставка выставлена на ${insertInput.value} м.п.`, 'success');
     }
@@ -205,12 +224,15 @@ function calculate() {
     let pCanvas = parseFloat(document.getElementById('priceCanvas')?.value) || 0;
     let pProfile = parseFloat(document.getElementById('priceProfile')?.value) || 0;
     
-    // Автоподстановка вставки, если она не была заполнена
+    // Вставка: считается только если стоит галочка (или если введено число > 0)
+    let insertCheckbox = document.getElementById('useInsertCheckbox');
     let insertEl = document.getElementById('countInsert');
-    let cInsert = parseFloat(insertEl?.value) || 0;
-    if (cInsert === 0 && roomPerimeterM > 0) {
-        cInsert = Math.round(roomPerimeterM * 10) / 10;
-        if (insertEl) insertEl.value = cInsert;
+    let cInsert = 0;
+    
+    if (insertCheckbox) {
+        cInsert = insertCheckbox.checked ? (parseFloat(insertEl?.value) || 0) : 0;
+    } else {
+        cInsert = parseFloat(insertEl?.value) || 0;
     }
 
     let pInsert = parseFloat(document.getElementById('priceInsert')?.value) || 0;
