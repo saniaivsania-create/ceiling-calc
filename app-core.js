@@ -144,9 +144,6 @@ function stepValue(inputId, delta, minVal, maxVal) {
     if (maxVal !== undefined) next = Math.min(maxVal, next);
     el.value = next;
     syncCurrentRoomState();
-    if (inputId === 'countHatch' || inputId === 'hatchLength' || inputId === 'hatchWidth') {
-        if (typeof drawSketch === 'function') drawSketch();
-    }
 }
 
 // --- ЛИЦЕНЗИРОВАНИЕ И БЕЗОПАСНОСТЬ (ЛИМИТ 3 ЗАМЕРА) ---
@@ -327,7 +324,7 @@ window.onRuStorePurchaseSuccess = function() {
     grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
 };
 
-// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (С КООРДИНАТАМИ И ПОВОРОТОМ ЛЮКА) ---
+// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (С СОХРАНЕНИЕМ ВСЕХ ВНУТРЕННИХ КОРОБОВ И КОЛОНН) ---
 function createDefaultRoom(title = 'Комната 1') {
     return {
         title,
@@ -335,18 +332,12 @@ function createDefaultRoom(title = 'Комната 1') {
         isClosed: false,
         scale: 2.5,
         walls: [],
+        innerElements: [], // Массив коробов, люков и колонн
         countInsert: 0,
         countLights: 4,
         countChandeliers: 1,
         countCornice: 3.0,
         countPipes: 1,
-        // Параметры, координаты и ориентация люка
-        countHatch: 0,
-        hatchLength: 120,
-        hatchWidth: 60,
-        hatchSubtractArea: true,
-        hatchPos: null,          // Точные координаты на Canvas
-        isHatchRotated: false,   // Поворот 90°
         // Освещение и профили
         countLightLines: 0,
         countTrack: 0,
@@ -370,23 +361,17 @@ function syncCurrentRoomState() {
     r.isClosed = isClosed;
     r.scale = cmPerPixel;
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
+
+    // Сохранение внутренних элементов комнаты
+    if (typeof innerElements !== 'undefined') {
+        r.innerElements = JSON.parse(JSON.stringify(innerElements));
+    }
     
     r.countInsert = parseFloat(document.getElementById('countInsert')?.value) || 0;
     r.countLights = parseFloat(document.getElementById('countLights')?.value) || 0;
     r.countChandeliers = parseFloat(document.getElementById('countChandeliers')?.value) || 0;
     r.countCornice = parseFloat(document.getElementById('countCornice')?.value) || 0;
     r.countPipes = parseFloat(document.getElementById('countPipes')?.value) || 0;
-
-    // Сохранение состояния люка текущей комнаты
-    r.countHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
-    r.hatchLength = parseFloat(document.getElementById('hatchLength')?.value) || 120;
-    r.hatchWidth = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
-    r.hatchSubtractArea = document.getElementById('hatchSubtractArea')?.checked ?? true;
-    r.hatchPos = (typeof hatchPos !== 'undefined' && hatchPos) ? { ...hatchPos } : null;
-    r.isHatchRotated = (typeof isHatchRotated !== 'undefined') ? isHatchRotated : false;
-
-    const hatchBadge = document.getElementById('hatchBadge');
-    if (hatchBadge) hatchBadge.innerText = `${r.countHatch} шт.`;
 
     r.countLightLines = parseFloat(document.getElementById('countLightLines')?.value) || 0;
     r.countTrack = parseFloat(document.getElementById('countTrack')?.value) || 0;
@@ -406,12 +391,10 @@ function loadRoomIntoUI(idx) {
     cmPerPixel = r.scale || 2.5;
     historyState = [];
 
-    // Восстановление координат и поворота люка
-    if (typeof hatchPos !== 'undefined') {
-        hatchPos = r.hatchPos ? { ...r.hatchPos } : null;
-    }
-    if (typeof isHatchRotated !== 'undefined') {
-        isHatchRotated = !!r.isHatchRotated;
+    // Загрузка внутренних элементов для активной комнаты
+    if (typeof innerElements !== 'undefined') {
+        innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
+        if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
     }
 
     document.getElementById('countInsert').value = r.countInsert ?? 0;
@@ -419,14 +402,6 @@ function loadRoomIntoUI(idx) {
     document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
     document.getElementById('countCornice').value = r.countCornice ?? 3.0;
     document.getElementById('countPipes').value = r.countPipes ?? 1;
-
-    // Загрузка полей ввода люка
-    document.getElementById('countHatch').value = r.countHatch ?? 0;
-    document.getElementById('hatchLength').value = r.hatchLength ?? 120;
-    document.getElementById('hatchWidth').value = r.hatchWidth ?? 60;
-    document.getElementById('hatchSubtractArea').checked = r.hatchSubtractArea !== undefined ? r.hatchSubtractArea : true;
-    const hatchBadge = document.getElementById('hatchBadge');
-    if (hatchBadge) hatchBadge.innerText = `${r.countHatch ?? 0} шт.`;
 
     document.getElementById('countLightLines').value = r.countLightLines ?? 0;
     document.getElementById('countTrack').value = r.countTrack ?? 0;
@@ -623,6 +598,7 @@ function loadSavedProject(index) {
         rooms[0].isClosed = proj.closed !== undefined ? proj.closed : true;
         rooms[0].scale = proj.scale || 2.5;
         rooms[0].walls = proj.walls || [];
+        rooms[0].innerElements = proj.innerElements || [];
         loadRoomIntoUI(0);
     }
 
@@ -644,7 +620,7 @@ function deleteSavedProject(index) {
 // --- ЧЕК-ЛИСТ МОНТАЖА И БЛОКНОТ ЗАМЕТОК ---
 const DEFAULT_CHECKLIST = [
     { text: 'Гарпун / Полотно по накладной', checked: false },
-    { text: 'Брус 50х50 и профиль под чердачный люк', checked: false },
+    { text: 'Брус 50х50 и профиль под короба/люк', checked: false },
     { text: 'Вставка по периметру (белая / чёрная)', checked: false },
     { text: 'Багет стеновой / профили (ПК-5, парящий)', checked: false },
     { text: 'Закладные под люстру и светильники', checked: false },
