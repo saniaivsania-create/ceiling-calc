@@ -447,7 +447,7 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
         let center = { x: el.x, y: el.y };
         let proj = getClosestPointOnSegment(center, p1, p2);
         let distCenter = Math.hypot(proj.x - center.x, proj.y - center.y);
-        let rad = el.radius || (el.diamCm ? (el.diamCm / 2) / cmPerPixel : 20);
+        let rad = el.radius || ((el.diamCm ? el.diamCm / 2 : 20) / cmPerPixel);
         let effectiveDist = Math.max(0, distCenter - rad);
 
         let edgePoint = { x: center.x, y: center.y };
@@ -460,8 +460,10 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
 
     let edges = [];
     if (el.type === 'rect') {
-        let hw = el.w / 2;
-        let hh = el.h / 2;
+        let rw = el.w || (el.lenCm / cmPerPixel);
+        let rh = el.h || (el.widCm / cmPerPixel);
+        let hw = rw / 2;
+        let hh = rh / 2;
         let c1 = { x: el.x - hw, y: el.y - hh };
         let c2 = { x: el.x + hw, y: el.y - hh };
         let c3 = { x: el.x + hw, y: el.y + hh };
@@ -712,7 +714,7 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА (С КОРОБАМИ И ОТСТУПАМИ) ---
+// --- ОТРИСОВКА ХОЛСТА (С КОРОБАМИ, ИХ РАЗМЕРАМИ И ОТСТУПАМИ) ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -803,11 +805,11 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов и привязок к стенам СТРОГО ОТ КРАЯ
+    // 4. Отрисовка внутренних элементов, их размеров и отступов
     innerElements.forEach(el => {
         let nearest = getElementWallDistances(el);
 
-        // Линии отступов: от наружной кромки фигуры к стене
+        // Линии отступов: строго от кромки
         ctx.save();
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
@@ -815,7 +817,7 @@ function drawSketch() {
 
         nearest.forEach(w => {
             ctx.beginPath();
-            ctx.moveTo(w.edgeX, w.edgeY); // Стартует от края
+            ctx.moveTo(w.edgeX, w.edgeY);
             ctx.lineTo(w.projX, w.projY);
             ctx.stroke();
 
@@ -843,12 +845,22 @@ function drawSketch() {
             ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
             ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
 
+            // Размеры на каждой грани прямоугольника
             ctx.fillStyle = badgeBgColor;
-            ctx.fillRect(el.x - 38, el.y - 9, 76, 18);
-            ctx.fillStyle = '#2563eb';
-            ctx.font = '700 10px "Inter", sans-serif';
+            ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${Math.round(el.lenCm)}×${Math.round(el.widCm)}`, el.x, el.y + 4);
+
+            // Верхняя грань
+            ctx.fillRect(el.x - 22, el.y - rh / 2 - 8, 44, 15);
+            ctx.fillStyle = '#2563eb';
+            ctx.fillText(`${Math.round(el.lenCm)} см`, el.x, el.y - rh / 2 + 3);
+
+            // Боковая грань
+            ctx.fillStyle = badgeBgColor;
+            ctx.fillRect(el.x + rw / 2 - 20, el.y - 7, 40, 15);
+            ctx.fillStyle = '#2563eb';
+            ctx.fillText(`${Math.round(el.widCm)} см`, el.x + rw / 2, el.y + 4);
+
         } else if (el.type === 'circle') {
             let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
             ctx.setLineDash([4, 3]);
@@ -863,6 +875,7 @@ function drawSketch() {
             ctx.font = '700 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(`⌀${Math.round(el.diamCm)} см`, el.x, el.y + 4);
+
         } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
             ctx.setLineDash([5, 3]);
             ctx.beginPath();
@@ -871,6 +884,22 @@ function drawSketch() {
             ctx.closePath();
             ctx.stroke();
             ctx.fill();
+
+            // Числовые размеры на каждой грани произвольного короба
+            ctx.font = '600 10px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < el.pts.length; i++) {
+                let p1 = el.pts[i];
+                let p2 = el.pts[(i + 1) % el.pts.length];
+                let sideCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
+                let midX = (p1.x + p2.x) / 2;
+                let midY = (p1.y + p2.y) / 2;
+
+                ctx.fillStyle = badgeBgColor;
+                ctx.fillRect(midX - 18, midY - 7, 36, 14);
+                ctx.fillStyle = '#2563eb';
+                ctx.fillText(`${sideCm}`, midX, midY + 4);
+            }
         }
         ctx.restore();
     });
@@ -896,7 +925,7 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 5. Размеры стен
+    // 5. Размеры внешних стен помещения
     let wallCount = getWallCount();
     ctx.textAlign = 'center';
     for (let i = 0; i < wallCount; i++) {
@@ -1002,7 +1031,7 @@ canvas.addEventListener('pointerdown', (e) => {
             } else if (el.type === 'circle') {
                 hit = Math.hypot(el.x - x, el.y - y) <= rad;
             } else if (el.type === 'poly') {
-                hit = Math.hypot(el.x - x, el.y - y) <= 35;
+                hit = Math.hypot(el.x - x, el.y - y) <= 45;
             }
             if (hit) {
                 saveState();
@@ -1199,20 +1228,12 @@ function syncInputsValuesOnly() {
     }
 }
 
+// Стабильный расчёт длины стены: без перекручивания и без вызова untanglePolygon
 function onWallLengthEdit(wallIndex, valStr) {
     let cm = parseFloat(valStr);
     if (!cm || cm <= 0) return;
 
-    if (points.length === 4 && isClosed && (wallIndex === 0 || wallIndex === 1)) {
-        let wallInputs = document.querySelectorAll('.wall-len');
-        if (wallInputs.length === 4) {
-            if (wallIndex === 0) wallInputs[2].value = cm;
-            else if (wallIndex === 1) wallInputs[3].value = cm;
-        }
-    }
-
     if (wallIndex >= points.length - 1 && isClosed) {
-        if (isClosed) untanglePolygon();
         drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         return;
@@ -1226,7 +1247,7 @@ function onWallLengthEdit(wallIndex, valStr) {
     let targetPx = cm / cmPerPixel;
 
     let shiftX = 0, shiftY = 0;
-    if (curPx > 0.1) {
+    if (curPx > 0.001) {
         let newX = p1.x + (dx / curPx) * targetPx;
         let newY = p1.y + (dy / curPx) * targetPx;
         shiftX = newX - p2.x;
@@ -1239,8 +1260,9 @@ function onWallLengthEdit(wallIndex, valStr) {
         points[j].x += shiftX;
         points[j].y += shiftY;
     }
-    if (isClosed) untanglePolygon();
-    fitToScreen(true);
+
+    fitToScreen(false);
+    drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -1276,7 +1298,6 @@ function buildSketchFromTable() {
 
     points = newPts;
     isClosed = true;
-    untanglePolygon();
     fitToScreen(true);
     rebuildWallInputs();
     updateHint();
