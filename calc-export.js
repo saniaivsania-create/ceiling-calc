@@ -366,7 +366,6 @@ function calculate() {
         innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
-    // Текст клиенту (со сметой и ценами)
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
@@ -398,7 +397,6 @@ function calculate() {
             innerSummaryList.map(item => `  • ${item.name}: перим. ${item.perimM} м.п. [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
     }
 
-    // Текст в цех: СТРОГО БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ
     lastFactoryText =
         `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
@@ -430,10 +428,8 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-// ГЛАВНАЯ КНОПКА ОТПРАВКИ: ВЫЗЫВАЕТ ШТАТНОЕ МЕНЮ ANDROID БЕЗ ПРИНУДИТЕЛЬНОГО СКАЧИВАНИЯ
-async function triggerCombinedShare(target) {
-    closeExportSheet();
-
+// ГЛАВНАЯ КНОПКА ОТПРАВКИ ЧЕРЕЗ СИСТЕМНОЕ МЕНЮ ANDROID
+function triggerCombinedShare(target) {
     let isClient = (target === 'client');
     let title = isClient 
         ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
@@ -446,28 +442,34 @@ async function triggerCombinedShare(target) {
         return;
     }
 
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: title,
-                text: shareText
-            });
-            return;
-        } catch (err) {
-            if (err.name === 'AbortError') return;
-        }
-    }
+    // Закрываем шторку только после инициализации
+    closeExportSheet();
 
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(shareText).then(() => {
-            showToast('📋 Текст скопирован! Вставьте в нужный чат', 'success');
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: shareText
+        }).catch(err => {
+            if (err.name !== 'AbortError') {
+                copyTextFallback(shareText);
+            }
         });
     } else {
-        showToast('Отправьте напрямую через кнопки TG или MAX ниже');
+        copyTextFallback(shareText);
     }
 }
 
-// Прямая отправка текста напрямую в приложение Telegram
+function copyTextFallback(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('📋 Текст скопирован! Вставьте в нужный мессенджер', 'success');
+        });
+    } else {
+        showToast('Скопируйте текст вручную');
+    }
+}
+
+// ПРЯМАЯ ОТПРАВКА В TELEGRAM: КОПИРУЕТ РАСЧЕТ И СРАЗУ ОТКРЫВАЕТ ПРИЛОЖЕНИЕ TG
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -476,19 +478,18 @@ function shareDirectTelegram(target) {
         return;
     }
     
-    // Прямой вызов установленного Telegram на Android через мобильный протокол
-    let tgAppUrl = `tg://msg_url?url=&text=${encodeURIComponent(text)}`;
-    let webFallback = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
+    // Копируем готовый структурированный текст в буфер обмена
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('📋 Расчёт скопирован! Выберите чат и вставьте', 'success');
+        });
+    }
     
-    window.location.href = tgAppUrl;
-    
-    setTimeout(() => {
-        if (document.hidden) return;
-        window.open(webFallback, '_blank');
-    }, 700);
+    // Открываем само установленное приложение Telegram
+    window.location.href = "tg://";
 }
 
-// Прямая отправка текста в MAX
+// ПРЯМАЯ ОТПРАВКА В MAX
 function shareDirectMax(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -501,13 +502,13 @@ function shareDirectMax(target) {
     let url = cleanPhone ? `https://max.ru/${cleanPhone}` : `https://max.ru/`;
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('Текст скопирован! Вставьте в MAX', 'success');
+            showToast('📋 Текст скопирован! Вставьте в диалог MAX', 'success');
         });
     }
     window.open(url, '_blank');
 }
 
-// Сохранение картинки клиенту (со сметой)
+// Сохранение картинки клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -576,7 +577,7 @@ function exportClientImage() {
     downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
-// Сохранение картинки в цех (чистые размеры, предупреждение без усадки, без цен)
+// Сохранение картинки в цех (чистые размеры без усадки)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
