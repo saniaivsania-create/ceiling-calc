@@ -34,7 +34,6 @@ function loadUserPrices() {
     } catch (e) {}
 }
 
-// --- МАТЕМАТИКА ПЛОЩАДИ (ФОРМУЛА ГАУССА) ---
 function calculatePolygonAreaM2() {
     if (points.length < 3) return 0;
     let sum = 0;
@@ -48,7 +47,6 @@ function calculatePolygonAreaM2() {
     return cm2Area / 10000;
 }
 
-// Расчёт площади и периметра одного внутреннего элемента
 function getInnerElementMetrics(el) {
     let perimM = 0;
     let areaM2 = 0;
@@ -84,7 +82,6 @@ function getInnerElementMetrics(el) {
     return { perimM, areaM2, cornersCount };
 }
 
-// Функция для получения точного текущего периметра комнаты в метрах
 function getCurrentRoomPerimeterM() {
     let wallCount = getWallCount();
     if (wallCount < 2) return 0;
@@ -103,7 +100,6 @@ function getCurrentRoomPerimeterM() {
     return totalM;
 }
 
-// Переключение галочки: включить/выключить вставку
 function toggleInsertUsage() {
     let chk = document.getElementById('useInsertCheckbox');
     let insertInp = document.getElementById('countInsert');
@@ -120,20 +116,6 @@ function toggleInsertUsage() {
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
-// Быстрая кнопка: подставить весь периметр во вставку
-function setInsertToFullPerimeter() {
-    let perimM = getCurrentRoomPerimeterM();
-    let insertInput = document.getElementById('countInsert');
-    let chk = document.getElementById('useInsertCheckbox');
-    if (insertInput) {
-        insertInput.value = Math.round(perimM * 10) / 10;
-        if (chk) chk.checked = true;
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast(`Вставка выставлена на ${insertInput.value} м.п.`, 'success');
-    }
-}
-
-// --- ВЫЧИСЛЕНИЕ СМЕТЫ И ПОГОНАЖА ---
 function performCalculation() {
     if (points.length < 3) {
         showToast('Поставьте минимум 3 точки на чертеже!', 'error');
@@ -183,7 +165,6 @@ function calculate() {
 
     let grossArea = calculatePolygonAreaM2();
 
-    // 1. Обработка всех внутренних элементов (короба, люки, колонны)
     let inElements = (typeof innerElements !== 'undefined') ? innerElements : [];
     let isSubArea = document.getElementById('hatchSubtractArea')?.checked ?? true;
     let pHatch = parseFloat(document.getElementById('priceHatch')?.value) || 0;
@@ -220,15 +201,12 @@ function calculate() {
         netArea = Math.max(0.1, grossArea - totalInnerAreaM2);
     }
 
-    // 2. Базовые прайсы и объёмы
     let pCanvas = parseFloat(document.getElementById('priceCanvas')?.value) || 0;
     let pProfile = parseFloat(document.getElementById('priceProfile')?.value) || 0;
     
-    // Вставка: считается только если стоит галочка (или если введено число > 0)
     let insertCheckbox = document.getElementById('useInsertCheckbox');
     let insertEl = document.getElementById('countInsert');
     let cInsert = 0;
-    
     if (insertCheckbox) {
         cInsert = insertCheckbox.checked ? (parseFloat(insertEl?.value) || 0) : 0;
     } else {
@@ -254,7 +232,6 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
-    // Углы (комната + углы всех внутренних коробов)
     let roomAngles = points.length;
     let totalAngles = roomAngles + totalInnerCorners;
     let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
@@ -268,7 +245,6 @@ function calculate() {
     let name2 = document.getElementById('customName2')?.value.trim() || 'Доп. работа 2';
     let custom2 = parseFloat(document.getElementById('customPrice2')?.value) || 0;
 
-    // 3. Подсчёт позиций
     let costCanvas = Math.round(netArea * pCanvas);
     let costProfile = Math.round(roomPerimeterM * pProfile);
     let costInsert = Math.round(cInsert * pInsert);
@@ -294,7 +270,6 @@ function calculate() {
         document.getElementById('activeRoomEstimateTitle').innerText = currentRoomTitle;
     }
 
-    // 4. Формирование детализации для сметы
     lastBreakdownItems = [
         { 
             title: 'Полотно потолка' + (inElements.length > 0 && isSubArea ? ' (за вычетом коробов)' : ''), 
@@ -386,20 +361,20 @@ function calculate() {
         totalText: Math.round(total).toLocaleString() + ' ₽'
     };
 
-    // 5. Формирование текстов
     let innerEstimateText = '';
     if (inElements.length > 0) {
-        innerEstimateText = `🔹 Внутренние короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
+        innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
+    // Текст сметы клиенту
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
         `📍 Адрес: ${clientAddr}\n` +
         (clientDate ? `📅 Дата: ${clientDate}\n` : '') +
         `──────────────────\n` +
-        `🔹 Площадь потолка: ${netArea.toFixed(2)} м² (${costCanvas} ₽)\n` +
-        `🔹 Профиль (багет): ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)\n` +
+        `🔹 Полотно: ${netArea.toFixed(2)} м² (${costCanvas} ₽)\n` +
+        `🔹 Профиль: ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)\n` +
         (cInsert > 0 ? `🔹 Вставка: ${cInsert} м.п. (${costInsert} ₽)\n` : '') +
         innerEstimateText +
         `🔹 Углы (${totalAngles} шт): ${costAngles} ₽\n` +
@@ -409,32 +384,34 @@ function calculate() {
         (cPipes > 0 ? `🔹 Обход труб (${cPipes} шт): ${costPipes} ₽\n` : '') +
         (cLightLines > 0 ? `🔹 Световые линии (${cLightLines} м.п.): ${costLightLines} ₽\n` : '') +
         (cTrack > 0 ? `🔹 Трековая система (${cTrack} м.п.): ${costTrack} ₽\n` : '') +
-        (cNiche > 0 ? `🔹 Скрытая ниша ПК-5 (${cNiche} м.п.): ${costNiche} ₽\n` : '') +
-        (cShadow > 0 ? `🔹 Теневой/Парящий (${cShadow} м.п.): ${costShadow} ₽\n` : '') +
+        (cNiche > 0 ? `🔹 Ниша ПК-5 (${cNiche} м.п.): ${costNiche} ₽\n` : '') +
+        (cShadow > 0 ? `🔹 Теневой (${cShadow} м.п.): ${costShadow} ₽\n` : '') +
         (custom1 > 0 ? `🔹 ${name1}: ${custom1} ₽\n` : '') +
         (custom2 > 0 ? `🔹 ${name2}: ${custom2} ₽\n` : '') +
         `──────────────────\n` +
         `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽` +
-        (rooms.length > 1 ? `\n🏢 ВСЕ КОМНАТЫ ЗАКАЗА: ${Math.round(allRoomsSum).toLocaleString()} ₽` : '');
+        (rooms.length > 1 ? `\n🏢 ВСЕ КОМНАТЫ: ${Math.round(allRoomsSum).toLocaleString()} ₽` : '');
 
     let innerFactoryText = '';
     if (innerSummaryList.length > 0) {
-        innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ / КОРОБА / КОЛОННЫ:\n` +
+        innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:\n` +
             innerSummaryList.map(item => `  • ${item.name}: перим. ${item.perimM} м.п. [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
     }
 
+    // Текст в цех: ЧИСТЫЕ РАЗМЕРЫ БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ
     lastFactoryText =
         `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
+        `⚠️ ВНИМАНИЕ: Размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!\n` +
         `──────────────────\n` +
-        `📐 Площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${totalAngles} шт.\n` +
+        `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${totalAngles} шт.\n` +
         innerFactoryText +
-        `📏 СТЕНЫ:\n` +
+        `📏 СТЕНЫ (чистые):\n` +
         wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('\n') + `\n` +
-        (diags.length > 0 ? `📐 ДИАГОНАЛИ:\n` + diags.map(d => `  • Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
+        (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
 }
 
-// --- УПРАВЛЕНИЕ ЭКСПОРТОМ И ШТОРКОЙ ---
+// --- УПРАВЛЕНИЕ ВЫГРУЗКОЙ ---
 function selectExportFormat(fmt) {
     selectedExportFormat = fmt;
     document.getElementById('fmtTabPng')?.classList.toggle('active', fmt === 'png');
@@ -463,7 +440,49 @@ function triggerCombinedShare(target) {
     }
 }
 
-// --- ЭКСПОРТ В PNG КЛИЕНТУ И В ЦЕХ ---
+// --- НАДЁЖНАЯ ОТПРАВКА БЕЗ СБОЕВ В ANDROID ---
+async function safeShareFile(file, title, textFallback) {
+    if (navigator.share) {
+        try {
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                // На Android файлы надёжнее отправлять БЕЗ огромного текста в одном вызове
+                await navigator.share({
+                    files: [file],
+                    title: title
+                });
+                return;
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.log('Попытка отправки текста вместо файла');
+            } else {
+                return; // Пользователь сам отменил диалог
+            }
+        }
+    }
+
+    // Если шаринг файлов заблокирован системой, пробуем поделиться чистым текстом
+    if (navigator.share && textFallback) {
+        try {
+            await navigator.share({
+                title: title,
+                text: textFallback
+            });
+            return;
+        } catch (e) {}
+    }
+
+    // Запасной вариант — прямое скачивание
+    const link = document.createElement('a');
+    link.download = file.name;
+    const objUrl = URL.createObjectURL(file);
+    link.href = objUrl;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    showToast('Файл сохранён на устройство');
+}
+
+// --- ЭКСПОРТ КЛИЕНТУ (СМЕТА В РУБЛЯХ) ---
 async function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -473,8 +492,8 @@ async function exportClientImage() {
     const tempCanvas = document.createElement('canvas');
     const pad = 18;
     const headerH = 78;
-    const rowH = 36;
-    const footerH = lastBreakdownItems.length * rowH + 70;
+    const rowH = 34;
+    const footerH = lastBreakdownItems.length * rowH + 65;
 
     tempCanvas.width = Math.max(canvas.width, 380);
     tempCanvas.height = headerH + canvas.height + footerH;
@@ -490,20 +509,20 @@ async function exportClientImage() {
 
     tCtx.fillStyle = textMainExport;
     tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
-    tCtx.fillText(`📋 Смета и чертёж — ${lastCalcData.clientName}`, pad, 28);
+    tCtx.fillText(`📋 Смета — ${lastCalcData.clientName}`, pad, 28);
 
     tCtx.fillStyle = textMutedExport;
     tCtx.font = '13px Inter, Roboto, sans-serif';
-    tCtx.fillText(`📍 Адрес: ${lastCalcData.clientAddr}`, pad, 50);
+    tCtx.fillText(`📍 ${lastCalcData.clientAddr}`, pad, 50);
 
     tCtx.fillStyle = '#059669';
-    tCtx.font = 'bold 14px Inter, Roboto, sans-serif';
-    tCtx.fillText(`Площадь: ${lastCalcData.area} м² | Периметр: ${lastCalcData.perimeter} м.п.`, pad, 70);
+    tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.`, pad, 70);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     tCtx.drawImage(canvas, offsetX, headerH);
 
-    let startY = headerH + canvas.height + 24;
+    let startY = headerH + canvas.height + 20;
     lastBreakdownItems.forEach((item, idx) => {
         let y = startY + idx * rowH;
         tCtx.fillStyle = textMainExport;
@@ -512,30 +531,35 @@ async function exportClientImage() {
 
         tCtx.fillStyle = textMutedExport;
         tCtx.font = '400 11px Inter, Roboto, sans-serif';
-        tCtx.fillText(item.sub, pad, y + 15);
+        tCtx.fillText(item.sub, pad, y + 14);
 
         tCtx.fillStyle = textMainExport;
         tCtx.font = '600 13px Inter, Roboto, sans-serif';
         let valW = tCtx.measureText(item.val).width;
-        tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 8);
+        tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 6);
     });
 
-    let totalY = startY + lastBreakdownItems.length * rowH + 16;
+    let totalY = startY + lastBreakdownItems.length * rowH + 14;
     tCtx.fillStyle = isLight ? '#f1f5f9' : '#1e293b';
-    tCtx.fillRect(pad, totalY - 22, tempCanvas.width - pad * 2, 38);
+    tCtx.fillRect(pad, totalY - 20, tempCanvas.width - pad * 2, 36);
 
     tCtx.fillStyle = textMainExport;
-    tCtx.font = '600 15px Inter, Roboto, sans-serif';
-    tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 2);
+    tCtx.font = '600 14px Inter, Roboto, sans-serif';
+    tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 3);
 
     tCtx.fillStyle = textMainExport;
-    tCtx.font = '700 18px Inter, Roboto, sans-serif';
+    tCtx.font = '700 16px Inter, Roboto, sans-serif';
     let totW = tCtx.measureText(lastCalcData.totalText).width;
-    tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 2);
+    tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
 
-    shareOrDownloadBlob(tempCanvas, `Smeta_${lastCalcData.clientName}.png`, lastEstimateText);
+    tempCanvas.toBlob(blob => {
+        if (!blob) return;
+        const file = new File([blob], `Smeta_${lastCalcData.clientName}.png`, { type: 'image/png' });
+        safeShareFile(file, `Смета: ${lastCalcData.clientName}`, lastEstimateText);
+    }, 'image/png');
 }
 
+// --- ЭКСПОРТ В ЦЕХ (БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ) ---
 async function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -544,10 +568,10 @@ async function exportFactoryImage() {
 
     const tempCanvas = document.createElement('canvas');
     const pad = 18;
-    const headerH = 78;
+    const headerH = 92;
     const inCount = lastCalcData.innerElements ? lastCalcData.innerElements.length : 0;
     const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + (inCount > 0 ? inCount + 4 : 3);
-    const footerH = linesCount * 24 + 45;
+    const footerH = linesCount * 22 + 45;
 
     tempCanvas.width = Math.max(canvas.width, 380);
     tempCanvas.height = headerH + canvas.height + footerH;
@@ -563,46 +587,49 @@ async function exportFactoryImage() {
 
     tCtx.fillStyle = textMainExport;
     tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
-    tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 28);
+    tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 26);
 
-    tCtx.fillStyle = textMainExport;
-    tCtx.font = '13px Inter, Roboto, sans-serif';
-    tCtx.fillText(`Объект: ${lastCalcData.clientName} (${lastCalcData.clientAddr})`, pad, 50);
+    // ЯРКОЕ ПРЕДУПРЕЖДЕНИЕ БЕЗ УСАДКИ
+    tCtx.fillStyle = '#dc2626';
+    tCtx.font = 'bold 12px Inter, Roboto, sans-serif';
+    tCtx.fillText(`⚠️ РАЗМЕРЫ БЕЗ УСАДКИ (чистый габарит помещения)!`, pad, 48);
 
     tCtx.fillStyle = textMutedExport;
-    tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-    let inInfo = inCount > 0 ? `  |  Коробов/вырезов: ${inCount} шт` : '';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 70);
+    tCtx.font = '12px Inter, Roboto, sans-serif';
+    tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
+
+    let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт` : '';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 86);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     tCtx.drawImage(canvas, offsetX, headerH);
 
-    let y = headerH + canvas.height + 24;
+    let y = headerH + canvas.height + 22;
     tCtx.fillStyle = textMainExport;
     tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-    tCtx.fillText('📏 ДЛИНЫ СТЕН:', pad, y);
-    y += 22;
+    tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
+    y += 20;
 
     tCtx.fillStyle = textMainExport;
     tCtx.font = '12px Inter, Roboto, monospace';
     lastCalcData.wallsData.forEach((w, i) => {
         let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
         tCtx.fillText(`Стена ${w.name}: ${w.m} м`, colX, y);
-        if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 22;
+        if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 20;
     });
 
     if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
         y += 8;
         tCtx.fillStyle = textMainExport;
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-        tCtx.fillText('🚪 ПРИВЯЗКА ВНУТРЕННИХ ВЫРЕЗОВ И КОРОБОВ:', pad, y);
-        y += 20;
+        tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
+        y += 18;
 
         tCtx.fillStyle = textMutedExport;
         tCtx.font = '11px Inter, Roboto, monospace';
         lastCalcData.innerElements.forEach(item => {
             tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
-            y += 18;
+            y += 16;
         });
     }
 
@@ -611,40 +638,25 @@ async function exportFactoryImage() {
         tCtx.fillStyle = textMainExport;
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
         tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
-        y += 22;
+        y += 20;
 
         tCtx.fillStyle = textMutedExport;
         tCtx.font = '12px Inter, Roboto, monospace';
         lastCalcData.diags.forEach((d, i) => {
             let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
             tCtx.fillText(`Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м`, colX, y);
-            if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 22;
+            if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 20;
         });
     }
 
-    shareOrDownloadBlob(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`, lastFactoryText);
-}
-
-// --- ЭКСПОРТ В WORD (.DOC) И БЕЗОПАСНАЯ ОТПРАВКА ---
-function shareOrDownloadBlob(tempCanvas, fileName, shareText) {
-    tempCanvas.toBlob(async (blob) => {
+    tempCanvas.toBlob(blob => {
         if (!blob) return;
-        const file = new File([blob], fileName, { type: 'image/png' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({ title: fileName, text: shareText, files: [file] });
-                return;
-            } catch (err) {}
-        }
-        const link = document.createElement('a');
-        link.download = fileName;
-        const objUrl = URL.createObjectURL(blob);
-        link.href = objUrl;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        const file = new File([blob], `Raskroy_Ceh_${lastCalcData.clientName}.png`, { type: 'image/png' });
+        safeShareFile(file, `Раскрой в цех: ${lastCalcData.clientName}`, lastFactoryText);
     }, 'image/png');
 }
 
+// --- ЭКСПОРТ В WORD (.DOC) ---
 async function exportWordDoc(target = 'client') {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -655,7 +667,7 @@ async function exportWordDoc(target = 'client') {
     let isClient = target === 'client';
     let docTitle = isClient
         ? `СМЕТА НА МОНТАЖ НАТЯЖНОГО ПОТОЛКА`
-        : `ТЕХНИЧЕСКОЕ ЗАДАНИЕ В ЦЕХ (РАСКРОЙ ПОЛОТНА)`;
+        : `ТЕХНИЧЕСКОЕ ЗАДАНИЕ В ЦЕХ (РАСКРОЙ БЕЗ УСАДКИ)`;
 
     let tableHtml = '';
     if (isClient) {
@@ -669,7 +681,8 @@ async function exportWordDoc(target = 'client') {
         `;
     } else {
         tableHtml = `
-            <h3>Таблица длин стен:</h3>
+            <p style="color:#dc2626; font-weight:bold; font-size:14px;">⚠️ ВНИМАНИЕ: Все размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!</p>
+            <h3>Таблица чистых длин стен:</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
                 <tr style="background:#f1f5f9;"><th>Стена</th><th>Длина (м)</th></tr>
                 ${lastCalcData.wallsData.map(w => `<tr><td>Стена <b>${w.name}</b></td><td><b>${w.m} м</b></td></tr>`).join('')}
@@ -681,7 +694,7 @@ async function exportWordDoc(target = 'client') {
                 ${lastCalcData.innerElements.map(it => `<tr><td><b>${it.name}</b></td><td>${it.perimM} м.п.</td><td>${it.offsetStr}</td></tr>`).join('')}
             </table>` : ''}
             ${lastCalcData.diags.length > 0 ? `
-            <h3>Таблица диагоналей для раскроя:</h3>
+            <h3>Таблица чистых диагоналей для раскроя:</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
                 <tr style="background:#f1f5f9;"><th>Диагональ</th><th>Длина (м)</th></tr>
                 ${lastCalcData.diags.map(d => `<tr><td>Диагональ <b>${d.name}</b></td><td><b>${(d.len / 100).toFixed(2)} м</b></td></tr>`).join('')}
@@ -697,7 +710,7 @@ async function exportWordDoc(target = 'client') {
             <p><b>Клиент / Объект:</b> ${lastCalcData.clientName}<br>
             <b>Адрес:</b> ${lastCalcData.clientAddr}<br>
             <b>Дата замера:</b> ${new Date().toLocaleDateString()}</p>
-            <p><b>Площадь потолка:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов:</b> ${lastCalcData.totalAngles} шт.</p>
+            <p><b>Площадь:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов:</b> ${lastCalcData.totalAngles} шт.</p>
             <hr>
             <h3>Чертёж помещения:</h3>
             <p><img src="${sketchDataUrl}" width="420"></p>
@@ -712,22 +725,5 @@ async function exportWordDoc(target = 'client') {
         : `Ceh_Raskroy_${lastCalcData.clientName.replace(/\s+/g, '_')}.doc`;
 
     let file = new File([blob], fileName, { type: 'application/msword' });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-            await navigator.share({
-                title: fileName,
-                text: isClient ? lastEstimateText : lastFactoryText,
-                files: [file]
-            });
-            return;
-        } catch (e) {}
-    }
-
-    let link = document.createElement('a');
-    const objUrl = URL.createObjectURL(blob);
-    link.href = objUrl;
-    link.download = fileName;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    safeShareFile(file, fileName, isClient ? lastEstimateText : lastFactoryText);
 }
