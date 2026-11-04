@@ -366,7 +366,7 @@ function calculate() {
         innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
-    // Текст сметы клиенту
+    // Текст клиенту (с ценами)
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
@@ -430,6 +430,19 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
+// Вспомогательная функция синхронного превращения dataURL в Blob (без ожидания toBlob)
+function dataURLtoBlobSync(dataurl) {
+    let arr = dataurl.split(',');
+    let mime = arr[0].match(/:(.*?);/)[1];
+    let bstr = atob(arr[1]);
+    let n = bstr.length;
+    let u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+}
+
 function triggerCombinedShare(target) {
     closeExportSheet();
     if (selectedExportFormat === 'png') {
@@ -440,50 +453,30 @@ function triggerCombinedShare(target) {
     }
 }
 
-// --- НАДЁЖНАЯ ОТПРАВКА БЕЗ СБОЕВ В ANDROID ---
-async function safeShareFile(file, title, textFallback) {
-    if (navigator.share) {
-        try {
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                // На Android файлы надёжнее отправлять БЕЗ огромного текста в одном вызове
-                await navigator.share({
-                    files: [file],
-                    title: title
-                });
-                return;
-            }
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.log('Попытка отправки текста вместо файла');
-            } else {
-                return; // Пользователь сам отменил диалог
-            }
-        }
-    }
-
-    // Если шаринг файлов заблокирован системой, пробуем поделиться чистым текстом
-    if (navigator.share && textFallback) {
-        try {
-            await navigator.share({
-                title: title,
-                text: textFallback
-            });
-            return;
-        } catch (e) {}
-    }
-
-    // Запасной вариант — прямое скачивание
-    const link = document.createElement('a');
-    link.download = file.name;
-    const objUrl = URL.createObjectURL(file);
-    link.href = objUrl;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-    showToast('Файл сохранён на устройство');
+// Прямая отправка текста в Telegram
+function shareDirectTelegram(target) {
+    closeExportSheet();
+    let text = target === 'client' ? lastEstimateText : lastFactoryText;
+    let url = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
 }
 
-// --- ЭКСПОРТ КЛИЕНТУ (СМЕТА В РУБЛЯХ) ---
-async function exportClientImage() {
+// Прямая отправка текста в MAX
+function shareDirectMax(target) {
+    closeExportSheet();
+    let text = target === 'client' ? lastEstimateText : lastFactoryText;
+    let cleanPhone = (lastCalcData.clientPhone || '').replace(/\D/g, '');
+    let url = cleanPhone ? `https://max.ru/${cleanPhone}` : `https://max.ru/`;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Текст скопирован! Вставьте в MAX', 'success');
+        });
+    }
+    window.open(url, '_blank');
+}
+
+// Мгновенная отправка картинки прямо в потоке клика (не теряет user gesture)
+function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
@@ -552,15 +545,38 @@ async function exportClientImage() {
     let totW = tCtx.measureText(lastCalcData.totalText).width;
     tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
 
-    tempCanvas.toBlob(blob => {
-        if (!blob) return;
-        const file = new File([blob], `Smeta_${lastCalcData.clientName}.png`, { type: 'image/png' });
-        safeShareFile(file, `Смета: ${lastCalcData.clientName}`, lastEstimateText);
-    }, 'image/png');
+    // СИНХРОННОЕ создание файла и вызов нативного Share
+    try {
+        let dataUrl = tempCanvas.toDataURL('image/png');
+        let blob = dataURLtoBlobSync(dataUrl);
+        let fileName = `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
+        let file = new File([blob], fileName, { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+                files: [file],
+                title: `Смета ${lastCalcData.clientName}`
+            }).catch(() => {});
+            return;
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    // Если браузер заблокировал файл, делимся текстом через системное меню
+    if (navigator.share) {
+        navigator.share({
+            title: `Смета ${lastCalcData.clientName}`,
+            text: lastEstimateText
+        }).catch(() => {});
+        return;
+    }
+
+    // Запасной вариант — скачивание
+    downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
-// --- ЭКСПОРТ В ЦЕХ (БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ) ---
-async function exportFactoryImage() {
+function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
@@ -589,7 +605,6 @@ async function exportFactoryImage() {
     tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
     tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 26);
 
-    // ЯРКОЕ ПРЕДУПРЕЖДЕНИЕ БЕЗ УСАДКИ
     tCtx.fillStyle = '#dc2626';
     tCtx.font = 'bold 12px Inter, Roboto, sans-serif';
     tCtx.fillText(`⚠️ РАЗМЕРЫ БЕЗ УСАДКИ (чистый габарит помещения)!`, pad, 48);
@@ -649,15 +664,44 @@ async function exportFactoryImage() {
         });
     }
 
-    tempCanvas.toBlob(blob => {
-        if (!blob) return;
-        const file = new File([blob], `Raskroy_Ceh_${lastCalcData.clientName}.png`, { type: 'image/png' });
-        safeShareFile(file, `Раскрой в цех: ${lastCalcData.clientName}`, lastFactoryText);
-    }, 'image/png');
+    try {
+        let dataUrl = tempCanvas.toDataURL('image/png');
+        let blob = dataURLtoBlobSync(dataUrl);
+        let fileName = `Raskroy_Ceh_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
+        let file = new File([blob], fileName, { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+                files: [file],
+                title: `Раскрой в цех ${lastCalcData.clientName}`
+            }).catch(() => {});
+            return;
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    if (navigator.share) {
+        navigator.share({
+            title: `Раскрой в цех ${lastCalcData.clientName}`,
+            text: lastFactoryText
+        }).catch(() => {});
+        return;
+    }
+
+    downloadCanvasImage(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`);
 }
 
-// --- ЭКСПОРТ В WORD (.DOC) ---
-async function exportWordDoc(target = 'client') {
+function downloadCanvasImage(cnv, fileName) {
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = cnv.toDataURL('image/png');
+    link.click();
+    showToast('Чертёж сохранён в загрузки');
+}
+
+// Экспорт Word
+function exportWordDoc(target = 'client') {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
@@ -721,9 +765,23 @@ async function exportWordDoc(target = 'client') {
 
     let blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
     let fileName = isClient
-        ? `Smeta_${lastCalcData.clientName.replace(/\s+/g, '_')}.doc`
-        : `Ceh_Raskroy_${lastCalcData.clientName.replace(/\s+/g, '_')}.doc`;
+        ? `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`
+        : `Ceh_Raskroy_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`;
 
     let file = new File([blob], fileName, { type: 'application/msword' });
-    safeShareFile(file, fileName, isClient ? lastEstimateText : lastFactoryText);
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+            files: [file],
+            title: fileName
+        }).catch(() => {});
+        return;
+    }
+
+    let link = document.createElement('a');
+    const objUrl = URL.createObjectURL(blob);
+    link.href = objUrl;
+    link.download = fileName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
 }
