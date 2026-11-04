@@ -1114,6 +1114,7 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
+    // Замыкание контура при тапе в начальную точку А
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         closePolygon();
         return;
