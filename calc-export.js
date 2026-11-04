@@ -430,29 +430,46 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-function dataURLtoBlobSync(dataurl) {
-    let arr = dataurl.split(',');
-    let mime = arr[0].match(/:(.*?);/)[1];
-    let bstr = atob(arr[1]);
-    let n = bstr.length;
-    let u8arr = new Uint8Array(n);
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], { type: mime });
-}
-
-function triggerCombinedShare(target) {
+// ГЛАВНАЯ КНОПКА ОТПРАВКИ: ВЫЗЫВАЕТ ШТАТНОЕ МЕНЮ ANDROID БЕЗ ПРИНУДИТЕЛЬНОГО СКАЧИВАНИЯ
+async function triggerCombinedShare(target) {
     closeExportSheet();
-    if (selectedExportFormat === 'png') {
-        if (target === 'client') exportClientImage();
-        else exportFactoryImage();
+
+    let isClient = (target === 'client');
+    let title = isClient 
+        ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
+        : `🏭 Раскрой в цех (БЕЗ УСАДКИ): ${lastCalcData?.clientName || 'Заказ'}`;
+    
+    let shareText = isClient ? lastEstimateText : lastFactoryText;
+
+    if (!shareText) {
+        showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
+        return;
+    }
+
+    // 1. Пытаемся открыть меню Android "Поделиться"
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: title,
+                text: shareText
+            });
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return; // Пользователь сам отменил
+        }
+    }
+
+    // 2. Если браузер заблокировал вызов — копируем текст в буфер
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(shareText).then(() => {
+            showToast('📋 Текст скопирован! Вставьте в нужный чат', 'success');
+        });
     } else {
-        exportWordDoc(target);
+        showToast('Отправьте напрямую через кнопки TG или MAX ниже');
     }
 }
 
-// Прямая отправка текста в Telegram (безопасное чтение данных)
+// Прямая отправка текста в Telegram
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -464,7 +481,7 @@ function shareDirectTelegram(target) {
     window.open(url, '_blank');
 }
 
-// Прямая отправка текста в MAX (безопасное чтение телефона без вылета)
+// Прямая отправка текста в MAX
 function shareDirectMax(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -483,7 +500,7 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
-// Мгновенная отправка картинки прямо в потоке клика
+// Сохранение картинки клиенту (со сметой)
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -501,18 +518,14 @@ function exportClientImage() {
     const tCtx = tempCanvas.getContext('2d');
 
     const isLight = document.body.classList.contains('light-theme');
-    const bgExport = isLight ? '#ffffff' : '#0f172a';
-    const textMainExport = isLight ? '#0f172a' : '#ffffff';
-    const textMutedExport = isLight ? '#64748b' : '#94a3b8';
-
-    tCtx.fillStyle = bgExport;
+    tCtx.fillStyle = isLight ? '#ffffff' : '#0f172a';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-    tCtx.fillStyle = textMainExport;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
     tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
     tCtx.fillText(`📋 Смета — ${lastCalcData.clientName}`, pad, 28);
 
-    tCtx.fillStyle = textMutedExport;
+    tCtx.fillStyle = isLight ? '#64748b' : '#94a3b8';
     tCtx.font = '13px Inter, Roboto, sans-serif';
     tCtx.fillText(`📍 ${lastCalcData.clientAddr}`, pad, 50);
 
@@ -526,15 +539,15 @@ function exportClientImage() {
     let startY = headerH + canvas.height + 20;
     lastBreakdownItems.forEach((item, idx) => {
         let y = startY + idx * rowH;
-        tCtx.fillStyle = textMainExport;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
         tCtx.font = '400 13px Inter, Roboto, sans-serif';
         tCtx.fillText(item.title, pad, y);
 
-        tCtx.fillStyle = textMutedExport;
+        tCtx.fillStyle = isLight ? '#64748b' : '#94a3b8';
         tCtx.font = '400 11px Inter, Roboto, sans-serif';
         tCtx.fillText(item.sub, pad, y + 14);
 
-        tCtx.fillStyle = textMainExport;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
         tCtx.font = '600 13px Inter, Roboto, sans-serif';
         let valW = tCtx.measureText(item.val).width;
         tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 6);
@@ -544,43 +557,19 @@ function exportClientImage() {
     tCtx.fillStyle = isLight ? '#f1f5f9' : '#1e293b';
     tCtx.fillRect(pad, totalY - 20, tempCanvas.width - pad * 2, 36);
 
-    tCtx.fillStyle = textMainExport;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
     tCtx.font = '600 14px Inter, Roboto, sans-serif';
     tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 3);
 
-    tCtx.fillStyle = textMainExport;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
     tCtx.font = '700 16px Inter, Roboto, sans-serif';
     let totW = tCtx.measureText(lastCalcData.totalText).width;
     tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
 
-    try {
-        let dataUrl = tempCanvas.toDataURL('image/png');
-        let blob = dataURLtoBlobSync(dataUrl);
-        let fileName = `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
-        let file = new File([blob], fileName, { type: 'image/png' });
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({
-                files: [file],
-                title: `Смета ${lastCalcData.clientName}`
-            }).catch(() => {});
-            return;
-        }
-    } catch (e) {
-        console.log(e);
-    }
-
-    if (navigator.share) {
-        navigator.share({
-            title: `Смета ${lastCalcData.clientName}`,
-            text: lastEstimateText
-        }).catch(() => {});
-        return;
-    }
-
     downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
+// Сохранение картинки в цех (чистые размеры, предупреждение без усадки, без цен)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -599,11 +588,7 @@ function exportFactoryImage() {
     const tCtx = tempCanvas.getContext('2d');
 
     const isLight = document.body.classList.contains('light-theme');
-    const bgExport = isLight ? '#ffffff' : '#0f172a';
-    const textMainExport = isLight ? '#0f172a' : '#ffffff';
-    const textMutedExport = isLight ? '#475569' : '#cbd5e1';
-
-    tCtx.fillStyle = bgExport;
+    tCtx.fillStyle = isLight ? '#ffffff' : '#0f172a';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     tCtx.fillStyle = textMainExport;
@@ -614,7 +599,7 @@ function exportFactoryImage() {
     tCtx.font = 'bold 12px Inter, Roboto, sans-serif';
     tCtx.fillText(`⚠️ РАЗМЕРЫ БЕЗ УСАДКИ (чистый габарит помещения)!`, pad, 48);
 
-    tCtx.fillStyle = textMutedExport;
+    tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
     tCtx.font = '12px Inter, Roboto, sans-serif';
     tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
 
@@ -625,12 +610,12 @@ function exportFactoryImage() {
     tCtx.drawImage(canvas, offsetX, headerH);
 
     let y = headerH + canvas.height + 22;
-    tCtx.fillStyle = textMainExport;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
     tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
     tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
     y += 20;
 
-    tCtx.fillStyle = textMainExport;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
     tCtx.font = '12px Inter, Roboto, monospace';
     lastCalcData.wallsData.forEach((w, i) => {
         let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
@@ -640,12 +625,12 @@ function exportFactoryImage() {
 
     if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
         y += 8;
-        tCtx.fillStyle = textMainExport;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
         tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
         y += 18;
 
-        tCtx.fillStyle = textMutedExport;
+        tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
         tCtx.font = '11px Inter, Roboto, monospace';
         lastCalcData.innerElements.forEach(item => {
             tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
@@ -655,43 +640,18 @@ function exportFactoryImage() {
 
     if (lastCalcData.diags.length > 0) {
         y += 8;
-        tCtx.fillStyle = textMainExport;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
         tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
         y += 20;
 
-        tCtx.fillStyle = textMutedExport;
+        tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
         tCtx.font = '12px Inter, Roboto, monospace';
         lastCalcData.diags.forEach((d, i) => {
             let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
             tCtx.fillText(`Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м`, colX, y);
             if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 20;
         });
-    }
-
-    try {
-        let dataUrl = tempCanvas.toDataURL('image/png');
-        let blob = dataURLtoBlobSync(dataUrl);
-        let fileName = `Raskroy_Ceh_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
-        let file = new File([blob], fileName, { type: 'image/png' });
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({
-                files: [file],
-                title: `Раскрой в цех ${lastCalcData.clientName}`
-            }).catch(() => {});
-            return;
-        }
-    } catch (e) {
-        console.log(e);
-    }
-
-    if (navigator.share) {
-        navigator.share({
-            title: `Раскрой в цех ${lastCalcData.clientName}`,
-            text: lastFactoryText
-        }).catch(() => {});
-        return;
     }
 
     downloadCanvasImage(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`);
@@ -702,7 +662,7 @@ function downloadCanvasImage(cnv, fileName) {
     link.download = fileName;
     link.href = cnv.toDataURL('image/png');
     link.click();
-    showToast('Файл сохранён в Загрузки');
+    showToast('Чертёж сохранён в Загрузки');
 }
 
 // Экспорт Word
@@ -772,16 +732,6 @@ function exportWordDoc(target = 'client') {
     let fileName = isClient
         ? `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`
         : `Ceh_Raskroy_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`;
-
-    let file = new File([blob], fileName, { type: 'application/msword' });
-
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({
-            files: [file],
-            title: fileName
-        }).catch(() => {});
-        return;
-    }
 
     let link = document.createElement('a');
     const objUrl = URL.createObjectURL(blob);
