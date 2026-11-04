@@ -294,7 +294,7 @@ window.onRuStorePurchaseSuccess = function() {
     grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
 };
 
-// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ (СОХРАНЕНИЕ ТОЧЕК И ВНУТРЕННИХ ВЫРЕЗОВ) ---
+// --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ ---
 function createDefaultRoom(title = 'Комната 1') {
     return {
         title,
@@ -472,7 +472,13 @@ function startNewProject() {
     }
 }
 
-// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА) ---
+// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА / TELEGRAM И MAX) ---
+function directDial(phoneNum) {
+    if (!phoneNum) return;
+    let clean = phoneNum.replace(/[^\d+]/g, '');
+    window.location.href = `tel:${clean}`;
+}
+
 function saveProject() {
     syncCurrentRoomState();
     let name = document.getElementById('clientName').value.trim();
@@ -533,9 +539,16 @@ function renderProjectsList() {
     listEl.innerHTML = saved.map((p, idx) => {
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
-        let callBtn = p.phone ? `<a href="tel:${p.phone}" class="btn btn-primary" style="padding: 7px 10px; text-decoration:none;" title="Позвонить">📞</a>` : '';
-        let cleanPhone = p.phone ? p.phone.replace(/[^0-9]/g,'') : '';
-        let maxBtn = cleanPhone ? `<a href="https://max.ru/${cleanPhone}" target="_blank" class="btn" style="padding: 7px 10px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
+        
+        let rawDigits = p.phone ? p.phone.replace(/\D/g, '') : '';
+        let tgPhone = rawDigits;
+        if (tgPhone.length === 11 && tgPhone.startsWith('8')) {
+            tgPhone = '7' + tgPhone.slice(1);
+        }
+
+        let callBtn = p.phone ? `<button class="btn btn-primary" onclick="directDial('${p.phone}')" style="padding: 7px 9px;" title="Позвонить">📞</button>` : '';
+        let tgBtn = tgPhone ? `<a href="https://t.me/+${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#0284c7; color:#fff; text-decoration:none;" title="Написать в Telegram">✈️ TG</a>` : '';
+        let maxBtn = tgPhone ? `<a href="https://max.ru/${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
 
         return `
         <div class="saved-item">
@@ -548,9 +561,10 @@ function renderProjectsList() {
             </div>
             <div style="display: flex; gap: 4px; align-items: center;">
                 ${callBtn}
+                ${tgBtn}
                 ${maxBtn}
-                <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 10px;">📂 Открыть</button>
-                <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 10px;">🗑️</button>
+                <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 9px;">📂</button>
+                <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 9px;">🗑️</button>
             </div>
         </div>
     `}).join('');
@@ -636,7 +650,7 @@ function renderChecklist() {
     if (badge) badge.innerText = `Собрано: ${doneCount} из ${checklistData.length}`;
 
     if (checklistData.length === 0) {
-        container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 18px 0; font-size: 12px;">Список пуст. Добавьте свой пункт выше или нажмите «Стандартный набор»</div>`;
+        container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 18px 0; font-size: 12px;">Список пуст. Нажмите «Стандартный набор»</div>`;
         return;
     }
 
@@ -701,7 +715,7 @@ function uncheckAllChecklist() {
 }
 
 function restoreDefaultChecklist() {
-    if (checklistData.length > 0 && !confirm('Вернуть стандартный заводской список? Текущий список заменится.')) return;
+    if (checklistData.length > 0 && !confirm('Вернуть стандартный список?')) return;
     checklistData = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
     saveChecklist();
     renderChecklist();
@@ -710,7 +724,7 @@ function restoreDefaultChecklist() {
 
 function clearAllChecklist() {
     if (checklistData.length === 0) return;
-    if (confirm('Очистить весь чек-лист полностью?')) {
+    if (confirm('Очистить весь чек-лист?')) {
         checklistData = [];
         saveChecklist();
         renderChecklist();
