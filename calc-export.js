@@ -45,6 +45,42 @@ function calculatePolygonAreaM2() {
     return cm2Area / 10000;
 }
 
+// Расчёт площади и периметра одного внутреннего элемента
+function getInnerElementMetrics(el) {
+    let perimM = 0;
+    let areaM2 = 0;
+    let cornersCount = 0;
+
+    if (el.type === 'rect') {
+        let w = parseFloat(el.w) || 0;
+        let h = parseFloat(el.h) || 0;
+        perimM = (2 * (w + h)) / 100;
+        areaM2 = (w * h) / 10000;
+        cornersCount = 4;
+    } else if (el.type === 'circle') {
+        let d = parseFloat(el.d) || 0;
+        let r = d / 2;
+        perimM = (Math.PI * d) / 100;
+        areaM2 = (Math.PI * r * r) / 10000;
+        cornersCount = 0;
+    } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
+        let perimCm = 0;
+        let sum = 0;
+        for (let i = 0; i < el.pts.length; i++) {
+            let p1 = el.pts[i];
+            let p2 = el.pts[(i + 1) % el.pts.length];
+            perimCm += Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel;
+            sum += (p1.x * p2.y - p2.x * p1.y);
+        }
+        perimM = perimCm / 100;
+        let pxArea = Math.abs(sum) / 2;
+        areaM2 = (pxArea * cmPerPixel * cmPerPixel) / 10000;
+        cornersCount = el.pts.length;
+    }
+
+    return { perimM, areaM2, cornersCount };
+}
+
 // --- ВЫЧИСЛЕНИЕ СМЕТЫ И ПОГОНАЖА ---
 function performCalculation() {
     if (points.length < 3) {
@@ -91,21 +127,41 @@ function calculate() {
     let roomPerimeterM = roomPerimCm / 100;
     let grossArea = calculatePolygonAreaM2();
 
-    // 1. Параметры чердачного люка / внутреннего короба
-    let cHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
-    let hLen = parseFloat(document.getElementById('hatchLength')?.value) || 120;
-    let hWid = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
-    let pHatch = parseFloat(document.getElementById('priceHatch')?.value) || 0;
+    // 1. Обработка всех внутренних элементов (короба, люки, колонны)
+    let inElements = (typeof innerElements !== 'undefined') ? innerElements : [];
     let isSubArea = document.getElementById('hatchSubtractArea')?.checked ?? true;
+    let pHatch = parseFloat(document.getElementById('priceHatch')?.value) || 0;
 
-    let singleHatchPerimM = (2 * (hLen + hWid)) / 100;
-    let totalHatchPerimM = singleHatchPerimM * cHatch;
-    let singleHatchAreaM2 = (hLen * hWid) / 10000;
-    let totalHatchAreaM2 = singleHatchAreaM2 * cHatch;
+    let totalInnerPerimM = 0;
+    let totalInnerAreaM2 = 0;
+    let totalInnerCorners = 0;
+    let innerSummaryList = [];
+
+    inElements.forEach((el, idx) => {
+        let m = getInnerElementMetrics(el);
+        totalInnerPerimM += m.perimM;
+        totalInnerAreaM2 += m.areaM2;
+        totalInnerCorners += m.cornersCount;
+
+        let offsets = (typeof getElementWallDistances === 'function') ? getElementWallDistances(el) : [];
+        let offsetStr = offsets.map(o => `${o.distCm} см до ст. ${o.wallName}`).join(', ');
+
+        let desc = '';
+        if (el.type === 'rect') desc = `Прямоуг./Люк ${Math.round(el.w)}×${Math.round(el.h)} см`;
+        else if (el.type === 'circle') desc = `Колонна/Круг ⌀${Math.round(el.d)} см`;
+        else desc = `Короб (${el.pts ? el.pts.length : 0} угл.)`;
+
+        innerSummaryList.push({
+            name: `${el.name || 'Элемент ' + (idx + 1)} (${desc})`,
+            perimM: m.perimM.toFixed(2),
+            areaM2: m.areaM2.toFixed(2),
+            offsetStr: offsetStr || 'центр'
+        });
+    });
 
     let netArea = grossArea;
-    if (cHatch > 0 && isSubArea) {
-        netArea = Math.max(0.1, grossArea - totalHatchAreaM2);
+    if (inElements.length > 0 && isSubArea) {
+        netArea = Math.max(0.1, grossArea - totalInnerAreaM2);
     }
 
     // 2. Базовые прайсы и объёмы
@@ -131,10 +187,9 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow').value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow').value) || 0;
 
-    // Углы (комната + по 4 угла на каждый люк)
+    // Углы (комната + углы всех внутренних коробов)
     let roomAngles = points.length;
-    let hatchAngles = cHatch * 4;
-    let totalAngles = roomAngles + hatchAngles;
+    let totalAngles = roomAngles + totalInnerCorners;
     let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
     document.getElementById('countAngles').value = extraAngles;
     let pAngle = parseFloat(document.getElementById('priceAngle').value) || 0;
@@ -153,7 +208,7 @@ function calculate() {
     let costChandelier = Math.round(cChandeliers * pChandelier);
     let costCornice = Math.round(cCornice * pCornice);
     let costPipes = Math.round(cPipes * pPipe);
-    let costHatch = Math.round(totalHatchPerimM * pHatch);
+    let costInnerProfile = Math.round(totalInnerPerimM * pHatch);
 
     let costLightLines = Math.round(cLightLines * pLightLines);
     let costTrack = Math.round(cTrack * pTrack);
@@ -161,7 +216,7 @@ function calculate() {
     let costShadow = Math.round(cShadow * pShadow);
 
     let total = costCanvas + costProfile + costInsert + costAngles + costLights + costChandelier + 
-                costCornice + costPipes + costHatch + costLightLines + costTrack + costNiche + 
+                costCornice + costPipes + costInnerProfile + costLightLines + costTrack + costNiche + 
                 costShadow + custom1 + custom2;
 
     rooms[activeRoomIdx].lastTotal = total;
@@ -171,7 +226,7 @@ function calculate() {
     // 4. Формирование детализации для сметы
     lastBreakdownItems = [
         { 
-            title: 'Полотно потолка' + (cHatch > 0 && isSubArea ? ' (за вычетом люка)' : ''), 
+            title: 'Полотно потолка' + (inElements.length > 0 && isSubArea ? ' (за вычетом коробов)' : ''), 
             sub: `${netArea.toFixed(2)} м² × ${pCanvas} ₽`, 
             val: `${costCanvas.toLocaleString()} ₽` 
         },
@@ -190,16 +245,16 @@ function calculate() {
         });
     }
 
-    if (cHatch > 0) {
+    if (inElements.length > 0) {
         lastBreakdownItems.push({ 
-            title: `Обход люка (${hLen}×${hWid} см, ${cHatch} шт.)`, 
-            sub: `Брус/профиль: ${totalHatchPerimM.toFixed(2)} м.п. × ${pHatch} ₽`, 
-            val: `${costHatch.toLocaleString()} ₽` 
+            title: `Внутренние короба/люки (${inElements.length} шт.)`, 
+            sub: `Брус/профиль: ${totalInnerPerimM.toFixed(2)} м.п. × ${pHatch} ₽`, 
+            val: `${costInnerProfile.toLocaleString()} ₽` 
         });
     }
 
     lastBreakdownItems.push({ 
-        title: `Углы (всего: ${totalAngles} шт.` + (hatchAngles > 0 ? `, из них люк: ${hatchAngles}` : '') + `)`, 
+        title: `Углы (всего: ${totalAngles} шт.` + (totalInnerCorners > 0 ? `, в т.ч. короба: ${totalInnerCorners}` : '') + `)`, 
         sub: `Доп. углы (>4): ${extraAngles} шт. × ${pAngle} ₽`, 
         val: `${costAngles.toLocaleString()} ₽` 
     });
@@ -252,15 +307,20 @@ function calculate() {
         grossArea: grossArea.toFixed(2),
         perimeter: roomPerimeterM.toFixed(2),
         totalAngles,
-        hatchCount: cHatch,
-        hatchSize: `${hLen}×${hWid}`,
-        hatchPerimM: totalHatchPerimM.toFixed(2),
+        innerCount: inElements.length,
+        innerElements: innerSummaryList,
+        totalInnerPerimM: totalInnerPerimM.toFixed(2),
         wallsData,
         diags,
         totalText: Math.round(total).toLocaleString() + ' ₽'
     };
 
     // 5. Формирование текстов для отправки
+    let innerEstimateText = '';
+    if (inElements.length > 0) {
+        innerEstimateText = `🔹 Внутренние короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
+    }
+
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
@@ -270,7 +330,7 @@ function calculate() {
         `🔹 Площадь потолка: ${netArea.toFixed(2)} м² (${costCanvas} ₽)\n` +
         `🔹 Профиль (багет): ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)\n` +
         (cInsert > 0 ? `🔹 Вставка: ${cInsert} м.п. (${costInsert} ₽)\n` : '') +
-        (cHatch > 0 ? `🔹 Обход люка (${hLen}×${hWid} см): ${totalHatchPerimM.toFixed(2)} м.п. (${costHatch} ₽)\n` : '') +
+        innerEstimateText +
         `🔹 Углы (${totalAngles} шт): ${costAngles} ₽\n` +
         (cLights > 0 ? `🔹 Светильники (${cLights} шт): ${costLights} ₽\n` : '') +
         (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽\n` : '') +
@@ -286,12 +346,18 @@ function calculate() {
         `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽` +
         (rooms.length > 1 ? `\n🏢 ВСЕ КОМНАТЫ ЗАКАЗА: ${Math.round(allRoomsSum).toLocaleString()} ₽` : '');
 
+    let innerFactoryText = '';
+    if (innerSummaryList.length > 0) {
+        innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ / КОРОБА / КОЛОННЫ:\n` +
+            innerSummaryList.map(item => `  • ${item.name}: перим. ${item.perimM} м.п. [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
+    }
+
     lastFactoryText =
         `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
         `──────────────────\n` +
         `📐 Площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${totalAngles} шт.\n` +
-        (cHatch > 0 ? `🚪 Внутренний люк: ${hLen}×${hWid} см (${cHatch} шт.), периметр: ${totalHatchPerimM.toFixed(2)} м.п.\n` : '') +
+        innerFactoryText +
         `📏 СТЕНЫ (см):\n` +
         wallsData.map(w => `  • Стена ${w.name}: ${w.cm} см`).join('\n') + `\n` +
         (diags.length > 0 ? `📐 ДИАГОНАЛИ (см):\n` + diags.map(d => `  • Диагональ ${d.name}: ${d.len} см`).join('\n') : '');
@@ -408,7 +474,8 @@ async function exportFactoryImage() {
     const tempCanvas = document.createElement('canvas');
     const pad = 18;
     const headerH = 78;
-    const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + (lastCalcData.hatchCount > 0 ? 5 : 3);
+    const inCount = lastCalcData.innerElements ? lastCalcData.innerElements.length : 0;
+    const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + (inCount > 0 ? inCount + 4 : 3);
     const footerH = linesCount * 24 + 45;
 
     tempCanvas.width = Math.max(canvas.width, 380);
@@ -433,8 +500,8 @@ async function exportFactoryImage() {
 
     tCtx.fillStyle = textMutedExport;
     tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-    let hatchInfo = lastCalcData.hatchCount > 0 ? `  |  Люк: ${lastCalcData.hatchSize} см (${lastCalcData.hatchCount} шт)` : '';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${hatchInfo}`, pad, 70);
+    let inInfo = inCount > 0 ? `  |  Коробов/вырезов: ${inCount} шт` : '';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 70);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     tCtx.drawImage(canvas, offsetX, headerH);
@@ -452,6 +519,21 @@ async function exportFactoryImage() {
         tCtx.fillText(`Стена ${w.name}: ${w.cm} см`, colX, y);
         if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 22;
     });
+
+    if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
+        y += 8;
+        tCtx.fillStyle = textMainExport;
+        tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+        tCtx.fillText('🚪 ПРИВЯЗКА ВНУТРЕННИХ ВЫРЕЗОВ И КОРОБОВ:', pad, y);
+        y += 20;
+
+        tCtx.fillStyle = textMutedExport;
+        tCtx.font = '11px Inter, Roboto, monospace';
+        lastCalcData.innerElements.forEach(item => {
+            tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
+            y += 18;
+        });
+    }
 
     if (lastCalcData.diags.length > 0) {
         y += 8;
@@ -521,9 +603,12 @@ async function exportWordDoc(target = 'client') {
                 <tr style="background:#f1f5f9;"><th>Стена</th><th>Длина (см)</th></tr>
                 ${lastCalcData.wallsData.map(w => `<tr><td>Стена <b>${w.name}</b></td><td><b>${w.cm} см</b></td></tr>`).join('')}
             </table>
-            ${lastCalcData.hatchCount > 0 ? `
-            <p><b>Внутренний люк / короб:</b> ${lastCalcData.hatchSize} см (${lastCalcData.hatchCount} шт.), периметр: ${lastCalcData.hatchPerimM} м.п.</p>
-            ` : ''}
+            ${lastCalcData.innerElements && lastCalcData.innerElements.length > 0 ? `
+            <h3>Внутренние вырезы, короба и колонны:</h3>
+            <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
+                <tr style="background:#f1f5f9;"><th>Элемент</th><th>Периметр (м.п.)</th><th>Привязка к стенам</th></tr>
+                ${lastCalcData.innerElements.map(it => `<tr><td><b>${it.name}</b></td><td>${it.perimM} м.п.</td><td>${it.offsetStr}</td></tr>`).join('')}
+            </table>` : ''}
             ${lastCalcData.diags.length > 0 ? `
             <h3>Таблица диагоналей для раскроя (см):</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
