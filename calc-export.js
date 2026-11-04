@@ -366,7 +366,7 @@ function calculate() {
         innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
-    // Текст клиенту (с ценами)
+    // Текст клиенту (со сметой и ценами)
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
@@ -398,7 +398,7 @@ function calculate() {
             innerSummaryList.map(item => `  • ${item.name}: перим. ${item.perimM} м.п. [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
     }
 
-    // Текст в цех: ЧИСТЫЕ РАЗМЕРЫ БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ
+    // Текст в цех: СТРОГО БЕЗ УСАДКИ И БЕЗ РУБЛЕЙ
     lastFactoryText =
         `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
@@ -430,7 +430,6 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-// Вспомогательная функция синхронного превращения dataURL в Blob (без ожидания toBlob)
 function dataURLtoBlobSync(dataurl) {
     let arr = dataurl.split(',');
     let mime = arr[0].match(/:(.*?);/)[1];
@@ -453,19 +452,28 @@ function triggerCombinedShare(target) {
     }
 }
 
-// Прямая отправка текста в Telegram
+// Прямая отправка текста в Telegram (безопасное чтение данных)
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
+    if (!text) {
+        showToast('Сначала рассчитайте смету!', 'error');
+        return;
+    }
     let url = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
 }
 
-// Прямая отправка текста в MAX
+// Прямая отправка текста в MAX (безопасное чтение телефона без вылета)
 function shareDirectMax(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
-    let cleanPhone = (lastCalcData.clientPhone || '').replace(/\D/g, '');
+    if (!text) {
+        showToast('Сначала рассчитайте смету!', 'error');
+        return;
+    }
+    let rawPhone = lastCalcData?.clientPhone || document.getElementById('clientPhone')?.value || '';
+    let cleanPhone = rawPhone.replace(/\D/g, '');
     let url = cleanPhone ? `https://max.ru/${cleanPhone}` : `https://max.ru/`;
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
@@ -475,7 +483,7 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
-// Мгновенная отправка картинки прямо в потоке клика (не теряет user gesture)
+// Мгновенная отправка картинки прямо в потоке клика
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -545,7 +553,6 @@ function exportClientImage() {
     let totW = tCtx.measureText(lastCalcData.totalText).width;
     tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
 
-    // СИНХРОННОЕ создание файла и вызов нативного Share
     try {
         let dataUrl = tempCanvas.toDataURL('image/png');
         let blob = dataURLtoBlobSync(dataUrl);
@@ -563,7 +570,6 @@ function exportClientImage() {
         console.log(e);
     }
 
-    // Если браузер заблокировал файл, делимся текстом через системное меню
     if (navigator.share) {
         navigator.share({
             title: `Смета ${lastCalcData.clientName}`,
@@ -572,7 +578,6 @@ function exportClientImage() {
         return;
     }
 
-    // Запасной вариант — скачивание
     downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
@@ -697,7 +702,7 @@ function downloadCanvasImage(cnv, fileName) {
     link.download = fileName;
     link.href = cnv.toDataURL('image/png');
     link.click();
-    showToast('Чертёж сохранён в загрузки');
+    showToast('Файл сохранён в Загрузки');
 }
 
 // Экспорт Word
@@ -783,5 +788,6 @@ function exportWordDoc(target = 'client') {
     link.href = objUrl;
     link.download = fileName;
     link.click();
+    showToast('Документ Word сохранён в Загрузки');
     setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
 }
