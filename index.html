@@ -478,9 +478,28 @@
                 <button class="btn-calc-pill" onclick="triggerCombinedShare('client')">
                     📤 Поделиться сметой (Клиенту)
                 </button>
-                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px; background: var(--indigo-main); color: #fff;">
+                <div style="display: flex; gap: 6px; margin-top: -2px;">
+                    <button class="btn" onclick="shareDirectTelegram('client')" style="flex: 1; padding: 10px; background: #0284c7; color: #fff; font-size: 12px; font-weight: 600;">
+                        ✈️ Смета в TG
+                    </button>
+                    <button class="btn" onclick="shareDirectMax('client')" style="flex: 1; padding: 10px; background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;">
+                        💬 Смета в MAX
+                    </button>
+                </div>
+
+                <div style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+
+                <button class="btn" onclick="triggerCombinedShare('factory')" style="padding: 13px; font-size: 13px; background: var(--indigo-main); color: #fff; font-weight: 700;">
                     🏭 Отправить в цех (раскрой)
                 </button>
+                <div style="display: flex; gap: 6px; margin-top: -2px;">
+                    <button class="btn" onclick="shareDirectTelegram('factory')" style="flex: 1; padding: 10px; background: #0284c7; color: #fff; font-size: 12px; font-weight: 600;">
+                        ✈️ Раскрой в TG
+                    </button>
+                    <button class="btn" onclick="shareDirectMax('factory')" style="flex: 1; padding: 10px; background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;">
+                        💬 Раскрой в MAX
+                    </button>
+                </div>
             </div>
         </div>
     </div>
