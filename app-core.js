@@ -116,8 +116,8 @@ function stepValue(inputId, delta, minVal, maxVal) {
     syncCurrentRoomState();
 }
 
-// --- ЛИЦЕНЗИРОВАНИЕ И БЕЗОПАСНОСТЬ (ЛИМИТ 3 ЗАМЕРА) ---
-const MAX_FREE_ATTEMPTS = 3;
+// --- ЛИЦЕНЗИРОВАНИЕ И БЕЗОПАСНОСТЬ (ЛИМИТ СТРОГО 2 ЗАМЕРА) ---
+const MAX_FREE_ATTEMPTS = 2;
 const SUPPORT_EMAIL = "Prilojeniea-p-k@mail.ru";
 const SECRET_SALT = "PRO_ZAMER_2026_500RUB";
 
@@ -247,7 +247,8 @@ function grantAccess(days, message) {
     subExpireUntil = Date.now() + (days * 24 * 60 * 60 * 1000);
     saveSecurityState();
     updateAttemptsUI();
-    document.getElementById('paywallModal').style.display = 'none';
+    const modal = document.getElementById('paywallModal');
+    if (modal) modal.style.display = 'none';
     showToast(message, 'success');
     if (typeof calculate === 'function') calculate();
 }
@@ -258,6 +259,10 @@ function activateByCode() {
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
         return;
     }
+    if (code === 'YEAR1500') {
+        grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
+        return;
+    }
     if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500' || code === 'ZAMER300') {
         grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
     } else {
@@ -266,8 +271,8 @@ function activateByCode() {
 }
 
 function sendEmailToSupport() {
-    let subject = encodeURIComponent(`Покупка ключа Потолок Замер PRO (ID: ${deviceId})`);
-    let body = encodeURIComponent(`Здравствуйте! Хочу приобрести подписку на 3 месяца (500 ₽).\nМой ID: ${deviceId}`);
+    let subject = encodeURIComponent(`Покупка подписки Потолок Замер PRO (ID: ${deviceId})`);
+    let body = encodeURIComponent(`Здравствуйте! Хочу приобрести доступ PRO.\nМой ID: ${deviceId}`);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 }
 
@@ -281,17 +286,32 @@ function copySupportInfo() {
     }
 }
 
-function buyViaRuStore() {
+// --- ИНТЕГРАЦИЯ RUSTORE BILLING (ТАРИФЫ И ВОССТАНОВЛЕНИЕ) ---
+function buyViaRuStore(productId = 'sub_3m_500') {
     if (window.RuStoreBilling) {
-        window.RuStoreBilling.purchaseProduct("sub_3m_500");
+        showToast('Открываем окно оплаты RuStore...');
+        window.RuStoreBilling.purchaseProduct(productId);
     } else {
-        showToast(`Напишите на ${SUPPORT_EMAIL} (ID: ${deviceId})`);
+        showToast('Для оплаты установите приложение из RuStore или напишите на почту');
         sendEmailToSupport();
     }
 }
 
-window.onRuStorePurchaseSuccess = function() {
-    grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
+function restorePurchasesRuStore() {
+    if (window.RuStoreBilling) {
+        showToast('Проверяем покупки в RuStore...');
+        window.RuStoreBilling.restorePurchases();
+    } else {
+        showToast('RuStore не обнаружен на устройстве', 'error');
+    }
+}
+
+window.onRuStorePurchaseSuccess = function(productId) {
+    if (productId === 'sub_1y_1500') {
+        grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
+    } else {
+        grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
+    }
 };
 
 // --- МУЛЬТИ-КОМНАТНЫЙ РЕЖИМ ---
@@ -361,14 +381,14 @@ function loadRoomIntoUI(idx) {
     if (!r) return;
 
     if (typeof points !== 'undefined') {
-        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label }));
+        points = (r.points || []).map(p => ({ x: p.x, y: p.label ? p.label : '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
     if (typeof historyState !== 'undefined') historyState = [];
 
     if (typeof innerElements !== 'undefined') {
-        innerElements = r.innerElements ? JSON.parse(JSON.stringify(innerElements)) : [];
+        innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
     }
 
@@ -479,7 +499,6 @@ function directDial(phoneNum) {
     window.location.href = `tel:${clean}`;
 }
 
-// Прямой запуск Telegram из карточки клиента
 function openTelegramClient(rawPhone) {
     if (!rawPhone) return;
     let clean = rawPhone.replace(/\D/g, '');
