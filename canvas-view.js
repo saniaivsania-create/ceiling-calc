@@ -13,7 +13,6 @@ let cmPerPixel = 2.5;
 // --- РЕЖИМЫ РЕДАКТИРОВАНИЯ И ВНУТРЕННИЕ ЭЛЕМЕНТЫ ---
 let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
 let innerElements = [];
-let activeInnerId = null;
 let draggedInnerIdx = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
@@ -429,7 +428,7 @@ function getCleanDiagonals() {
     return diags;
 }
 
-// --- МАТЕМАТИКА ПРИВЯЗОК К ПЕРЕСЕКАЮЩИМСЯ СТЕНАМ ---
+// --- МАТЕМАТИКА ПРИВЯЗОК СТРОГО ОТ НАРУЖНОЙ КРОМКИ ---
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
     let aby = b.y - a.y;
@@ -443,39 +442,92 @@ function getClosestPointOnSegment(p, a, b) {
     };
 }
 
-// Поиск двух взаимно перпендикулярных стен (X и Y)
+function getClosestPointOnElementToSegment(el, p1, p2) {
+    if (el.type === 'circle') {
+        let center = { x: el.x, y: el.y };
+        let proj = getClosestPointOnSegment(center, p1, p2);
+        let distCenter = Math.hypot(proj.x - center.x, proj.y - center.y);
+        let rad = el.radius || (el.diamCm ? (el.diamCm / 2) / cmPerPixel : 20);
+        let effectiveDist = Math.max(0, distCenter - rad);
+
+        let edgePoint = { x: center.x, y: center.y };
+        if (distCenter > 0.001) {
+            edgePoint.x = center.x + ((proj.x - center.x) / distCenter) * rad;
+            edgePoint.y = center.y + ((proj.y - center.y) / distCenter) * rad;
+        }
+        return { edgePoint, proj, distPx: effectiveDist };
+    }
+
+    let edges = [];
+    if (el.type === 'rect') {
+        let hw = el.w / 2;
+        let hh = el.h / 2;
+        let c1 = { x: el.x - hw, y: el.y - hh };
+        let c2 = { x: el.x + hw, y: el.y - hh };
+        let c3 = { x: el.x + hw, y: el.y + hh };
+        let c4 = { x: el.x - hw, y: el.y + hh };
+        edges = [
+            [c1, c2], [c2, c3], [c3, c4], [c4, c1]
+        ];
+    } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
+        for (let i = 0; i < el.pts.length; i++) {
+            edges.push([el.pts[i], el.pts[(i + 1) % el.pts.length]]);
+        }
+    }
+
+    if (edges.length === 0) {
+        let center = { x: el.x, y: el.y };
+        let proj = getClosestPointOnSegment(center, p1, p2);
+        return { edgePoint: center, proj, distPx: Math.hypot(proj.x - center.x, proj.y - center.y) };
+    }
+
+    let bestDist = Infinity;
+    let bestEdgePt = edges[0][0];
+    let bestProj = getClosestPointOnSegment(edges[0][0], p1, p2);
+
+    for (let seg of edges) {
+        for (let s = 0; s <= 10; s++) {
+            let t = s / 10;
+            let samplePt = {
+                x: seg[0].x + t * (seg[1].x - seg[0].x),
+                y: seg[0].y + t * (seg[1].y - seg[0].y)
+            };
+            let pr = getClosestPointOnSegment(samplePt, p1, p2);
+            let d = Math.hypot(pr.x - samplePt.x, pr.y - samplePt.y);
+            if (d < bestDist) {
+                bestDist = d;
+                bestEdgePt = samplePt;
+                bestProj = pr;
+            }
+        }
+    }
+
+    return { edgePoint: bestEdgePt, proj: bestProj, distPx: bestDist };
+}
+
 function getElementWallDistances(el) {
     if (!el || points.length < 3) return [];
     let count = getWallCount();
     let wallDists = [];
 
-    let centerPt = { x: el.x, y: el.y };
-    if (el.type === 'poly' && el.pts && el.pts.length > 0) {
-        let sx = 0, sy = 0;
-        el.pts.forEach(p => { sx += p.x; sy += p.y; });
-        centerPt = { x: sx / el.pts.length, y: sy / el.pts.length };
-    }
-
     for (let i = 0; i < count; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        let proj = getClosestPointOnSegment(centerPt, p1, p2);
-        let distPx = Math.hypot(proj.x - centerPt.x, proj.y - centerPt.y);
 
-        let effectivePx = el.type === 'circle' ? Math.max(0, distPx - (el.radius || 0)) : distPx;
-        let distCm = Math.round(effectivePx * cmPerPixel);
-
+        let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
+        let distCm = Math.round(distPx * cmPerPixel);
         let isHorizontal = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
         wallDists.push({
             wallIdx: i,
             wallName: `${p1.label}–${p2.label}`,
             distCm,
+            edgeX: edgePoint.x,
+            edgeY: edgePoint.y,
             projX: proj.x,
             projY: proj.y,
             distPx,
-            isHorizontal,
-            centerPt
+            isHorizontal
         });
     }
 
@@ -494,7 +546,7 @@ function getElementWallDistances(el) {
     return result;
 }
 
-// --- УПРАВЛЕНИЕ ВНУТРЕННИМИ ЭЛЕМЕНТАМИ ---
+// --- УПРАВЛЕНИЕ И ИЗМЕНЕНИЕ РАЗМЕРОВ ВНУТРЕННИХ ЭЛЕМЕНТОВ ---
 function addQuickRectHatch() {
     if (!isClosed || points.length < 3) {
         showToast('Сначала замкните комнату!', 'error');
@@ -524,7 +576,7 @@ function addQuickRectHatch() {
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Добавлен люк/короб. Перетащите в нужное место');
+    showToast('Добавлен люк 120×60 см');
 }
 
 function addQuickCircleColumn() {
@@ -538,8 +590,10 @@ function addQuickCircleColumn() {
     cx /= points.length;
     cy /= points.length;
 
-    let dCm = 40;
+    let promptD = prompt('Введите диаметр колонны / трубы (см):', '40');
+    let dCm = parseFloat(promptD) || 40;
     let radPx = (dCm / 2) / cmPerPixel;
+
     innerElements.push({
         id: 'inner_' + Date.now(),
         type: 'circle',
@@ -555,7 +609,47 @@ function addQuickCircleColumn() {
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Добавлена круглая колонна ⌀40 см');
+    showToast(`Добавлена колонна ⌀${dCm} см`);
+}
+
+function editInnerElementSize(idx) {
+    let el = innerElements[idx];
+    if (!el) return;
+
+    if (el.type === 'circle') {
+        let cur = Math.round(el.diamCm || 40);
+        let val = prompt('Новый диаметр колонны (см):', cur);
+        let d = parseFloat(val);
+        if (d && d > 0) {
+            saveState();
+            el.diamCm = d;
+            el.radius = (d / 2) / cmPerPixel;
+            el.title = `Колонна ⌀${d} см`;
+            renderInnerElementsList();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast(`Диаметр изменён на ${d} см`, 'success');
+        }
+    } else if (el.type === 'rect') {
+        let curL = Math.round(el.lenCm || 120);
+        let curW = Math.round(el.widCm || 60);
+        let valL = prompt('Длина прямоугольника (см):', curL);
+        let valW = prompt('Ширина прямоугольника (см):', curW);
+        let l = parseFloat(valL);
+        let w = parseFloat(valW);
+        if (l && w && l > 0 && w > 0) {
+            saveState();
+            el.lenCm = l;
+            el.widCm = w;
+            el.w = l / cmPerPixel;
+            el.h = w / cmPerPixel;
+            el.title = `Люк ${l}×${w}`;
+            renderInnerElementsList();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast(`Размер изменён: ${l}×${w} см`, 'success');
+        }
+    }
 }
 
 function startCustomBoxDrawing() {
@@ -595,17 +689,22 @@ function renderInnerElementsList() {
         let nearest = getElementWallDistances(el);
         let distText = nearest.map(n => `${n.wallName}: ${n.distCm} см`).join(' | ');
         let sizeText = '';
+        let canEdit = el.type === 'circle' || el.type === 'rect';
+
         if (el.type === 'rect') sizeText = `${Math.round(el.lenCm)}×${Math.round(el.widCm)} см`;
         else if (el.type === 'circle') sizeText = `⌀${Math.round(el.diamCm)} см`;
         else if (el.type === 'poly') sizeText = `${el.pts.length} угл.`;
+
+        let editBtn = canEdit ? `<button class="checklist-act-btn" onclick="editInnerElementSize(${idx})" title="Изменить размер">⚙️</button>` : '';
 
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:var(--sub-block-bg); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px;">
                 <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
                     <span style="font-weight:600; color:var(--text-main);">${idx + 1}. ${el.title || 'Короб'} (${sizeText})</span>
-                    <span style="color:var(--text-muted); font-size:10px;">📍 Отступы: ${distText || '—'}</span>
+                    <span style="color:var(--text-muted); font-size:10px;">📍 От края: ${distText || '—'}</span>
                 </div>
                 <div style="display:flex; gap:4px; align-items:center;">
+                    ${editBtn}
                     <button class="checklist-act-btn" style="color:var(--danger);" onclick="deleteInnerElement(${idx})" title="Удалить">✖</button>
                 </div>
             </div>
@@ -704,10 +803,11 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов и привязок к стенам
+    // 4. Отрисовка внутренних элементов и привязок к стенам СТРОГО ОТ КРАЯ
     innerElements.forEach(el => {
         let nearest = getElementWallDistances(el);
 
+        // Линии отступов: от наружной кромки фигуры к стене
         ctx.save();
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
@@ -715,12 +815,12 @@ function drawSketch() {
 
         nearest.forEach(w => {
             ctx.beginPath();
-            ctx.moveTo(w.centerPt.x, w.centerPt.y);
+            ctx.moveTo(w.edgeX, w.edgeY); // Стартует от края
             ctx.lineTo(w.projX, w.projY);
             ctx.stroke();
 
-            let midX = (w.centerPt.x + w.projX) / 2;
-            let midY = (w.centerPt.y + w.projY) / 2;
+            let midX = (w.edgeX + w.projX) / 2;
+            let midY = (w.edgeY + w.projY) / 2;
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(midX - 22, midY - 8, 44, 16);
             ctx.fillStyle = '#ef4444';
@@ -730,15 +830,18 @@ function drawSketch() {
         });
         ctx.restore();
 
+        // Тело элемента
         ctx.save();
         ctx.strokeStyle = '#2563eb';
         ctx.lineWidth = 2;
         ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.22)';
 
         if (el.type === 'rect') {
+            let rw = el.w || (el.lenCm / cmPerPixel);
+            let rh = el.h || (el.widCm / cmPerPixel);
             ctx.setLineDash([5, 3]);
-            ctx.strokeRect(el.x - el.w / 2, el.y - el.h / 2, el.w, el.h);
-            ctx.fillRect(el.x - el.w / 2, el.y - el.h / 2, el.w, el.h);
+            ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
+            ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
 
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(el.x - 38, el.y - 9, 76, 18);
@@ -747,9 +850,10 @@ function drawSketch() {
             ctx.textAlign = 'center';
             ctx.fillText(`${Math.round(el.lenCm)}×${Math.round(el.widCm)}`, el.x, el.y + 4);
         } else if (el.type === 'circle') {
+            let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
             ctx.setLineDash([4, 3]);
             ctx.beginPath();
-            ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
+            ctx.arc(el.x, el.y, rad, 0, Math.PI * 2);
             ctx.stroke();
             ctx.fill();
 
@@ -889,10 +993,14 @@ canvas.addEventListener('pointerdown', (e) => {
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             let hit = false;
+            let rw = el.w || (el.lenCm / cmPerPixel);
+            let rh = el.h || (el.widCm / cmPerPixel);
+            let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
+
             if (el.type === 'rect') {
-                hit = (x >= el.x - el.w / 2 && x <= el.x + el.w / 2 && y >= el.y - el.h / 2 && y <= el.y + el.h / 2);
+                hit = (x >= el.x - rw / 2 && x <= el.x + rw / 2 && y >= el.y - rh / 2 && y <= el.y + rh / 2);
             } else if (el.type === 'circle') {
-                hit = Math.hypot(el.x - x, el.y - y) <= el.radius;
+                hit = Math.hypot(el.x - x, el.y - y) <= rad;
             } else if (el.type === 'poly') {
                 hit = Math.hypot(el.x - x, el.y - y) <= 35;
             }
