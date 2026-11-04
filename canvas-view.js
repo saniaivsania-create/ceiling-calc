@@ -32,12 +32,6 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-function relabelPoints() {
-    points.forEach((p, idx) => {
-        p.label = getPointLabel(idx);
-    });
-}
-
 function saveState() {
     historyState.push({
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
@@ -158,22 +152,7 @@ setTimeout(() => {
     drawSketch();
 }, 120);
 
-// --- ГЕОМЕТРИЯ ОСНОВНОГО ПЕРИМЕТРА ---
-function untanglePolygon() {
-    if (!isClosed || points.length < 4) return;
-    let cx = 0, cy = 0;
-    points.forEach(p => { cx += p.x; cy += p.y; });
-    cx /= points.length;
-    cy /= points.length;
-
-    points.sort((a, b) => {
-        let angA = Math.atan2(a.y - cy, a.x - cx);
-        let angB = Math.atan2(b.y - cy, b.x - cx);
-        return angA - angB;
-    });
-    relabelPoints();
-}
-
+// --- ГЕОМЕТРИЯ ПЕРИМЕТРА (БЕЗ ПЕРЕМЕШИВАНИЯ БУКВ) ---
 function getWallCount() {
     if (points.length < 2) return 0;
     return isClosed ? points.length : points.length - 1;
@@ -227,6 +206,7 @@ function updateHint() {
     }
 }
 
+// Замыкание: сохраняет буквы A, B, C, D... на своих местах БЕЗ ПЕРЕМЕШИВАНИЯ
 function closePolygon() {
     if (isSketchLocked) return;
     if (points.length < 3) {
@@ -235,7 +215,6 @@ function closePolygon() {
     }
     saveState();
     isClosed = !isClosed;
-    if (isClosed) untanglePolygon();
     rebuildWallInputs();
     updateHint();
     drawSketch();
@@ -628,7 +607,6 @@ function openInnerEditSheet(idx) {
 
     document.getElementById('innerSheetTitle').innerText = `📦 ${el.title || 'Элемент'}`;
 
-    // 1. Формирование полей собственных размеров
     const dimBlock = document.getElementById('innerDimensionsBlock');
     if (el.type === 'circle') {
         let dMm = Math.round((el.diamCm || 40) * 10);
@@ -655,7 +633,6 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Произвольный короб (${el.pts ? el.pts.length : 0} углов)</span>`;
     }
 
-    // 2. Выбор стен и текущие отступы
     let count = getWallCount();
     let wallOptions = '';
     for (let i = 0; i < count; i++) {
@@ -692,7 +669,6 @@ function applyInnerSheetSettings() {
     saveState();
     let el = innerElements[selectedInnerIdx];
 
-    // Применение размеров
     if (el.type === 'circle') {
         let dMm = parseFloat(document.getElementById('sheetInnerDiam')?.value);
         if (dMm && dMm > 0) {
@@ -712,7 +688,6 @@ function applyInnerSheetSettings() {
         }
     }
 
-    // Применение точных отступов к стенам
     let wIdx1 = parseInt(document.getElementById('innerWallSelect1').value);
     let d1Mm = parseFloat(document.getElementById('innerWallDist1').value);
 
@@ -907,7 +882,6 @@ function drawSketch() {
     innerElements.forEach((el, idx) => {
         let nearest = getElementWallDistances(el);
 
-        // Линии отступов: строго от кромки
         ctx.save();
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
@@ -930,7 +904,6 @@ function drawSketch() {
         });
         ctx.restore();
 
-        // Тело элемента
         ctx.save();
         ctx.strokeStyle = '#2563eb';
         ctx.lineWidth = 2;
@@ -943,7 +916,6 @@ function drawSketch() {
             ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
             ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
 
-            // Размеры на гранях прямоугольника
             ctx.fillStyle = badgeBgColor;
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
@@ -981,7 +953,6 @@ function drawSketch() {
             ctx.stroke();
             ctx.fill();
 
-            // Размеры сторон многоугольника
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
             for (let i = 0; i < el.pts.length; i++) {
@@ -1114,7 +1085,7 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Проверка клика по внутреннему элементу (открытие шторки или перетаскивание)
+    // Проверка клика по внутреннему элементу
     for (let i = innerElements.length - 1; i >= 0; i--) {
         let el = innerElements[i];
         let hit = false;
@@ -1131,7 +1102,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
 
         if (hit) {
-            // Если в режиме коробов — открываем шторку точных настроек
             if (editMode === 'inner') {
                 openInnerEditSheet(i);
                 return;
@@ -1145,14 +1115,7 @@ canvas.addEventListener('pointerdown', (e) => {
     }
 
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
-        saveState();
-        isClosed = true;
-        untanglePolygon();
-        rebuildWallInputs();
-        updateHint();
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast('Контур замкнут!', 'success');
+        closePolygon();
         return;
     }
 
@@ -1206,8 +1169,7 @@ canvas.addEventListener('pointerdown', (e) => {
                     bestWallIdx = i;
                 }
             }
-            points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
-            untanglePolygon();
+            points.splice(bestWallIdx + 1, 0, { x, y, label: getPointLabel(points.length) });
             const presetCorners = document.getElementById('presetCornersCount');
             if (presetCorners) presetCorners.value = points.length;
             rebuildWallInputs();
@@ -1327,7 +1289,7 @@ function syncInputsValuesOnly() {
     }
 }
 
-// Перестроение чертежа по введённым метрам без искажения формы
+// Стабильный расчёт длины стены: без перекручивания углов и без смены букв
 function onWallLengthEdit(wallIndex, valStr) {
     let m = parseFloat(valStr);
     if (!m || m <= 0) return;
@@ -1392,7 +1354,7 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        else if (dir === 'L') nx -= px;
+        else if (dir === 'L') nx += px;
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
@@ -1449,7 +1411,6 @@ function createFromTablePreset() {
     }
 
     isClosed = true;
-    untanglePolygon();
     fitToScreen(true);
     rebuildWallInputs();
     updateHint();
