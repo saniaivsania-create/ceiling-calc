@@ -184,15 +184,20 @@
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- ВСТАВКА С ГАЛОЧКОЙ (СЧИТАТЬ / НЕ СЧИТАТЬ) -->
                     <div class="item-row">
-                        <label>Вставка (м.п.)</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="useInsertCheckbox" onchange="toggleInsertUsage()" style="width: 17px; height: 17px; accent-color: var(--indigo-main); cursor: pointer;">
+                            <span>Вставка (м.п.)</span>
+                        </label>
                         <div class="stepper-box">
                             <button class="stepper-btn" onclick="stepValue('countInsert', -1, 0, 300)">−</button>
                             <input type="number" id="countInsert" class="input-field" value="0" step="0.5" oninput="syncCurrentRoomState()">
                             <button class="stepper-btn" onclick="stepValue('countInsert', 1, 0, 300)">+</button>
                         </div>
-                        <input type="number" id="priceInsert" class="input-field price-persist" value="50" oninput="saveUserPrices()">
+                        <input type="number" id="priceInsert" class="input-field price-persist" value="80" oninput="saveUserPrices()">
                     </div>
+
                     <div class="item-row">
                         <label>Светильники (шт)</label>
                         <div class="stepper-box">
@@ -400,7 +405,7 @@
         </div>
     </nav>
 
-    <!-- НОВАЯ ШТОРКА: ТОЧНЫЕ ПАРАМЕТРЫ И ПРИВЯЗКА ЭЛЕМЕНТА (ПО ТАПУ НА ФИГУРУ) -->
+    <!-- ШТОРКА: ТОЧНЫЕ ПАРАМЕТРЫ И ПРИВЯЗКА ЭЛЕМЕНТА ПО ТАПУ -->
     <div class="bottom-sheet-overlay" id="innerEditSheetOverlay" onclick="closeInnerEditSheet()">
         <div class="bottom-sheet" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
@@ -446,7 +451,7 @@
                 <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="мм" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="м" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
                 <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
