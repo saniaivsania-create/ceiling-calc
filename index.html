@@ -133,7 +133,7 @@
             <!-- ДЛИНЫ СТЕН ОСНОВНОГО ПЕРИМЕТРА -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>📏 Длины внешних стен (см)</span>
+                    <span>📏 Длины внешних стен</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span id="wallsAnglesBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
                         <button class="theme-toggle-btn" onclick="toggleDirectionsMode()" id="dirToggleBtn" style="padding: 3px 7px; font-size: 10px;">⚙️ Направления</button>
@@ -400,16 +400,53 @@
         </div>
     </nav>
 
+    <!-- НОВАЯ ШТОРКА: ТОЧНЫЕ ПАРАМЕТРЫ И ПРИВЯЗКА ЭЛЕМЕНТА (ПО ТАПУ НА ФИГУРУ) -->
+    <div class="bottom-sheet-overlay" id="innerEditSheetOverlay" onclick="closeInnerEditSheet()">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <span class="sheet-title" id="innerSheetTitle">📦 Параметры элемента</span>
+                <button class="btn" onclick="closeInnerEditSheet()" style="padding: 6px 10px;">✖</button>
+            </div>
+
+            <!-- Блок 1: Собственные размеры элемента -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (ММ):</span>
+                <div id="innerDimensionsBlock" style="display: flex; gap: 8px;"></div>
+            </div>
+
+            <!-- Блок 2: Точные отступы от стен -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (ММ):</span>
+                
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
+                    <select class="dir-select" id="innerWallSelect1"></select>
+                    <input type="number" id="innerWallDist1" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
+                    <select class="dir-select" id="innerWallSelect2"></select>
+                    <input type="number" id="innerWallDist2" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-primary" onclick="applyInnerSheetSettings()" style="flex: 1; padding: 12px; font-size: 13px;">💾 Применить</button>
+                <button class="btn btn-danger" onclick="deleteCurrentInnerFromSheet()" style="padding: 12px 14px; font-size: 13px;" title="Удалить этот короб">🗑️</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ -->
     <div class="bottom-sheet-overlay" id="wallEditSheetOverlay" onclick="closeWallEditSheet()">
         <div class="bottom-sheet" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
             <div class="sheet-header">
-                <span class="sheet-title" id="wallEditSheetTitle">📏 Длина стены A–B (см)</span>
+                <span class="sheet-title" id="wallEditSheetTitle">📏 Длина стены A–B</span>
                 <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="см" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="мм" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
                 <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
