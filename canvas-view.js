@@ -11,13 +11,12 @@ let isDragging = false;
 let cmPerPixel = 2.5;
 
 // --- РЕЖИМЫ РЕДАКТИРОВАНИЯ И ВНУТРЕННИЕ ЭЛЕМЕНТЫ ---
-// editMode: 'room' (внешние стены) | 'inner' (внутренние короба/колонны) | 'drawing_poly' (рисование произвольного короба)
-let editMode = 'room';
+let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
 let innerElements = [];
 let activeInnerId = null;
 let draggedInnerIdx = null;
 let innerDragOffset = { x: 0, y: 0 };
-let activeDrawingPoly = []; // временные точки для произвольного короба
+let activeDrawingPoly = [];
 
 let editingWallIdx = null;
 let wallHitBoxes = [];
@@ -286,16 +285,18 @@ function rotateSketch() {
         p.y = cy + dx;
     });
 
-    // Поворачиваем также внутренние элементы
     innerElements.forEach(el => {
         let edx = el.x - cx;
         let edy = el.y - cy;
         el.x = cx - edy;
         el.y = cy + edx;
         if (el.type === 'rect') {
-            let tmp = el.w;
+            let tmpW = el.w;
             el.w = el.h;
-            el.h = tmp;
+            el.h = tmpW;
+            let tmpCm = el.lenCm;
+            el.lenCm = el.widCm;
+            el.widCm = tmpCm;
         } else if (el.type === 'poly' && el.pts) {
             el.pts.forEach(pt => {
                 let pdx = pt.x - cx;
@@ -333,7 +334,6 @@ function fitToScreen(forceFit = false) {
 
     let availW = Math.max(canvas.width - pad * 2, 60);
     let availH = Math.max(canvas.height - pad * 2, 60);
-
     let factor = Math.min(availW / polyW, availH / polyH);
 
     if (factor < 1 || factor > 1.35 || forceFit) {
@@ -429,7 +429,7 @@ function getCleanDiagonals() {
     return diags;
 }
 
-// --- МАТЕМАТИКА ПРИВЯЗОК К БЛИЖАЙШИМ СТЕНАМ ---
+// --- МАТЕМАТИКА ПРИВЯЗОК К ПЕРЕСЕКАЮЩИМСЯ СТЕНАМ ---
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
     let aby = b.y - a.y;
@@ -443,6 +443,7 @@ function getClosestPointOnSegment(p, a, b) {
     };
 }
 
+// Поиск двух взаимно перпендикулярных стен (X и Y)
 function getElementWallDistances(el) {
     if (!el || points.length < 3) return [];
     let count = getWallCount();
@@ -461,9 +462,10 @@ function getElementWallDistances(el) {
         let proj = getClosestPointOnSegment(centerPt, p1, p2);
         let distPx = Math.hypot(proj.x - centerPt.x, proj.y - centerPt.y);
 
-        // Для круглой колонны считаем чистый зазор от края до стены
         let effectivePx = el.type === 'circle' ? Math.max(0, distPx - (el.radius || 0)) : distPx;
         let distCm = Math.round(effectivePx * cmPerPixel);
+
+        let isHorizontal = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
         wallDists.push({
             wallIdx: i,
@@ -472,12 +474,24 @@ function getElementWallDistances(el) {
             projX: proj.x,
             projY: proj.y,
             distPx,
+            isHorizontal,
             centerPt
         });
     }
 
-    wallDists.sort((a, b) => a.distPx - b.distPx);
-    return wallDists.slice(0, 2);
+    let horizWalls = wallDists.filter(w => w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+    let vertWalls = wallDists.filter(w => !w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+
+    let result = [];
+    if (horizWalls.length > 0) result.push(horizWalls[0]);
+    if (vertWalls.length > 0) result.push(vertWalls[0]);
+
+    if (result.length < 2) {
+        wallDists.sort((a, b) => a.distPx - b.distPx);
+        return wallDists.slice(0, 2);
+    }
+
+    return result;
 }
 
 // --- УПРАВЛЕНИЕ ВНУТРЕННИМИ ЭЛЕМЕНТАМИ ---
@@ -526,7 +540,6 @@ function addQuickCircleColumn() {
 
     let dCm = 40;
     let radPx = (dCm / 2) / cmPerPixel;
-
     innerElements.push({
         id: 'inner_' + Date.now(),
         type: 'circle',
@@ -581,7 +594,6 @@ function renderInnerElementsList() {
     container.innerHTML = innerElements.map((el, idx) => {
         let nearest = getElementWallDistances(el);
         let distText = nearest.map(n => `${n.wallName}: ${n.distCm} см`).join(' | ');
-
         let sizeText = '';
         if (el.type === 'rect') sizeText = `${Math.round(el.lenCm)}×${Math.round(el.widCm)} см`;
         else if (el.type === 'circle') sizeText = `⌀${Math.round(el.diamCm)} см`;
@@ -696,7 +708,6 @@ function drawSketch() {
     innerElements.forEach(el => {
         let nearest = getElementWallDistances(el);
 
-        // Линии отступов к ближайшим стенам
         ctx.save();
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
@@ -711,7 +722,7 @@ function drawSketch() {
             let midX = (w.centerPt.x + w.projX) / 2;
             let midY = (w.centerPt.y + w.projY) / 2;
             ctx.fillStyle = badgeBgColor;
-            ctx.fillRect(midX - 20, midY - 8, 40, 16);
+            ctx.fillRect(midX - 22, midY - 8, 44, 16);
             ctx.fillStyle = '#ef4444';
             ctx.font = '700 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
@@ -719,7 +730,6 @@ function drawSketch() {
         });
         ctx.restore();
 
-        // Тело элемента
         ctx.save();
         ctx.strokeStyle = '#2563eb';
         ctx.lineWidth = 2;
@@ -761,7 +771,6 @@ function drawSketch() {
         ctx.restore();
     });
 
-    // Рисование активного произвольного короба
     if (activeDrawingPoly.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#f59e0b';
@@ -841,13 +850,13 @@ function drawSketch() {
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
+
     if (document.activeElement) document.activeElement.blur();
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Режим рисования произвольного короба
     if (editMode === 'drawing_poly') {
         if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 25) {
             saveState();
@@ -876,7 +885,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Режим работы с внутренними элементами (перетаскивание)
     if (editMode === 'inner') {
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
@@ -888,7 +896,6 @@ canvas.addEventListener('pointerdown', (e) => {
             } else if (el.type === 'poly') {
                 hit = Math.hypot(el.x - x, el.y - y) <= 35;
             }
-
             if (hit) {
                 saveState();
                 draggedInnerIdx = i;
@@ -899,7 +906,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Режим комнаты: замыкание контура
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         saveState();
         isClosed = true;
@@ -912,7 +918,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Захват вершины комнаты
     if (editMode === 'room') {
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
@@ -925,7 +930,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Клик по стене для ввода длины
     for (let box of wallHitBoxes) {
         if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
             openWallEditSheet(box.wallIdx);
@@ -938,7 +942,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Добавление точки в контур комнаты
     if (editMode === 'room') {
         if (!isClosed) {
             saveState();
@@ -983,7 +986,6 @@ canvas.addEventListener('pointermove', (e) => {
     const curX = e.clientX - rect.left;
     const curY = e.clientY - rect.top;
 
-    // Перемещение угла комнаты
     if (isDragging && draggedPointIndex !== null) {
         e.preventDefault();
         let p = points[draggedPointIndex];
@@ -996,26 +998,21 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    // Перемещение внутреннего элемента
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
         let newX = Math.max(20, Math.min(canvas.width - 20, curX - innerDragOffset.x));
         let newY = Math.max(20, Math.min(canvas.height - 20, curY - innerDragOffset.y));
-
         let dx = newX - el.x;
         let dy = newY - el.y;
-
         el.x = newX;
         el.y = newY;
-
         if (el.type === 'poly' && el.pts) {
             el.pts.forEach(pt => {
                 pt.x += dx;
                 pt.y += dy;
             });
         }
-
         renderInnerElementsList();
         drawSketch();
     }
