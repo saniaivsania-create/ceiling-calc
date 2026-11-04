@@ -91,6 +91,10 @@
                         </div>
 
                         <div class="fab-group">
+                            <!-- Кнопка переключения слоя: Контур комнаты / Короба -->
+                            <button class="canvas-fab" id="layerSwitchBtn" onclick="toggleEditLayer()" title="Слой: Комната / Короба">
+                                <span style="font-size: 14px;">📦</span>
+                            </button>
                             <button class="canvas-fab" onclick="snapOrthogonal()" title="Выровнять углы 90°">
                                 <svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M4 14h6v6"/></svg>
                             </button>
@@ -105,9 +109,31 @@
                 </div>
             </div>
 
+            <!-- ПАНЕЛЬ ДОБАВЛЕНИЯ ВНУТРЕННИХ ФИГУР (КОРОБОВ И КОЛОНН) -->
+            <div class="section-card" id="innerElementsToolbar" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="section-title">
+                    <span>📦 Внутренние короба и колонны</span>
+                    <span id="innerCountBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">0 шт.</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                    <button class="btn btn-primary" onclick="addQuickRectHatch()" style="padding: 9px 4px; font-size: 11px;">
+                        ➕ Прямоуг./Люк
+                    </button>
+                    <button class="btn btn-primary" onclick="addQuickCircleColumn()" style="padding: 9px 4px; font-size: 11px;">
+                        ➕ Круг/Колонна
+                    </button>
+                    <button class="btn" id="customPolyBoxBtn" onclick="startCustomBoxDrawing()" style="padding: 9px 4px; font-size: 11px;">
+                        ✏️ Произвольный
+                    </button>
+                </div>
+                <!-- Список добавленных элементов с отступами -->
+                <div id="innerElementsContainer" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;"></div>
+            </div>
+
+            <!-- ДЛИНЫ СТЕН ОСНОВНОГО ПЕРИМЕТРА -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>📏 Длины стен (см)</span>
+                    <span>📏 Длины внешних стен (см)</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span id="wallsAnglesBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
                         <button class="theme-toggle-btn" onclick="toggleDirectionsMode()" id="dirToggleBtn" style="padding: 3px 7px; font-size: 10px;">⚙️ Направления</button>
@@ -211,42 +237,23 @@
                 </div>
             </div>
 
-            <!-- МОДУЛЬ: ЧЕРДАЧНЫЙ ЛЮК / КОРОБ / ОБХОД (НОВЫЙ БЛОК) -->
+            <!-- МОДУЛЬ: ПРАЙС НА ПРОФИЛЬ / БРУС ДЛЯ КОРОБОВ И ЛЮКОВ -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>🚪 Чердачный люк / Внутренний короб</span>
-                    <span style="font-size: 11px; color: var(--text-muted);" id="hatchBadge">0 шт.</span>
+                    <span>📦 Профиль / Брус внутренних коробов</span>
+                    <span style="font-size: 10px; color: var(--success); text-transform: none;">💾 Прайс</span>
                 </div>
                 <div class="grid-inputs">
                     <div class="input-card-box">
-                        <label>Длина люка (см)</label>
-                        <input type="number" id="hatchLength" class="input-field" value="120" step="1" oninput="syncCurrentRoomState()">
+                        <label>Профиль короба / люка (₽ за 1 м.п.)</label>
+                        <input type="number" id="priceHatch" class="input-field price-persist" value="600" oninput="saveUserPrices(); syncCurrentRoomState();">
                     </div>
-                    <div class="input-card-box">
-                        <label>Ширина люка (см)</label>
-                        <input type="number" id="hatchWidth" class="input-field" value="60" step="1" oninput="syncCurrentRoomState()">
+                    <div class="input-card-box" style="display: flex; justify-content: center; align-items: flex-start; padding-top: 14px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer;">
+                            <input type="checkbox" id="hatchSubtractArea" checked onchange="syncCurrentRoomState()" style="width: 16px; height: 16px; accent-color: var(--indigo-main);">
+                            <span>Вычитать площадь коробов</span>
+                        </label>
                     </div>
-                </div>
-
-                <div class="table-header">
-                    <span>Элемент</span>
-                    <span style="text-align: center;">Кол-во</span>
-                    <span>Цена (₽/м.п.)</span>
-                </div>
-
-                <div class="item-row">
-                    <label>Профиль / брус люка</label>
-                    <div class="stepper-box">
-                        <button class="stepper-btn" onclick="stepValue('countHatch', -1, 0, 10)">−</button>
-                        <input type="number" id="countHatch" class="input-field" value="0" oninput="syncCurrentRoomState()">
-                        <button class="stepper-btn" onclick="stepValue('countHatch', 1, 0, 10)">+</button>
-                    </div>
-                    <input type="number" id="priceHatch" class="input-field price-persist" value="600" oninput="saveUserPrices()">
-                </div>
-
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-                    <input type="checkbox" id="hatchSubtractArea" checked onchange="syncCurrentRoomState()" style="width: 16px; height: 16px; accent-color: var(--indigo-main);">
-                    <label for="hatchSubtractArea" style="font-size: 12px; color: var(--text-main); cursor: pointer;">Вычитать площадь люка из полотна потолка</label>
                 </div>
             </div>
 
@@ -347,7 +354,7 @@
                 <div style="font-size: 11px; color: var(--text-muted);">Добавляйте свои позиции, отмечайте галочками перед выездом (всё сохраняется автоматически):</div>
                 
                 <div style="display: flex; gap: 6px;">
-                    <input type="text" id="newChecklistItemInput" class="input-field" placeholder="Новый пункт (напр: Люк 120х60, Брус...)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
+                    <input type="text" id="newChecklistItemInput" class="input-field" placeholder="Новый пункт (напр: Брус 50х50, Вставка...)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
                     <button class="btn btn-primary" onclick="addChecklistItem()" style="white-space: nowrap; padding: 0 14px;">➕ Добавить</button>
                 </div>
 
@@ -365,8 +372,8 @@
                     <span>📝 Быстрые заметки по объекту</span>
                     <button class="btn btn-primary" onclick="saveNotebook()" style="padding: 4px 10px; font-size: 11px;">💾 Сохранить</button>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания (высота, особенности стен, чердак, крепеж):</div>
-                <textarea id="zamerNotebook" class="input-field" style="min-height: 160px; resize: vertical; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Люк чердачный у стены, требуется брус 50х50..." oninput="autoSaveNotebook()"></textarea>
+                <div style="font-size: 11px; color: var(--text-muted);">Записывайте сюда примечания (высота, особенности стен, вырезы, крепеж):</div>
+                <textarea id="zamerNotebook" class="input-field" style="min-height: 160px; resize: vertical; padding: 10px; font-size: 14px; line-height: 1.4;" placeholder="Например: Стены из газобетона, короб вентиляции у стены B-C..." oninput="autoSaveNotebook()"></textarea>
             </div>
         </div>
     </div>
@@ -480,7 +487,7 @@
         </div>
     </div>
 
-    <!-- ПОДКЛЮЧЕНИЕ СКРИПТОВ (ПО ПОРЯДКУ) -->
+    <!-- ПОДКЛЮЧЕНИЕ СКРИПТОВ -->
     <script src="canvas-view.js"></script>
     <script src="calc-export.js"></script>
     <script src="app-core.js"></script>
