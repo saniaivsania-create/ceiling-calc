@@ -32,6 +32,35 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
+// --- УМНЫЙ ВВОД РАЗМЕРОВ (КАК НА ЛАЗЕРНОЙ РУЛЕТКЕ) ---
+function formatLaserInput(rawVal) {
+    if (!rawVal) return '';
+    // Заменяем запятую на точку и убираем всё лишнее
+    let val = rawVal.toString().replace(',', '.').replace(/[^0-9.]/g, '');
+    
+    // Если точку уже поставили вручную — просто убираем лишние точки
+    if (val.includes('.')) {
+        let parts = val.split('.');
+        return parts[0] + '.' + parts.slice(1).join('').substring(0, 3);
+    }
+    
+    // Если вбивают подряд сплошные цифры:
+    if (val.length === 3) {
+        // Например 361 -> 3.610 м, или 650 -> 0.650 м
+        let num = parseInt(val, 10);
+        if (num < 100) return val;
+        let m = (num / 100).toFixed(3);
+        return m;
+    } else if (val.length >= 4) {
+        // Например 3615 -> 3.615 м
+        let num = parseInt(val.substring(0, 5), 10);
+        let m = (num / 1000).toFixed(3);
+        return m;
+    }
+    
+    return val;
+}
+
 // --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
 function persistSketchToStorage() {
     try {
@@ -188,7 +217,7 @@ setTimeout(() => {
     drawSketch();
 }, 120);
 
-// --- ГЕОМЕТРИЯ ПЕРИМЕТРА (БЕЗ ПЕРЕМЕШИВАНИЯ БУКВ) ---
+// --- ГЕОМЕТРИЯ ПЕРИМЕТРА ---
 function getWallCount() {
     if (points.length < 2) return 0;
     return isClosed ? points.length : points.length - 1;
@@ -829,7 +858,7 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА (С ПРОВЕРКОЙ ЧИТАЕМОСТИ И БЕЗ НАЛОЖЕНИЙ) ---
+// --- ОТРИСОВКА ХОЛСТА ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1128,7 +1157,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Проверка клика по внутреннему элементу
     for (let i = innerElements.length - 1; i >= 0; i--) {
         let el = innerElements[i];
         let hit = false;
@@ -1157,7 +1185,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Замыкание контура при тапе в начальную точку А
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         closePolygon();
         return;
@@ -1278,7 +1305,7 @@ canvas.addEventListener('pointerup', () => {
     draggedInnerIdx = null;
 });
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
+// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ (С УМНЫМ ВВОДОМ) ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -1310,7 +1337,7 @@ function rebuildWallInputs() {
         row.className = 'wall-row-input';
         row.innerHTML = `
             <span class="wall-row-label"><b>${p1.label}–${p2.label}</b></span>
-            <input type="number" step="0.001" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="onWallLengthEdit(${i}, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+            <input type="text" inputmode="decimal" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
             <div class="wall-dir-wrap">
                 <select class="dir-select" id="wall-dir-${i}" onchange="onWallDirEdit(${i})">
                     <option value="U" ${dir === 'U' ? 'selected' : ''}>⬆️ Вверх</option>
@@ -1324,6 +1351,12 @@ function rebuildWallInputs() {
     }
 }
 
+function handleWallSmartInput(wallIndex, inputEl) {
+    let formatted = formatLaserInput(inputEl.value);
+    inputEl.value = formatted;
+    onWallLengthEdit(wallIndex, formatted);
+}
+
 function syncInputsValuesOnly() {
     let wallCount = getWallCount();
     for (let i = 0; i < wallCount; i++) {
@@ -1331,7 +1364,7 @@ function syncInputsValuesOnly() {
         let p2 = points[(i + 1) % points.length];
         let distM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
         let input = document.getElementById(`wall-input-${i}`);
-        if (input) input.value = distM;
+        if (input && document.activeElement !== input) input.value = distM;
         let dirSel = document.getElementById(`wall-dir-${i}`);
         if (dirSel) dirSel.value = detectWallDir(p1, p2);
     }
@@ -1470,7 +1503,7 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
-// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ ---
+// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ (С УМНЫМ ВВОДОМ) ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
@@ -1480,7 +1513,13 @@ function openWallEditSheet(wallIdx) {
 
     document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (м)`;
     const sheetInput = document.getElementById('wallSheetInput');
+    sheetInput.type = "text";
+    sheetInput.setAttribute("inputmode", "decimal");
     sheetInput.value = curVal;
+    sheetInput.oninput = function() {
+        this.value = formatLaserInput(this.value);
+    };
+
     document.getElementById('wallEditSheetOverlay').classList.add('open');
     setTimeout(() => {
         sheetInput.focus();
@@ -1495,7 +1534,9 @@ function closeWallEditSheet() {
 
 function applyWallSheetValue() {
     if (editingWallIdx === null) return;
-    let val = parseFloat(document.getElementById('wallSheetInput').value);
+    let raw = document.getElementById('wallSheetInput').value;
+    let formatted = formatLaserInput(raw);
+    let val = parseFloat(formatted);
     if (val && val > 0) {
         let inp = document.getElementById(`wall-input-${editingWallIdx}`);
         if (inp) inp.value = val.toFixed(3);
