@@ -10,11 +10,14 @@ let draggedPointIndex = null;
 let isDragging = false;
 let cmPerPixel = 2.5;
 
-// Переменные для перемещения и поворота люка
-let isDraggingHatch = false;
-let hatchDragOffset = { x: 0, y: 0 };
-let hatchPos = null; // { x, y } в координатах экрана
-let isHatchRotated = false;
+// --- РЕЖИМЫ РЕДАКТИРОВАНИЯ И ВНУТРЕННИЕ ЭЛЕМЕНТЫ ---
+// editMode: 'room' (внешние стены) | 'inner' (внутренние короба/колонны) | 'drawing_poly' (рисование произвольного короба)
+let editMode = 'room';
+let innerElements = [];
+let activeInnerId = null;
+let draggedInnerIdx = null;
+let innerDragOffset = { x: 0, y: 0 };
+let activeDrawingPoly = []; // временные точки для произвольного короба
 
 let editingWallIdx = null;
 let wallHitBoxes = [];
@@ -41,8 +44,8 @@ function saveState() {
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
         closed: isClosed,
         scale: cmPerPixel,
-        hatchPos: hatchPos ? { ...hatchPos } : null,
-        isHatchRotated
+        inner: JSON.parse(JSON.stringify(innerElements)),
+        editMode
     });
     if (historyState.length > 40) historyState.shift();
 }
@@ -51,23 +54,25 @@ function undoPoint() {
     if (isSketchLocked) return;
     if (historyState.length > 0) {
         let st = historyState.pop();
-        points = st.pts;
-        isClosed = st.closed;
-        cmPerPixel = st.scale;
-        hatchPos = st.hatchPos ? { ...st.hatchPos } : null;
-        isHatchRotated = !!st.isHatchRotated;
+        points = st.pts || [];
+        isClosed = !!st.closed;
+        cmPerPixel = st.scale || 2.5;
+        innerElements = st.inner || [];
+        editMode = st.editMode || 'room';
     } else {
         points = [];
         isClosed = false;
         cmPerPixel = 2.5;
-        hatchPos = null;
-        isHatchRotated = false;
+        innerElements = [];
+        editMode = 'room';
     }
+    activeDrawingPoly = [];
     const presetCorners = document.getElementById('presetCornersCount');
     if (presetCorners && points.length >= 3) {
         presetCorners.value = points.length;
     }
     rebuildWallInputs();
+    renderInnerElementsList();
     updateHint();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
@@ -79,9 +84,11 @@ function resetSketch() {
     points = [];
     isClosed = false;
     cmPerPixel = 2.5;
-    hatchPos = null;
-    isHatchRotated = false;
+    innerElements = [];
+    activeDrawingPoly = [];
+    editMode = 'room';
     rebuildWallInputs();
+    renderInnerElementsList();
     updateHint();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
@@ -93,22 +100,44 @@ function toggleSketchLock() {
     const lockBtn = document.getElementById('sketchLockSvg');
     const btnWrap = document.getElementById('lockSketchBtn');
     if (isSketchLocked) {
-        btnWrap.classList.add('fab-active');
-        lockBtn.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
-        showToast('🛡️ Чертёж заблокирован от касаний');
+        btnWrap?.classList.add('fab-active');
+        if (lockBtn) lockBtn.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
+        showToast('🛡️ Чертёж заблокирован от случайных касаний');
     } else {
-        btnWrap.classList.remove('fab-active');
-        lockBtn.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
+        btnWrap?.classList.remove('fab-active');
+        if (lockBtn) lockBtn.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
         showToast('🔓 Чертёж разблокирован');
     }
     updateHint();
 }
 
+function toggleEditLayer() {
+    if (!isClosed || points.length < 3) {
+        showToast('Сначала замкните контур комнаты!', 'error');
+        return;
+    }
+    if (editMode === 'room') {
+        editMode = 'inner';
+        showToast('Режим: Короба и Колонны (стены зафиксированы)', 'success');
+    } else {
+        editMode = 'room';
+        activeDrawingPoly = [];
+        showToast('Режим: Стены комнаты');
+    }
+    const layerBtn = document.getElementById('layerSwitchBtn');
+    if (layerBtn) {
+        layerBtn.classList.toggle('fab-active', editMode !== 'room');
+    }
+    updateHint();
+    drawSketch();
+}
+
 function toggleFullscreen() {
     const card = document.getElementById('canvasCard');
     const isFull = card.classList.toggle('fullscreen');
-    document.getElementById('bottomFullscreenBtn').classList.toggle('fab-active', isFull);
-    document.getElementById('fsCloseTopBtn').style.display = isFull ? 'block' : 'none';
+    document.getElementById('bottomFullscreenBtn')?.classList.toggle('fab-active', isFull);
+    const topClose = document.getElementById('fsCloseTopBtn');
+    if (topClose) topClose.style.display = isFull ? 'block' : 'none';
     setTimeout(() => {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
@@ -129,7 +158,7 @@ setTimeout(() => {
     drawSketch();
 }, 120);
 
-// --- ГЕОМЕТРИЯ ---
+// --- ГЕОМЕТРИЯ ОСНОВНОГО ПЕРИМЕТРА ---
 function untanglePolygon() {
     if (!isClosed || points.length < 4) return;
     let cx = 0, cy = 0;
@@ -164,25 +193,36 @@ function updateHint() {
     const hint = document.getElementById('actionHint');
     const closeBtn = document.getElementById('closeContourBtn');
     const lockSvg = document.getElementById('lockIconSvg');
+    if (!hint) return;
 
     if (isSketchLocked) {
         hint.innerText = '🛡️ Чертёж заблокирован. Нажмите щит для разблокировки';
         return;
     }
 
+    if (editMode === 'drawing_poly') {
+        hint.innerText = `✏️ Ставьте точки короба (${activeDrawingPoly.length}). Тапните на 1-ю точку для завершения`;
+        return;
+    }
+
+    if (editMode === 'inner') {
+        hint.innerText = '📦 Перетаскивайте короба пальцем или добавляйте новые кнопками ниже';
+        return;
+    }
+
     if (points.length === 0) {
         hint.innerText = 'Тапните на холст для точки А или создайте шаблон';
-        closeBtn.classList.remove('fab-active');
+        closeBtn?.classList.remove('fab-active');
     } else if (!isClosed) {
         let nextLabel = getPointLabel(points.length);
         hint.innerText = points.length < 3
             ? `Ставьте по очереди точку ${nextLabel}`
             : `Ставьте точку ${nextLabel} или нажмите замочек 🔒`;
-        closeBtn.classList.remove('fab-active');
+        closeBtn?.classList.remove('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
     } else {
-        hint.innerText = `Тяните углы или люк; тапните на стену для ввода длины`;
-        closeBtn.classList.add('fab-active');
+        hint.innerText = `Тяните углы; нажмите 📦 для добавления коробов и люков`;
+        closeBtn?.classList.add('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
     }
 }
@@ -245,16 +285,31 @@ function rotateSketch() {
         p.x = cx - dy;
         p.y = cy + dx;
     });
-    if (hatchPos) {
-        let hdx = hatchPos.x - cx;
-        let hdy = hatchPos.y - cy;
-        hatchPos.x = cx - hdy;
-        hatchPos.y = cy + hdx;
-        isHatchRotated = !isHatchRotated;
-    }
+
+    // Поворачиваем также внутренние элементы
+    innerElements.forEach(el => {
+        let edx = el.x - cx;
+        let edy = el.y - cy;
+        el.x = cx - edy;
+        el.y = cy + edx;
+        if (el.type === 'rect') {
+            let tmp = el.w;
+            el.w = el.h;
+            el.h = tmp;
+        } else if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                let pdx = pt.x - cx;
+                let pdy = pt.y - cy;
+                pt.x = cx - pdy;
+                pt.y = cy + pdx;
+            });
+        }
+    });
+
     if (isClosed) untanglePolygon();
     fitToScreen(true);
     rebuildWallInputs();
+    renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
@@ -292,10 +347,21 @@ function fitToScreen(forceFit = false) {
             p.y = canvasCY + (p.y - centerY) * factor;
         });
 
-        if (hatchPos) {
-            hatchPos.x = canvasCX + (hatchPos.x - centerX) * factor;
-            hatchPos.y = canvasCY + (hatchPos.y - centerY) * factor;
-        }
+        innerElements.forEach(el => {
+            el.x = canvasCX + (el.x - centerX) * factor;
+            el.y = canvasCY + (el.y - centerY) * factor;
+            if (el.type === 'rect') {
+                el.w *= factor;
+                el.h *= factor;
+            } else if (el.type === 'circle') {
+                el.radius *= factor;
+            } else if (el.type === 'poly' && el.pts) {
+                el.pts.forEach(pt => {
+                    pt.x = canvasCX + (pt.x - centerX) * factor;
+                    pt.y = canvasCY + (pt.y - centerY) * factor;
+                });
+            }
+        });
 
         cmPerPixel = cmPerPixel / factor;
     }
@@ -363,43 +429,179 @@ function getCleanDiagonals() {
     return diags;
 }
 
-// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ЛЮКА ---
-function getHatchBounds() {
-    const countHatch = parseFloat(document.getElementById('countHatch')?.value) || 0;
-    if (countHatch <= 0 || !isClosed || points.length < 3) return null;
-
-    let hLen = parseFloat(document.getElementById('hatchLength')?.value) || 120;
-    let hWid = parseFloat(document.getElementById('hatchWidth')?.value) || 60;
-
-    let w = (isHatchRotated ? hWid : hLen) / cmPerPixel;
-    let h = (isHatchRotated ? hLen : hWid) / cmPerPixel;
-
-    if (!hatchPos) {
-        let cx = 0, cy = 0;
-        points.forEach(p => { cx += p.x; cy += p.y; });
-        hatchPos = { x: cx / points.length, y: cy / points.length };
-    }
-
+// --- МАТЕМАТИКА ПРИВЯЗОК К БЛИЖАЙШИМ СТЕНАМ ---
+function getClosestPointOnSegment(p, a, b) {
+    let abx = b.x - a.x;
+    let aby = b.y - a.y;
+    let apx = p.x - a.x;
+    let apy = p.y - a.y;
+    let lenSq = abx * abx + aby * aby;
+    let t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenSq));
     return {
-        x: hatchPos.x - w / 2,
-        y: hatchPos.y - h / 2,
-        w,
-        h,
-        cx: hatchPos.x,
-        cy: hatchPos.y,
-        lenCm: hLen,
-        widCm: hWid
+        x: a.x + t * abx,
+        y: a.y + t * aby
     };
 }
 
-function rotateHatch() {
-    isHatchRotated = !isHatchRotated;
-    drawSketch();
-    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast(isHatchRotated ? 'Люк повернут вертикально' : 'Люк повернут горизонтально');
+function getElementWallDistances(el) {
+    if (!el || points.length < 3) return [];
+    let count = getWallCount();
+    let wallDists = [];
+
+    let centerPt = { x: el.x, y: el.y };
+    if (el.type === 'poly' && el.pts && el.pts.length > 0) {
+        let sx = 0, sy = 0;
+        el.pts.forEach(p => { sx += p.x; sy += p.y; });
+        centerPt = { x: sx / el.pts.length, y: sy / el.pts.length };
+    }
+
+    for (let i = 0; i < count; i++) {
+        let p1 = points[i];
+        let p2 = points[(i + 1) % points.length];
+        let proj = getClosestPointOnSegment(centerPt, p1, p2);
+        let distPx = Math.hypot(proj.x - centerPt.x, proj.y - centerPt.y);
+
+        // Для круглой колонны считаем чистый зазор от края до стены
+        let effectivePx = el.type === 'circle' ? Math.max(0, distPx - (el.radius || 0)) : distPx;
+        let distCm = Math.round(effectivePx * cmPerPixel);
+
+        wallDists.push({
+            wallIdx: i,
+            wallName: `${p1.label}–${p2.label}`,
+            distCm,
+            projX: proj.x,
+            projY: proj.y,
+            distPx,
+            centerPt
+        });
+    }
+
+    wallDists.sort((a, b) => a.distPx - b.distPx);
+    return wallDists.slice(0, 2);
 }
 
-// --- ОТРИСОВКА ХОЛСТА ---
+// --- УПРАВЛЕНИЕ ВНУТРЕННИМИ ЭЛЕМЕНТАМИ ---
+function addQuickRectHatch() {
+    if (!isClosed || points.length < 3) {
+        showToast('Сначала замкните комнату!', 'error');
+        return;
+    }
+    saveState();
+    let cx = 0, cy = 0;
+    points.forEach(p => { cx += p.x; cy += p.y; });
+    cx /= points.length;
+    cy /= points.length;
+
+    let lenCm = 120, widCm = 60;
+    innerElements.push({
+        id: 'inner_' + Date.now(),
+        type: 'rect',
+        title: `Люк ${lenCm}×${widCm}`,
+        x: cx,
+        y: cy,
+        w: (lenCm / cmPerPixel),
+        h: (widCm / cmPerPixel),
+        lenCm,
+        widCm
+    });
+
+    editMode = 'inner';
+    document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
+    renderInnerElementsList();
+    drawSketch();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Добавлен люк/короб. Перетащите в нужное место');
+}
+
+function addQuickCircleColumn() {
+    if (!isClosed || points.length < 3) {
+        showToast('Сначала замкните комнату!', 'error');
+        return;
+    }
+    saveState();
+    let cx = 0, cy = 0;
+    points.forEach(p => { cx += p.x; cy += p.y; });
+    cx /= points.length;
+    cy /= points.length;
+
+    let dCm = 40;
+    let radPx = (dCm / 2) / cmPerPixel;
+
+    innerElements.push({
+        id: 'inner_' + Date.now(),
+        type: 'circle',
+        title: `Колонна ⌀${dCm} см`,
+        x: cx,
+        y: cy,
+        diamCm: dCm,
+        radius: radPx
+    });
+
+    editMode = 'inner';
+    document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
+    renderInnerElementsList();
+    drawSketch();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Добавлена круглая колонна ⌀40 см');
+}
+
+function startCustomBoxDrawing() {
+    if (!isClosed || points.length < 3) {
+        showToast('Сначала замкните комнату!', 'error');
+        return;
+    }
+    editMode = 'drawing_poly';
+    activeDrawingPoly = [];
+    document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
+    updateHint();
+    showToast('Тапайте по холсту для углов короба');
+}
+
+function deleteInnerElement(idx) {
+    if (!innerElements[idx]) return;
+    saveState();
+    innerElements.splice(idx, 1);
+    renderInnerElementsList();
+    drawSketch();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Элемент удалён');
+}
+
+function renderInnerElementsList() {
+    const container = document.getElementById('innerElementsContainer');
+    const badge = document.getElementById('innerCountBadge');
+    if (badge) badge.innerText = `${innerElements.length} шт.`;
+    if (!container) return;
+
+    if (innerElements.length === 0) {
+        container.innerHTML = `<div style="font-size:11px; color:var(--text-muted); text-align:center; padding: 4px 0;">Нет коробов или колонн</div>`;
+        return;
+    }
+
+    container.innerHTML = innerElements.map((el, idx) => {
+        let nearest = getElementWallDistances(el);
+        let distText = nearest.map(n => `${n.wallName}: ${n.distCm} см`).join(' | ');
+
+        let sizeText = '';
+        if (el.type === 'rect') sizeText = `${Math.round(el.lenCm)}×${Math.round(el.widCm)} см`;
+        else if (el.type === 'circle') sizeText = `⌀${Math.round(el.diamCm)} см`;
+        else if (el.type === 'poly') sizeText = `${el.pts.length} угл.`;
+
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:var(--sub-block-bg); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px;">
+                <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
+                    <span style="font-weight:600; color:var(--text-main);">${idx + 1}. ${el.title || 'Короб'} (${sizeText})</span>
+                    <span style="color:var(--text-muted); font-size:10px;">📍 Отступы: ${distText || '—'}</span>
+                </div>
+                <div style="display:flex; gap:4px; align-items:center;">
+                    <button class="checklist-act-btn" style="color:var(--danger);" onclick="deleteInnerElement(${idx})" title="Удалить">✖</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// --- ОТРИСОВКА ХОЛСТА (С КОРОБАМИ И ОТСТУПАМИ) ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -490,25 +692,94 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка перемещаемого люка
-    let hb = getHatchBounds();
-    if (hb) {
+    // 4. Отрисовка внутренних элементов и привязок к стенам
+    innerElements.forEach(el => {
+        let nearest = getElementWallDistances(el);
+
+        // Линии отступов к ближайшим стенам
+        ctx.save();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([3, 3]);
+
+        nearest.forEach(w => {
+            ctx.beginPath();
+            ctx.moveTo(w.centerPt.x, w.centerPt.y);
+            ctx.lineTo(w.projX, w.projY);
+            ctx.stroke();
+
+            let midX = (w.centerPt.x + w.projX) / 2;
+            let midY = (w.centerPt.y + w.projY) / 2;
+            ctx.fillStyle = badgeBgColor;
+            ctx.fillRect(midX - 20, midY - 8, 40, 16);
+            ctx.fillStyle = '#ef4444';
+            ctx.font = '700 10px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${w.distCm} см`, midX, midY + 4);
+        });
+        ctx.restore();
+
+        // Тело элемента
         ctx.save();
         ctx.strokeStyle = '#2563eb';
         ctx.lineWidth = 2;
-        ctx.setLineDash([5, 3]);
-        ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
-
         ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.22)';
-        ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
 
-        // Плашка с размерами
-        ctx.fillStyle = badgeBgColor;
-        ctx.fillRect(hb.cx - 40, hb.cy - 9, 80, 18);
-        ctx.fillStyle = '#2563eb';
-        ctx.font = '700 10px "Inter", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Люк ${Math.round(hb.lenCm)}×${Math.round(hb.widCm)}`, hb.cx, hb.cy + 4);
+        if (el.type === 'rect') {
+            ctx.setLineDash([5, 3]);
+            ctx.strokeRect(el.x - el.w / 2, el.y - el.h / 2, el.w, el.h);
+            ctx.fillRect(el.x - el.w / 2, el.y - el.h / 2, el.w, el.h);
+
+            ctx.fillStyle = badgeBgColor;
+            ctx.fillRect(el.x - 38, el.y - 9, 76, 18);
+            ctx.fillStyle = '#2563eb';
+            ctx.font = '700 10px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${Math.round(el.lenCm)}×${Math.round(el.widCm)}`, el.x, el.y + 4);
+        } else if (el.type === 'circle') {
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fill();
+
+            ctx.fillStyle = badgeBgColor;
+            ctx.fillRect(el.x - 28, el.y - 9, 56, 18);
+            ctx.fillStyle = '#2563eb';
+            ctx.font = '700 10px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`⌀${Math.round(el.diamCm)} см`, el.x, el.y + 4);
+        } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.moveTo(el.pts[0].x, el.pts[0].y);
+            for (let i = 1; i < el.pts.length; i++) ctx.lineTo(el.pts[i].x, el.pts[i].y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+        }
+        ctx.restore();
+    });
+
+    // Рисование активного произвольного короба
+    if (activeDrawingPoly.length > 0) {
+        ctx.save();
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(activeDrawingPoly[0].x, activeDrawingPoly[0].y);
+        for (let i = 1; i < activeDrawingPoly.length; i++) {
+            ctx.lineTo(activeDrawingPoly[i].x, activeDrawingPoly[i].y);
+        }
+        ctx.stroke();
+
+        activeDrawingPoly.forEach((pt, i) => {
+            ctx.fillStyle = i === 0 ? '#10b981' : '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
         ctx.restore();
     }
 
@@ -543,7 +814,7 @@ function drawSketch() {
         ctx.fillText(`${lenCm} см`, labelX, labelY);
     }
 
-    // 6. Углы (вершины)
+    // 6. Углы (вершины) комнаты
     points.forEach((p, idx) => {
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
         ctx.beginPath();
@@ -570,14 +841,65 @@ function drawSketch() {
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
-
     if (document.activeElement) document.activeElement.blur();
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // 1. Проверка замыкания контура в первую точку
+    // Режим рисования произвольного короба
+    if (editMode === 'drawing_poly') {
+        if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 25) {
+            saveState();
+            let sx = 0, sy = 0;
+            activeDrawingPoly.forEach(p => { sx += p.x; sy += p.y; });
+            innerElements.push({
+                id: 'inner_' + Date.now(),
+                type: 'poly',
+                title: `Короб (${activeDrawingPoly.length} угл.)`,
+                x: sx / activeDrawingPoly.length,
+                y: sy / activeDrawingPoly.length,
+                pts: [...activeDrawingPoly]
+            });
+            activeDrawingPoly = [];
+            editMode = 'inner';
+            renderInnerElementsList();
+            updateHint();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast('Произвольный короб создан!', 'success');
+            return;
+        }
+        activeDrawingPoly.push({ x, y });
+        updateHint();
+        drawSketch();
+        return;
+    }
+
+    // Режим работы с внутренними элементами (перетаскивание)
+    if (editMode === 'inner') {
+        for (let i = innerElements.length - 1; i >= 0; i--) {
+            let el = innerElements[i];
+            let hit = false;
+            if (el.type === 'rect') {
+                hit = (x >= el.x - el.w / 2 && x <= el.x + el.w / 2 && y >= el.y - el.h / 2 && y <= el.y + el.h / 2);
+            } else if (el.type === 'circle') {
+                hit = Math.hypot(el.x - x, el.y - y) <= el.radius;
+            } else if (el.type === 'poly') {
+                hit = Math.hypot(el.x - x, el.y - y) <= 35;
+            }
+
+            if (hit) {
+                saveState();
+                draggedInnerIdx = i;
+                innerDragOffset = { x: x - el.x, y: y - el.y };
+                canvas.setPointerCapture(e.pointerId);
+                return;
+            }
+        }
+    }
+
+    // Режим комнаты: замыкание контура
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         saveState();
         isClosed = true;
@@ -590,28 +912,20 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 2. Проверка нажатия на вершину комнаты
-    for (let i = 0; i < points.length; i++) {
-        if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
-            saveState();
-            draggedPointIndex = i;
-            isDragging = true;
-            canvas.setPointerCapture(e.pointerId);
-            return;
+    // Захват вершины комнаты
+    if (editMode === 'room') {
+        for (let i = 0; i < points.length; i++) {
+            if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
+                saveState();
+                draggedPointIndex = i;
+                isDragging = true;
+                canvas.setPointerCapture(e.pointerId);
+                return;
+            }
         }
     }
 
-    // 3. Проверка нажатия на люк для его перемещения
-    let hb = getHatchBounds();
-    if (hb && x >= hb.x && x <= hb.x + hb.w && y >= hb.y && y <= hb.y + hb.h) {
-        saveState();
-        isDraggingHatch = true;
-        hatchDragOffset = { x: x - hb.cx, y: y - hb.cy };
-        canvas.setPointerCapture(e.pointerId);
-        return;
-    }
-
-    // 4. Проверка клика по плашке стены (вызов шторки ввода длины)
+    // Клик по стене для ввода длины
     for (let box of wallHitBoxes) {
         if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
             openWallEditSheet(box.wallIdx);
@@ -624,40 +938,42 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 5. Добавление новой точки
-    if (!isClosed) {
-        saveState();
-        let label = getPointLabel(points.length);
-        points.push({ x, y, label });
-        const presetCorners = document.getElementById('presetCornersCount');
-        if (presetCorners) presetCorners.value = points.length;
-        rebuildWallInputs();
-        updateHint();
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    } else {
-        saveState();
-        let bestWallIdx = points.length - 1;
-        let minDist = Infinity;
-        for (let i = 0; i < points.length; i++) {
-            let p1 = points[i];
-            let p2 = points[(i + 1) % points.length];
-            let mx = (p1.x + p2.x) / 2;
-            let my = (p1.y + p2.y) / 2;
-            let d = Math.hypot(mx - x, my - y);
-            if (d < minDist) {
-                minDist = d;
-                bestWallIdx = i;
+    // Добавление точки в контур комнаты
+    if (editMode === 'room') {
+        if (!isClosed) {
+            saveState();
+            let label = getPointLabel(points.length);
+            points.push({ x, y, label });
+            const presetCorners = document.getElementById('presetCornersCount');
+            if (presetCorners) presetCorners.value = points.length;
+            rebuildWallInputs();
+            updateHint();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        } else {
+            saveState();
+            let bestWallIdx = points.length - 1;
+            let minDist = Infinity;
+            for (let i = 0; i < points.length; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let mx = (p1.x + p2.x) / 2;
+                let my = (p1.y + p2.y) / 2;
+                let d = Math.hypot(mx - x, my - y);
+                if (d < minDist) {
+                    minDist = d;
+                    bestWallIdx = i;
+                }
             }
+            points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
+            untanglePolygon();
+            const presetCorners = document.getElementById('presetCornersCount');
+            if (presetCorners) presetCorners.value = points.length;
+            rebuildWallInputs();
+            updateHint();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         }
-        points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
-        untanglePolygon();
-        const presetCorners = document.getElementById('presetCornersCount');
-        if (presetCorners) presetCorners.value = points.length;
-        rebuildWallInputs();
-        updateHint();
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
 });
 
@@ -667,7 +983,7 @@ canvas.addEventListener('pointermove', (e) => {
     const curX = e.clientX - rect.left;
     const curY = e.clientY - rect.top;
 
-    // Перемещение вершины комнаты
+    // Перемещение угла комнаты
     if (isDragging && draggedPointIndex !== null) {
         e.preventDefault();
         let p = points[draggedPointIndex];
@@ -680,11 +996,27 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    // Перемещение люка
-    if (isDraggingHatch && hatchPos) {
+    // Перемещение внутреннего элемента
+    if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
-        hatchPos.x = Math.max(30, Math.min(canvas.width - 30, curX - hatchDragOffset.x));
-        hatchPos.y = Math.max(30, Math.min(canvas.height - 30, curY - hatchDragOffset.y));
+        let el = innerElements[draggedInnerIdx];
+        let newX = Math.max(20, Math.min(canvas.width - 20, curX - innerDragOffset.x));
+        let newY = Math.max(20, Math.min(canvas.height - 20, curY - innerDragOffset.y));
+
+        let dx = newX - el.x;
+        let dy = newY - el.y;
+
+        el.x = newX;
+        el.y = newY;
+
+        if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                pt.x += dx;
+                pt.y += dy;
+            });
+        }
+
+        renderInnerElementsList();
         drawSketch();
     }
 });
@@ -695,12 +1027,12 @@ canvas.addEventListener('pointerup', () => {
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         rebuildWallInputs();
     }
-    if (isDraggingHatch) {
+    if (draggedInnerIdx !== null) {
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     isDragging = false;
     draggedPointIndex = null;
-    isDraggingHatch = false;
+    draggedInnerIdx = null;
 });
 
 // --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
