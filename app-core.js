@@ -368,7 +368,7 @@ function loadRoomIntoUI(idx) {
     if (typeof historyState !== 'undefined') historyState = [];
 
     if (typeof innerElements !== 'undefined') {
-        innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
+        innerElements = r.innerElements ? JSON.parse(JSON.stringify(innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
     }
 
@@ -479,6 +479,21 @@ function directDial(phoneNum) {
     window.location.href = `tel:${clean}`;
 }
 
+// Прямой запуск Telegram из карточки клиента
+function openTelegramClient(rawPhone) {
+    if (!rawPhone) return;
+    let clean = rawPhone.replace(/\D/g, '');
+    if (clean.length === 11 && clean.startsWith('8')) {
+        clean = '7' + clean.slice(1);
+    }
+    window.location.href = `tg://resolve?domain=${clean}`;
+    setTimeout(() => {
+        if (!document.hidden) {
+            window.open(`https://t.me/+${clean}`, '_blank');
+        }
+    }, 700);
+}
+
 function saveProject() {
     syncCurrentRoomState();
     let name = document.getElementById('clientName').value.trim();
@@ -547,7 +562,7 @@ function renderProjectsList() {
         }
 
         let callBtn = p.phone ? `<button class="btn btn-primary" onclick="directDial('${p.phone}')" style="padding: 7px 9px;" title="Позвонить">📞</button>` : '';
-        let tgBtn = tgPhone ? `<a href="https://t.me/+${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#0284c7; color:#fff; text-decoration:none;" title="Написать в Telegram">✈️ TG</a>` : '';
+        let tgBtn = tgPhone ? `<button class="btn" onclick="openTelegramClient('${tgPhone}')" style="padding: 7px 9px; background:#0284c7; color:#fff;" title="Написать в Telegram">✈️ TG</button>` : '';
         let maxBtn = tgPhone ? `<a href="https://max.ru/${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
 
         return `
