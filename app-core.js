@@ -337,7 +337,6 @@ function createDefaultRoom(title = 'Комната 1') {
         customPrice1: 0,
         customName2: 'Обход короба',
         customPrice2: 0,
-        hatchSubtractArea: true,
         lastTotal: 0
     };
 }
@@ -374,9 +373,6 @@ function syncCurrentRoomState() {
     r.customPrice1 = parseFloat(document.getElementById('customPrice1')?.value) || 0;
     r.customName2 = document.getElementById('customName2')?.value || '';
     r.customPrice2 = parseFloat(document.getElementById('customPrice2')?.value) || 0;
-    
-    const hatchSub = document.getElementById('hatchSubtractArea');
-    if (hatchSub) r.hatchSubtractArea = hatchSub.checked;
 }
 
 function loadRoomIntoUI(idx) {
@@ -385,8 +381,7 @@ function loadRoomIntoUI(idx) {
     if (!r) return;
 
     if (typeof points !== 'undefined') {
-        // [ИСПРАВЛЕНИЕ БАГА 1]: Безопасное чтение координат y с сохранением label
-        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
+        points = (r.points || []).map(p => ({ x: p.x, y: p.label ? p.label : '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
@@ -412,9 +407,6 @@ function loadRoomIntoUI(idx) {
     if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
     if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
     if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
-
-    const hatchSub = document.getElementById('hatchSubtractArea');
-    if (hatchSub) hatchSub.checked = r.hatchSubtractArea ?? true;
 
     const presetCorners = document.getElementById('presetCornersCount');
     if (presetCorners && points && points.length >= 3) {
@@ -494,7 +486,6 @@ function startNewProject() {
         document.getElementById('clientAddress').value = '';
         document.getElementById('clientPhone').value = '';
         document.getElementById('clientDate').value = '';
-        localStorage.removeItem('_pz_active_sketch_backup');
         rooms = [createDefaultRoom('Зал / Комната 1')];
         loadRoomIntoUI(0);
         showToast('Создан новый замер', 'success');
@@ -564,10 +555,7 @@ function closeProjectsModal() {
 function renderProjectsList() {
     const listEl = document.getElementById('savedProjectsList');
     const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase();
-    
-    // [ИСПРАВЛЕНИЕ БАГА 3]: Сохранение оригинальных индексов при поиске в базе клиентов
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]')
-        .map((p, realIdx) => ({ ...p, realIdx }));
+    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
 
     if (searchQ) {
         saved = saved.filter(p => 
@@ -582,7 +570,6 @@ function renderProjectsList() {
         return;
     }
 
-    // [ИСПРАВЛЕНИЕ БАГА отображения через map]: Добавлен return
     listEl.innerHTML = saved.map((p, idx) => {
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
@@ -610,12 +597,11 @@ function renderProjectsList() {
                 ${callBtn}
                 ${tgBtn}
                 ${maxBtn}
-                <button class="btn btn-primary" onclick="loadSavedProject(${p.realIdx})" style="padding: 7px 9px;">📂</button>
-                <button class="btn btn-danger" onclick="deleteSavedProject(${p.realIdx})" style="padding: 7px 9px;">🗑️</button>
+                <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 9px;">📂</button>
+                <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 9px;">🗑️</button>
             </div>
         </div>
-    `;
-    }).join('');
+    `}).join('');
 }
 
 function loadSavedProject(index) {
@@ -705,8 +691,7 @@ function renderChecklist() {
     container.innerHTML = checklistData.map((item, idx) => `
         <div class="checklist-item ${item.checked ? 'checked' : ''}">
             <label class="checklist-left" onclick="toggleChecklistItem(${idx}); return false;">
-                <!-- [ИСПРАВЛЕНИЕ БАГА 7]: Устранено двойное срабатывание клика -->
-                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} style="pointer-events: none;">
+                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem(${idx})">
                 <span class="checklist-text">${item.text}</span>
             </label>
             <div class="checklist-actions">
