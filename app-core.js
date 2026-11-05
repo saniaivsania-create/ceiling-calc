@@ -382,11 +382,11 @@ function syncCurrentRoomState() {
 function loadRoomIntoUI(idx) {
     activeRoomIdx = idx;
     let r = rooms[activeRoomIdx];
-    if (!r) return[cite: 1];
+    if (!r) return;
 
     if (typeof points !== 'undefined') {
         // [ИСПРАВЛЕНИЕ БАГА 1]: Безопасное чтение координат y с сохранением label
-        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));[cite: 1]
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
@@ -567,7 +567,7 @@ function renderProjectsList() {
     
     // [ИСПРАВЛЕНИЕ БАГА 3]: Сохранение оригинальных индексов при поиске в базе клиентов
     let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]')
-        .map((p, realIdx) => ({ ...p, realIdx }));[cite: 1]
+        .map((p, realIdx) => ({ ...p, realIdx }));
 
     if (searchQ) {
         saved = saved.filter(p => 
@@ -582,7 +582,8 @@ function renderProjectsList() {
         return;
     }
 
-    saved.map((p, idx) => {[cite: 1]
+    // [ИСПРАВЛЕНИЕ БАГА отображения через map]: Добавлен return
+    listEl.innerHTML = saved.map((p, idx) => {
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
         
@@ -705,7 +706,7 @@ function renderChecklist() {
         <div class="checklist-item ${item.checked ? 'checked' : ''}">
             <label class="checklist-left" onclick="toggleChecklistItem(${idx}); return false;">
                 <!-- [ИСПРАВЛЕНИЕ БАГА 7]: Устранено двойное срабатывание клика -->
-                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} style="pointer-events: none;">[cite: 1]
+                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} style="pointer-events: none;">
                 <span class="checklist-text">${item.text}</span>
             </label>
             <div class="checklist-actions">
