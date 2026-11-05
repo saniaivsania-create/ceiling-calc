@@ -33,18 +33,23 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-// --- БАНКОМАТНЫЙ ВВОД РАЗМЕРОВ (СДВИГ СПРАВА НАЛЕВО) ---
-function formatLaserShift(rawVal) {
-    if (!rawVal) return '';
-    let digits = rawVal.toString().replace(/\D/g, '');
-    if (!digits) return '';
+// --- УНИВЕРСАЛЬНЫЙ ПАРСИНГ ЧИСЕЛ (ТОЧКА ИЛИ ЗАПЯТАЯ) ---
+function parseCleanNumber(val) {
+    if (val === null || val === undefined) return 0;
+    let s = val.toString().trim().replace(',', '.');
+    let n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
 
-    if (digits.length > 5) digits = digits.slice(-5);
-
-    let num = parseInt(digits, 10);
-    if (isNaN(num) || num === 0) return '0.000';
-
-    return (num / 1000).toFixed(3);
+// Удобный ввод: разрешает вводить и точку, и запятую
+function cleanDecimalInput(str) {
+    if (!str) return '';
+    let cleaned = str.replace(',', '.').replace(/[^0-9.]/g, '');
+    let parts = cleaned.split('.');
+    if (parts.length > 2) {
+        cleaned = parts[0] + '.' + parts.slice(1).join('');
+    }
+    return cleaned;
 }
 
 // --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
@@ -239,7 +244,7 @@ function updateHint() {
     }
 
     if (editMode === 'inner') {
-        hint.innerText = '📦 Тяните короб или его углы; тапните по фигуре для точных миллиметров';
+        hint.innerText = '📦 Тяните короб или его углы; тапните по фигуре для настроек';
         return;
     }
 
@@ -537,10 +542,11 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
     return { edgePoint: bestEdgePt, proj: bestProj, distPx: bestDist };
 }
 
+// Получение привязок: учитывает пользовательские привязки (customOffsets)
 function getElementWallDistances(el) {
     if (!el || points.length < 3) return [];
     let count = getWallCount();
-    let wallDists = [];
+    let allWallDists = [];
 
     for (let i = 0; i < count; i++) {
         let p1 = points[i];
@@ -550,7 +556,7 @@ function getElementWallDistances(el) {
         let distCm = Math.round(distPx * cmPerPixel);
         let isHorizontal = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
-        wallDists.push({
+        allWallDists.push({
             wallIdx: i,
             wallName: `${p1.label}–${p2.label}`,
             distCm,
@@ -563,16 +569,34 @@ function getElementWallDistances(el) {
         });
     }
 
-    let horizWalls = wallDists.filter(w => w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
-    let vertWalls = wallDists.filter(w => !w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+    // Если у элемента настроены свои привязки (через плюсик)
+    if (el.customOffsets && Array.isArray(el.customOffsets) && el.customOffsets.length > 0) {
+        let result = [];
+        el.customOffsets.forEach(co => {
+            let found = allWallDists.find(w => w.wallIdx === co.wallIdx);
+            if (found) {
+                let overrideCm = co.distMm !== undefined ? (co.distMm / 10) : found.distCm;
+                result.push({
+                    ...found,
+                    distCm: overrideCm,
+                    distMm: Math.round(overrideCm * 10)
+                });
+            }
+        });
+        return result;
+    }
+
+    // Автоматические 2 ближайшие стены (по умолчанию)
+    let horizWalls = allWallDists.filter(w => w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+    let vertWalls = allWallDists.filter(w => !w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
 
     let result = [];
     if (horizWalls.length > 0) result.push(horizWalls[0]);
     if (vertWalls.length > 0) result.push(vertWalls[0]);
 
     if (result.length < 2) {
-        wallDists.sort((a, b) => a.distPx - b.distPx);
-        return wallDists.slice(0, 2);
+        allWallDists.sort((a, b) => a.distPx - b.distPx);
+        return allWallDists.slice(0, 2);
     }
 
     return result;
@@ -600,7 +624,8 @@ function addQuickRectHatch() {
         w: (lenCm / cmPerPixel),
         h: (widCm / cmPerPixel),
         lenCm,
-        widCm
+        widCm,
+        customOffsets: []
     });
 
     editMode = 'inner';
@@ -633,7 +658,8 @@ function addQuickCircleColumn() {
         x: cx,
         y: cy,
         diamCm: dCm,
-        radius: radPx
+        radius: radPx,
+        customOffsets: []
     });
 
     editMode = 'inner';
@@ -657,6 +683,67 @@ function startCustomBoxDrawing() {
     showToast('Тапайте по холсту для углов короба');
 }
 
+// ОТРИСОВКА СПИСКА ПРИВЯЗОК К СТЕНАМ В ШТОРКЕ
+function renderOffsetsInSheet(el) {
+    const container = document.getElementById('innerOffsetsRowsContainer');
+    if (!container) return;
+
+    let count = getWallCount();
+    let wallOptions = '';
+    for (let i = 0; i < count; i++) {
+        let p1 = points[i];
+        let p2 = points[(i + 1) % points.length];
+        wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
+    }
+
+    if (!el.customOffsets || el.customOffsets.length === 0) {
+        let defaults = getElementWallDistances(el);
+        el.customOffsets = defaults.map(d => ({
+            wallIdx: d.wallIdx,
+            distMm: Math.round(d.distCm * 10)
+        }));
+    }
+
+    container.innerHTML = el.customOffsets.map((co, idx) => `
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr 34px; gap: 6px; align-items: center;" class="offset-row" data-idx="${idx}">
+            <select class="dir-select offset-wall-select">
+                ${wallOptions}
+            </select>
+            <input type="text" inputmode="decimal" class="input-field offset-dist-input" value="${co.distMm}" placeholder="мм" style="font-weight: 600; text-align: center;">
+            <button class="btn btn-danger" onclick="removeOffsetRow(${idx})" style="padding: 7px 8px; font-size: 12px;" title="Удалить привязку">✖</button>
+        </div>
+    `).join('');
+
+    // Выставляем выбранные стены в селектах
+    const rows = container.querySelectorAll('.offset-row');
+    rows.forEach((row, idx) => {
+        const sel = row.querySelector('.offset-wall-select');
+        if (sel && el.customOffsets[idx]) {
+            sel.value = el.customOffsets[idx].wallIdx;
+        }
+    });
+}
+
+function addOffsetRow() {
+    if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
+    let el = innerElements[selectedInnerIdx];
+    if (!el.customOffsets) el.customOffsets = [];
+    
+    let count = getWallCount();
+    let nextIdx = (el.customOffsets.length) % count;
+    el.customOffsets.push({ wallIdx: nextIdx, distMm: 500 });
+    renderOffsetsInSheet(el);
+}
+
+function removeOffsetRow(idx) {
+    if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
+    let el = innerElements[selectedInnerIdx];
+    if (el.customOffsets && el.customOffsets[idx]) {
+        el.customOffsets.splice(idx, 1);
+        renderOffsetsInSheet(el);
+    }
+}
+
 function openInnerEditSheet(idx) {
     selectedInnerIdx = idx;
     let el = innerElements[idx];
@@ -670,7 +757,7 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Диаметр ⌀ (мм):</label>
-                <input type="number" id="sheetInnerDiam" class="input-field" value="${dMm}" style="font-weight:700;">
+                <input type="text" inputmode="decimal" id="sheetInnerDiam" class="input-field" value="${dMm}" style="font-weight:700;">
             </div>
         `;
     } else if (el.type === 'rect') {
@@ -679,15 +766,14 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Длина (мм):</label>
-                <input type="number" id="sheetInnerLen" class="input-field" value="${lMm}" style="font-weight:700;">
+                <input type="text" inputmode="decimal" id="sheetInnerLen" class="input-field" value="${lMm}" style="font-weight:700;">
             </div>
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Ширина (мм):</label>
-                <input type="number" id="sheetInnerWid" class="input-field" value="${wMm}" style="font-weight:700;">
+                <input type="text" inputmode="decimal" id="sheetInnerWid" class="input-field" value="${wMm}" style="font-weight:700;">
             </div>
         `;
     } else if (el.type === 'poly' && el.pts) {
-        // ДИНАМИЧЕСКИЙ ВВОД СТОРОН ПРОИЗВОЛЬНОГО КОРОБА
         let rowsHtml = '';
         for (let i = 0; i < el.pts.length; i++) {
             let p1 = el.pts[i];
@@ -697,7 +783,7 @@ function openInnerEditSheet(idx) {
             rowsHtml += `
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                     <span style="font-size: 11px; font-weight: 600; color: var(--text-main); white-space: nowrap;">Сторона ${i + 1}–${nextIdx + 1}:</span>
-                    <input type="number" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenMm}" style="font-weight: 700; width: 110px; text-align: center;">
+                    <input type="text" inputmode="decimal" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenMm}" style="font-weight: 700; width: 110px; text-align: center;">
                 </div>
             `;
         }
@@ -706,33 +792,9 @@ function openInnerEditSheet(idx) {
                 ${rowsHtml}
             </div>
         `;
-    } else {
-        dimBlock.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Произвольный короб (${el.pts ? el.pts.length : 0} углов)</span>`;
     }
 
-    let count = getWallCount();
-    let wallOptions = '';
-    for (let i = 0; i < count; i++) {
-        let p1 = points[i];
-        let p2 = points[(i + 1) % points.length];
-        wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
-    }
-
-    const sel1 = document.getElementById('innerWallSelect1');
-    const sel2 = document.getElementById('innerWallSelect2');
-    sel1.innerHTML = wallOptions;
-    sel2.innerHTML = wallOptions;
-
-    let nearest = getElementWallDistances(el);
-    if (nearest.length > 0) {
-        sel1.value = nearest[0].wallIdx;
-        document.getElementById('innerWallDist1').value = Math.round(nearest[0].distCm * 10);
-    }
-    if (nearest.length > 1) {
-        sel2.value = nearest[1].wallIdx;
-        document.getElementById('innerWallDist2').value = Math.round(nearest[1].distCm * 10);
-    }
-
+    renderOffsetsInSheet(el);
     document.getElementById('innerEditSheetOverlay').classList.add('open');
 }
 
@@ -747,16 +809,16 @@ function applyInnerSheetSettings() {
     let el = innerElements[selectedInnerIdx];
 
     if (el.type === 'circle') {
-        let dMm = parseFloat(document.getElementById('sheetInnerDiam')?.value);
-        if (dMm && dMm > 0) {
+        let dMm = parseCleanNumber(document.getElementById('sheetInnerDiam')?.value);
+        if (dMm > 0) {
             el.diamCm = dMm / 10;
             el.radius = (el.diamCm / 2) / cmPerPixel;
             el.title = `Колонна ⌀${Math.round(el.diamCm)} см`;
         }
     } else if (el.type === 'rect') {
-        let lMm = parseFloat(document.getElementById('sheetInnerLen')?.value);
-        let wMm = parseFloat(document.getElementById('sheetInnerWid')?.value);
-        if (lMm && wMm && lMm > 0 && wMm > 0) {
+        let lMm = parseCleanNumber(document.getElementById('sheetInnerLen')?.value);
+        let wMm = parseCleanNumber(document.getElementById('sheetInnerWid')?.value);
+        if (lMm > 0 && wMm > 0) {
             el.lenCm = lMm / 10;
             el.widCm = wMm / 10;
             el.w = el.lenCm / cmPerPixel;
@@ -764,12 +826,11 @@ function applyInnerSheetSettings() {
             el.title = `Люк ${Math.round(el.lenCm)}×${Math.round(el.widCm)}`;
         }
     } else if (el.type === 'poly' && el.pts) {
-        // Применяем введенные длины сторон к контуру многоугольника
         const sideInputs = document.querySelectorAll('.poly-side-input');
         sideInputs.forEach(inp => {
             let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
-            let targetMm = parseFloat(inp.value);
-            if (!isNaN(sideIdx) && targetMm && targetMm > 0 && el.pts[sideIdx]) {
+            let targetMm = parseCleanNumber(inp.value);
+            if (!isNaN(sideIdx) && targetMm > 0 && el.pts[sideIdx]) {
                 let p1 = el.pts[sideIdx];
                 let nextI = (sideIdx + 1) % el.pts.length;
                 let p2 = el.pts[nextI];
@@ -782,7 +843,6 @@ function applyInnerSheetSettings() {
                     let diffX = (p1.x + dirX * targetLenPx) - p2.x;
                     let diffY = (p1.y + dirY * targetLenPx) - p2.y;
 
-                    // Смещаем последующие вершины, чтобы сторона встала в точный размер
                     for (let k = nextI; k < el.pts.length; k++) {
                         el.pts[k].x += diffX;
                         el.pts[k].y += diffY;
@@ -791,51 +851,47 @@ function applyInnerSheetSettings() {
             }
         });
 
-        // Пересчитываем центральную опорную точку
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
         el.x = sx / el.pts.length;
         el.y = sy / el.pts.length;
     }
 
-    let wIdx1 = parseInt(document.getElementById('innerWallSelect1').value);
-    let d1Mm = parseFloat(document.getElementById('innerWallDist1').value);
+    // Сохраняем все настроенные привязки из шторки
+    const offsetRows = document.querySelectorAll('#innerOffsetsRowsContainer .offset-row');
+    el.customOffsets = [];
+    offsetRows.forEach(row => {
+        let wIdx = parseInt(row.querySelector('.offset-wall-select')?.value);
+        let distMm = parseCleanNumber(row.querySelector('.offset-dist-input')?.value);
+        if (!isNaN(wIdx) && distMm >= 0) {
+            el.customOffsets.push({ wallIdx: wIdx, distMm });
+        }
+    });
 
-    let wIdx2 = parseInt(document.getElementById('innerWallSelect2').value);
-    let d2Mm = parseFloat(document.getElementById('innerWallDist2').value);
+    // Сдвиг по первой привязке для точного позиционирования
+    if (el.customOffsets.length > 0) {
+        let primary = el.customOffsets[0];
+        let pA = points[primary.wallIdx];
+        let pB = points[(primary.wallIdx + 1) % points.length];
+        if (pA && pB) {
+            let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, pA, pB);
+            let targetPx = (primary.distMm / 10) / cmPerPixel;
+            let shift = distPx - targetPx;
+            let dx = proj.x - edgePoint.x;
+            let dy = proj.y - edgePoint.y;
+            let len = Math.hypot(dx, dy) || 1;
 
-    let targetD1Px = (d1Mm / 10) / cmPerPixel;
-    let targetD2Px = (d2Mm / 10) / cmPerPixel;
+            let moveX = (dx / len) * shift;
+            let moveY = (dy / len) * shift;
+            el.x += moveX;
+            el.y += moveY;
 
-    let pA1 = points[wIdx1];
-    let pB1 = points[(wIdx1 + 1) % points.length];
-    let pA2 = points[wIdx2];
-    let pB2 = points[(wIdx2 + 1) % points.length];
-
-    if (pA1 && pB1 && pA2 && pB2 && !isNaN(targetD1Px) && !isNaN(targetD2Px)) {
-        let { edgePoint: edge1, proj: pr1, distPx: cur1 } = getClosestPointOnElementToSegment(el, pA1, pB1);
-        let shift1 = cur1 - targetD1Px;
-        let dx1 = pr1.x - edge1.x;
-        let dy1 = pr1.y - edge1.y;
-        let len1 = Math.hypot(dx1, dy1) || 1;
-
-        let { edgePoint: edge2, proj: pr2, distPx: cur2 } = getClosestPointOnElementToSegment(el, pA2, pB2);
-        let shift2 = cur2 - targetD2Px;
-        let dx2 = pr2.x - edge2.x;
-        let dy2 = pr2.y - edge2.y;
-        let len2 = Math.hypot(dx2, dy2) || 1;
-
-        let moveX = (dx1 / len1) * shift1 + (dx2 / len2) * shift2;
-        let moveY = (dy1 / len1) * shift1 + (dy2 / len2) * shift2;
-
-        el.x += moveX;
-        el.y += moveY;
-
-        if (el.type === 'poly' && el.pts) {
-            el.pts.forEach(pt => {
-                pt.x += moveX;
-                pt.y += moveY;
-            });
+            if (el.type === 'poly' && el.pts) {
+                el.pts.forEach(pt => {
+                    pt.x += moveX;
+                    pt.y += moveY;
+                });
+            }
         }
     }
 
@@ -844,7 +900,7 @@ function applyInnerSheetSettings() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Параметры и отступы применены!', 'success');
+    showToast('Параметры и привязки применены!', 'success');
 }
 
 function deleteCurrentInnerFromSheet() {
@@ -877,7 +933,7 @@ function renderInnerElementsList() {
 
     container.innerHTML = innerElements.map((el, idx) => {
         let nearest = getElementWallDistances(el);
-        let distText = nearest.map(n => `${n.wallName}: ${Math.round(n.distCm * 10)} мм`).join(' | ');
+        let distText = nearest.map(n => `${n.wallName}: ${n.distMm || Math.round(n.distCm * 10)} мм`).join(' | ');
         let sizeText = '';
 
         if (el.type === 'rect') sizeText = `${Math.round(el.lenCm * 10)}×${Math.round(el.widCm * 10)} мм`;
@@ -990,8 +1046,8 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов
-    innerElements.forEach((el, elIdx) => {
+    // 4. Отрисовка внутренних элементов и пунктиров привязки к стенам
+    innerElements.forEach((el) => {
         let nearest = getElementWallDistances(el);
 
         ctx.save();
@@ -1007,12 +1063,14 @@ function drawSketch() {
 
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
+            let displayMm = w.distMm || Math.round(w.distCm * 10);
+
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(midX - 26, midY - 8, 52, 16);
             ctx.fillStyle = '#ef4444';
             ctx.font = '700 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${Math.round(w.distCm * 10)} мм`, midX, midY + 4);
+            ctx.fillText(`${displayMm} мм`, midX, midY + 4);
         });
         ctx.restore();
 
@@ -1065,7 +1123,6 @@ function drawSketch() {
             ctx.stroke();
             ctx.fill();
 
-            // Отрисовка длин граней многоугольника
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
             for (let i = 0; i < el.pts.length; i++) {
@@ -1081,7 +1138,6 @@ function drawSketch() {
                 ctx.fillText(`${sideMm}`, midX, midY + 4);
             }
 
-            // Маркеры вершин в режиме работы с коробами
             if (editMode === 'inner') {
                 ctx.setLineDash([]);
                 el.pts.forEach((pt, vIdx) => {
@@ -1126,7 +1182,7 @@ function drawSketch() {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
         let inputEl = document.getElementById(`wall-input-${i}`);
-        let lenVal = inputEl ? inputEl.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
+        let lenVal = inputEl ? cleanDecimalInput(inputEl.value) : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
         let midX = (p1.x + p2.x) / 2;
         let midY = (p1.y + p2.y) / 2;
@@ -1173,7 +1229,7 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
-// --- ТАЧ-СОБЫТИЯ И ОТКРЫТИЕ НАСТРОЕК ПО ТАПУ ---
+// --- ТАЧ-СОБЫТИЯ И ВЗАИМОДЕЙСТВИЕ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -1195,7 +1251,8 @@ canvas.addEventListener('pointerdown', (e) => {
                 title: `Короб (${activeDrawingPoly.length} угл.)`,
                 x: sx / activeDrawingPoly.length,
                 y: sy / activeDrawingPoly.length,
-                pts: [...activeDrawingPoly]
+                pts: [...activeDrawingPoly],
+                customOffsets: []
             });
             activeDrawingPoly = [];
             editMode = 'inner';
@@ -1213,7 +1270,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Проверка захвата вершин произвольного короба для перетаскивания углов
     if (editMode === 'inner') {
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
@@ -1231,7 +1287,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Проверка клика по коробам
     for (let i = innerElements.length - 1; i >= 0; i--) {
         let el = innerElements[i];
         let hit = false;
@@ -1346,7 +1401,6 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    // Перемещение конкретного угла произвольного короба
     if (draggedInnerIdx !== null && draggedInnerVertex !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
@@ -1365,7 +1419,6 @@ canvas.addEventListener('pointermove', (e) => {
         }
     }
 
-    // Перемещение короба целиком
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
@@ -1402,7 +1455,7 @@ canvas.addEventListener('pointerup', () => {
     draggedInnerVertex = null;
 });
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ (БАНКОМАТНЫЙ ВВОД) ---
+// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -1434,7 +1487,7 @@ function rebuildWallInputs() {
         row.className = 'wall-row-input';
         row.innerHTML = `
             <span class="wall-row-label"><b>${p1.label}–${p2.label}</b></span>
-            <input type="text" inputmode="numeric" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
+            <input type="text" inputmode="decimal" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
             <div class="wall-dir-wrap">
                 <select class="dir-select" id="wall-dir-${i}" onchange="onWallDirEdit(${i})">
                     <option value="U" ${dir === 'U' ? 'selected' : ''}>⬆️ Вверх</option>
@@ -1449,12 +1502,11 @@ function rebuildWallInputs() {
 }
 
 function handleWallSmartInput(wallIndex, inputEl) {
-    let formatted = formatLaserShift(inputEl.value);
-    inputEl.value = formatted;
-
-    let m = parseFloat(formatted);
+    let raw = cleanDecimalInput(inputEl.value);
+    inputEl.value = raw;
+    let m = parseCleanNumber(raw);
     if (m && m >= 0.1 && m <= 50) {
-        onWallLengthEdit(wallIndex, formatted);
+        onWallLengthEdit(wallIndex, raw);
     }
 }
 
@@ -1472,7 +1524,7 @@ function syncInputsValuesOnly() {
 }
 
 function onWallLengthEdit(wallIndex, valStr) {
-    let m = parseFloat(valStr);
+    let m = parseCleanNumber(valStr);
     if (!m || m <= 0) return;
     let cm = m * 100;
 
@@ -1525,7 +1577,7 @@ function buildSketchFromTable() {
     for (let i = 0; i < points.length - 1; i++) {
         let lenInput = document.getElementById(`wall-input-${i}`);
         let dirSelect = document.getElementById(`wall-dir-${i}`);
-        let m = lenInput ? (parseFloat(lenInput.value) || 2.0) : 2.0;
+        let m = lenInput ? (parseCleanNumber(lenInput.value) || 2.0) : 2.0;
         let cm = m * 100;
         let dir = dirSelect ? dirSelect.value : 'R';
         let px = cm / cmPerPixel;
@@ -1604,7 +1656,7 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
-// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ (БАНКОМАТНЫЙ ВВОД) ---
+// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
@@ -1615,11 +1667,11 @@ function openWallEditSheet(wallIdx) {
     document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (м)`;
     const sheetInput = document.getElementById('wallSheetInput');
     sheetInput.type = "text";
-    sheetInput.setAttribute("inputmode", "numeric");
+    sheetInput.setAttribute("inputmode", "decimal");
     sheetInput.value = curVal;
     
     sheetInput.oninput = function() {
-        this.value = formatLaserShift(this.value);
+        this.value = cleanDecimalInput(this.value);
     };
 
     document.getElementById('wallEditSheetOverlay').classList.add('open');
@@ -1637,12 +1689,12 @@ function closeWallEditSheet() {
 function applyWallSheetValue() {
     if (editingWallIdx === null) return;
     let raw = document.getElementById('wallSheetInput').value;
-    let formatted = formatLaserShift(raw);
-    let val = parseFloat(formatted);
+    let cleaned = cleanDecimalInput(raw);
+    let val = parseCleanNumber(cleaned);
     if (val && val >= 0.1 && val <= 50) {
         let inp = document.getElementById(`wall-input-${editingWallIdx}`);
         if (inp) inp.value = val.toFixed(3);
-        onWallLengthEdit(editingWallIdx, val);
+        onWallLengthEdit(editingWallIdx, val.toFixed(3));
         showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
     }
     closeWallEditSheet();
