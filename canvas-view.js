@@ -15,7 +15,7 @@ let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
 let innerElements = [];
 let selectedInnerIdx = null;
 let draggedInnerIdx = null;
-let draggedInnerVertex = null; // Индекс перетаскиваемой вершины произвольного короба
+let draggedInnerVertex = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
@@ -41,7 +41,6 @@ function parseCleanNumber(val) {
     return isNaN(n) ? 0 : n;
 }
 
-// Удобный ввод: разрешает вводить и точку, и запятую
 function cleanDecimalInput(str) {
     if (!str) return '';
     let cleaned = str.replace(',', '.').replace(/[^0-9.]/g, '');
@@ -542,21 +541,21 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
     return { edgePoint: bestEdgePt, proj: bestProj, distPx: bestDist };
 }
 
-// Получение привязок: учитывает пользовательские привязки (customOffsets)
 function getElementWallDistances(el) {
     if (!el || points.length < 3) return [];
     let count = getWallCount();
-    let allWallDists = [];
+    let wallDists = [];
 
     for (let i = 0; i < count; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
+        if (!p1 || !p2) continue;
 
         let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
         let distCm = Math.round(distPx * cmPerPixel);
         let isHorizontal = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
-        allWallDists.push({
+        wallDists.push({
             wallIdx: i,
             wallName: `${p1.label}–${p2.label}`,
             distCm,
@@ -569,34 +568,16 @@ function getElementWallDistances(el) {
         });
     }
 
-    // Если у элемента настроены свои привязки (через плюсик)
-    if (el.customOffsets && Array.isArray(el.customOffsets) && el.customOffsets.length > 0) {
-        let result = [];
-        el.customOffsets.forEach(co => {
-            let found = allWallDists.find(w => w.wallIdx === co.wallIdx);
-            if (found) {
-                let overrideCm = co.distMm !== undefined ? (co.distMm / 10) : found.distCm;
-                result.push({
-                    ...found,
-                    distCm: overrideCm,
-                    distMm: Math.round(overrideCm * 10)
-                });
-            }
-        });
-        return result;
-    }
-
-    // Автоматические 2 ближайшие стены (по умолчанию)
-    let horizWalls = allWallDists.filter(w => w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
-    let vertWalls = allWallDists.filter(w => !w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+    let horizWalls = wallDists.filter(w => w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
+    let vertWalls = wallDists.filter(w => !w.isHorizontal).sort((a, b) => a.distPx - b.distPx);
 
     let result = [];
     if (horizWalls.length > 0) result.push(horizWalls[0]);
     if (vertWalls.length > 0) result.push(vertWalls[0]);
 
     if (result.length < 2) {
-        allWallDists.sort((a, b) => a.distPx - b.distPx);
-        return allWallDists.slice(0, 2);
+        wallDists.sort((a, b) => a.distPx - b.distPx);
+        return wallDists.slice(0, 2);
     }
 
     return result;
@@ -624,8 +605,7 @@ function addQuickRectHatch() {
         w: (lenCm / cmPerPixel),
         h: (widCm / cmPerPixel),
         lenCm,
-        widCm,
-        customOffsets: []
+        widCm
     });
 
     editMode = 'inner';
@@ -658,8 +638,7 @@ function addQuickCircleColumn() {
         x: cx,
         y: cy,
         diamCm: dCm,
-        radius: radPx,
-        customOffsets: []
+        radius: radPx
     });
 
     editMode = 'inner';
@@ -681,67 +660,6 @@ function startCustomBoxDrawing() {
     document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
     updateHint();
     showToast('Тапайте по холсту для углов короба');
-}
-
-// ОТРИСОВКА СПИСКА ПРИВЯЗОК К СТЕНАМ В ШТОРКЕ
-function renderOffsetsInSheet(el) {
-    const container = document.getElementById('innerOffsetsRowsContainer');
-    if (!container) return;
-
-    let count = getWallCount();
-    let wallOptions = '';
-    for (let i = 0; i < count; i++) {
-        let p1 = points[i];
-        let p2 = points[(i + 1) % points.length];
-        wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
-    }
-
-    if (!el.customOffsets || el.customOffsets.length === 0) {
-        let defaults = getElementWallDistances(el);
-        el.customOffsets = defaults.map(d => ({
-            wallIdx: d.wallIdx,
-            distMm: Math.round(d.distCm * 10)
-        }));
-    }
-
-    container.innerHTML = el.customOffsets.map((co, idx) => `
-        <div style="display: grid; grid-template-columns: 1.2fr 1fr 34px; gap: 6px; align-items: center;" class="offset-row" data-idx="${idx}">
-            <select class="dir-select offset-wall-select">
-                ${wallOptions}
-            </select>
-            <input type="text" inputmode="decimal" class="input-field offset-dist-input" value="${co.distMm}" placeholder="мм" style="font-weight: 600; text-align: center;">
-            <button class="btn btn-danger" onclick="removeOffsetRow(${idx})" style="padding: 7px 8px; font-size: 12px;" title="Удалить привязку">✖</button>
-        </div>
-    `).join('');
-
-    // Выставляем выбранные стены в селектах
-    const rows = container.querySelectorAll('.offset-row');
-    rows.forEach((row, idx) => {
-        const sel = row.querySelector('.offset-wall-select');
-        if (sel && el.customOffsets[idx]) {
-            sel.value = el.customOffsets[idx].wallIdx;
-        }
-    });
-}
-
-function addOffsetRow() {
-    if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
-    let el = innerElements[selectedInnerIdx];
-    if (!el.customOffsets) el.customOffsets = [];
-    
-    let count = getWallCount();
-    let nextIdx = (el.customOffsets.length) % count;
-    el.customOffsets.push({ wallIdx: nextIdx, distMm: 500 });
-    renderOffsetsInSheet(el);
-}
-
-function removeOffsetRow(idx) {
-    if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
-    let el = innerElements[selectedInnerIdx];
-    if (el.customOffsets && el.customOffsets[idx]) {
-        el.customOffsets.splice(idx, 1);
-        renderOffsetsInSheet(el);
-    }
 }
 
 function openInnerEditSheet(idx) {
@@ -773,28 +691,37 @@ function openInnerEditSheet(idx) {
                 <input type="text" inputmode="decimal" id="sheetInnerWid" class="input-field" value="${wMm}" style="font-weight:700;">
             </div>
         `;
-    } else if (el.type === 'poly' && el.pts) {
-        let rowsHtml = '';
-        for (let i = 0; i < el.pts.length; i++) {
-            let p1 = el.pts[i];
-            let p2 = el.pts[(i + 1) % el.pts.length];
-            let curLenMm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel * 10);
-            let nextIdx = (i + 1) % el.pts.length;
-            rowsHtml += `
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                    <span style="font-size: 11px; font-weight: 600; color: var(--text-main); white-space: nowrap;">Сторона ${i + 1}–${nextIdx + 1}:</span>
-                    <input type="text" inputmode="decimal" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenMm}" style="font-weight: 700; width: 110px; text-align: center;">
-                </div>
-            `;
-        }
-        dimBlock.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
-                ${rowsHtml}
-            </div>
-        `;
+    } else {
+        dimBlock.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Произвольный короб (${el.pts ? el.pts.length : 0} углов)</span>`;
     }
 
-    renderOffsetsInSheet(el);
+    let count = getWallCount();
+    let wallOptions = '';
+    for (let i = 0; i < count; i++) {
+        let p1 = points[i];
+        let p2 = points[(i + 1) % points.length];
+        if (p1 && p2) {
+            wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
+        }
+    }
+
+    const sel1 = document.getElementById('innerWallSelect1');
+    const sel2 = document.getElementById('innerWallSelect2');
+    if (sel1 && sel2) {
+        sel1.innerHTML = wallOptions;
+        sel2.innerHTML = wallOptions;
+
+        let nearest = getElementWallDistances(el);
+        if (nearest.length > 0) {
+            sel1.value = nearest[0].wallIdx;
+            document.getElementById('innerWallDist1').value = Math.round(nearest[0].distCm * 10);
+        }
+        if (nearest.length > 1) {
+            sel2.value = nearest[1].wallIdx;
+            document.getElementById('innerWallDist2').value = Math.round(nearest[1].distCm * 10);
+        }
+    }
+
     document.getElementById('innerEditSheetOverlay').classList.add('open');
 }
 
@@ -825,74 +752,40 @@ function applyInnerSheetSettings() {
             el.h = el.widCm / cmPerPixel;
             el.title = `Люк ${Math.round(el.lenCm)}×${Math.round(el.widCm)}`;
         }
-    } else if (el.type === 'poly' && el.pts) {
-        const sideInputs = document.querySelectorAll('.poly-side-input');
-        sideInputs.forEach(inp => {
-            let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
-            let targetMm = parseCleanNumber(inp.value);
-            if (!isNaN(sideIdx) && targetMm > 0 && el.pts[sideIdx]) {
-                let p1 = el.pts[sideIdx];
-                let nextI = (sideIdx + 1) % el.pts.length;
-                let p2 = el.pts[nextI];
-                let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let targetLenPx = (targetMm / 10) / cmPerPixel;
-
-                if (curLenPx > 0.001) {
-                    let dirX = (p2.x - p1.x) / curLenPx;
-                    let dirY = (p2.y - p1.y) / curLenPx;
-                    let diffX = (p1.x + dirX * targetLenPx) - p2.x;
-                    let diffY = (p1.y + dirY * targetLenPx) - p2.y;
-
-                    for (let k = nextI; k < el.pts.length; k++) {
-                        el.pts[k].x += diffX;
-                        el.pts[k].y += diffY;
-                    }
-                }
-            }
-        });
-
-        let sx = 0, sy = 0;
-        el.pts.forEach(p => { sx += p.x; sy += p.y; });
-        el.x = sx / el.pts.length;
-        el.y = sy / el.pts.length;
     }
 
-    // Сохраняем все настроенные привязки из шторки
-    const offsetRows = document.querySelectorAll('#innerOffsetsRowsContainer .offset-row');
-    el.customOffsets = [];
-    offsetRows.forEach(row => {
-        let wIdx = parseInt(row.querySelector('.offset-wall-select')?.value);
-        let distMm = parseCleanNumber(row.querySelector('.offset-dist-input')?.value);
-        if (!isNaN(wIdx) && distMm >= 0) {
-            el.customOffsets.push({ wallIdx: wIdx, distMm });
-        }
-    });
+    let wIdx1 = parseInt(document.getElementById('innerWallSelect1')?.value);
+    let d1Mm = parseCleanNumber(document.getElementById('innerWallDist1')?.value);
 
-    // Сдвиг по первой привязке для точного позиционирования
-    if (el.customOffsets.length > 0) {
-        let primary = el.customOffsets[0];
-        let pA = points[primary.wallIdx];
-        let pB = points[(primary.wallIdx + 1) % points.length];
-        if (pA && pB) {
-            let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, pA, pB);
-            let targetPx = (primary.distMm / 10) / cmPerPixel;
-            let shift = distPx - targetPx;
-            let dx = proj.x - edgePoint.x;
-            let dy = proj.y - edgePoint.y;
-            let len = Math.hypot(dx, dy) || 1;
+    let wIdx2 = parseInt(document.getElementById('innerWallSelect2')?.value);
+    let d2Mm = parseCleanNumber(document.getElementById('innerWallDist2')?.value);
 
-            let moveX = (dx / len) * shift;
-            let moveY = (dy / len) * shift;
-            el.x += moveX;
-            el.y += moveY;
+    let targetD1Px = (d1Mm / 10) / cmPerPixel;
+    let targetD2Px = (d2Mm / 10) / cmPerPixel;
 
-            if (el.type === 'poly' && el.pts) {
-                el.pts.forEach(pt => {
-                    pt.x += moveX;
-                    pt.y += moveY;
-                });
-            }
-        }
+    let pA1 = points[wIdx1];
+    let pB1 = points[(wIdx1 + 1) % points.length];
+    let pA2 = points[wIdx2];
+    let pB2 = points[(wIdx2 + 1) % points.length];
+
+    if (pA1 && pB1 && pA2 && pB2 && !isNaN(targetD1Px) && !isNaN(targetD2Px)) {
+        let { edgePoint: edge1, proj: pr1, distPx: cur1 } = getClosestPointOnElementToSegment(el, pA1, pB1);
+        let shift1 = cur1 - targetD1Px;
+        let dx1 = pr1.x - edge1.x;
+        let dy1 = pr1.y - edge1.y;
+        let len1 = Math.hypot(dx1, dy1) || 1;
+
+        let { edgePoint: edge2, proj: pr2, distPx: cur2 } = getClosestPointOnElementToSegment(el, pA2, pB2);
+        let shift2 = cur2 - targetD2Px;
+        let dx2 = pr2.x - edge2.x;
+        let dy2 = pr2.y - edge2.y;
+        let len2 = Math.hypot(dx2, dy2) || 1;
+
+        let moveX = (dx1 / len1) * shift1 + (dx2 / len2) * shift2;
+        let moveY = (dy1 / len1) * shift1 + (dy2 / len2) * shift2;
+
+        el.x += moveX;
+        el.y += moveY;
     }
 
     closeInnerEditSheet();
@@ -900,7 +793,7 @@ function applyInnerSheetSettings() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Параметры и привязки применены!', 'success');
+    showToast('Параметры и применены отступы!', 'success');
 }
 
 function deleteCurrentInnerFromSheet() {
@@ -933,7 +826,7 @@ function renderInnerElementsList() {
 
     container.innerHTML = innerElements.map((el, idx) => {
         let nearest = getElementWallDistances(el);
-        let distText = nearest.map(n => `${n.wallName}: ${n.distMm || Math.round(n.distCm * 10)} мм`).join(' | ');
+        let distText = nearest.map(n => `${n.wallName}: ${Math.round(n.distCm * 10)} мм`).join(' | ');
         let sizeText = '';
 
         if (el.type === 'rect') sizeText = `${Math.round(el.lenCm * 10)}×${Math.round(el.widCm * 10)} мм`;
@@ -1046,7 +939,7 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов и пунктиров привязки к стенам
+    // 4. Отрисовка внутренних элементов
     innerElements.forEach((el) => {
         let nearest = getElementWallDistances(el);
 
@@ -1063,14 +956,12 @@ function drawSketch() {
 
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
-            let displayMm = w.distMm || Math.round(w.distCm * 10);
-
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(midX - 26, midY - 8, 52, 16);
             ctx.fillStyle = '#ef4444';
             ctx.font = '700 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${displayMm} мм`, midX, midY + 4);
+            ctx.fillText(`${Math.round(w.distCm * 10)} мм`, midX, midY + 4);
         });
         ctx.restore();
 
@@ -1137,19 +1028,6 @@ function drawSketch() {
                 ctx.fillStyle = '#2563eb';
                 ctx.fillText(`${sideMm}`, midX, midY + 4);
             }
-
-            if (editMode === 'inner') {
-                ctx.setLineDash([]);
-                el.pts.forEach((pt, vIdx) => {
-                    ctx.fillStyle = '#2563eb';
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '700 9px "Inter", sans-serif';
-                    ctx.fillText(`${vIdx + 1}`, pt.x, pt.y + 3);
-                });
-            }
         }
         ctx.restore();
     });
@@ -1165,13 +1043,6 @@ function drawSketch() {
             ctx.lineTo(activeDrawingPoly[i].x, activeDrawingPoly[i].y);
         }
         ctx.stroke();
-
-        activeDrawingPoly.forEach((pt, i) => {
-            ctx.fillStyle = i === 0 ? '#10b981' : '#f59e0b';
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
-            ctx.fill();
-        });
         ctx.restore();
     }
 
@@ -1181,6 +1052,8 @@ function drawSketch() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
+        if (!p1 || !p2) continue;
+
         let inputEl = document.getElementById(`wall-input-${i}`);
         let lenVal = inputEl ? cleanDecimalInput(inputEl.value) : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
@@ -1208,6 +1081,7 @@ function drawSketch() {
 
     // 6. Углы (вершины) комнаты
     points.forEach((p, idx) => {
+        if (!p || !p.label) return;
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
         ctx.beginPath();
         ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
@@ -1219,9 +1093,6 @@ function drawSketch() {
         let lx = p.x + (vx / vLen) * 16;
         let ly = p.y + (vy / vLen) * 16 + 4;
 
-        lx = Math.min(canvas.width - 14, Math.max(14, lx));
-        ly = Math.min(canvas.height - 52, Math.max(14, ly));
-
         ctx.fillStyle = pointLabelColor;
         ctx.font = '700 12px "Inter", "Roboto", sans-serif';
         ctx.fillText(p.label, lx, ly);
@@ -1229,7 +1100,7 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
-// --- ТАЧ-СОБЫТИЯ И ВЗАИМОДЕЙСТВИЕ ---
+// --- ТАЧ-СОБЫТИЯ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -1251,8 +1122,7 @@ canvas.addEventListener('pointerdown', (e) => {
                 title: `Короб (${activeDrawingPoly.length} угл.)`,
                 x: sx / activeDrawingPoly.length,
                 y: sy / activeDrawingPoly.length,
-                pts: [...activeDrawingPoly],
-                customOffsets: []
+                pts: [...activeDrawingPoly]
             });
             activeDrawingPoly = [];
             editMode = 'inner';
@@ -1268,23 +1138,6 @@ canvas.addEventListener('pointerdown', (e) => {
         updateHint();
         drawSketch();
         return;
-    }
-
-    if (editMode === 'inner') {
-        for (let i = innerElements.length - 1; i >= 0; i--) {
-            let el = innerElements[i];
-            if (el.type === 'poly' && el.pts) {
-                for (let v = 0; v < el.pts.length; v++) {
-                    if (Math.hypot(el.pts[v].x - x, el.pts[v].y - y) < 22) {
-                        saveState();
-                        draggedInnerIdx = i;
-                        draggedInnerVertex = v;
-                        canvas.setPointerCapture(e.pointerId);
-                        return;
-                    }
-                }
-            }
-        }
     }
 
     for (let i = innerElements.length - 1; i >= 0; i--) {
@@ -1309,7 +1162,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
             saveState();
             draggedInnerIdx = i;
-            draggedInnerVertex = null;
             innerDragOffset = { x: x - el.x, y: y - el.y };
             canvas.setPointerCapture(e.pointerId);
             return;
@@ -1357,29 +1209,6 @@ canvas.addEventListener('pointerdown', (e) => {
             drawSketch();
             persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        } else {
-            saveState();
-            let bestWallIdx = points.length - 1;
-            let minDist = Infinity;
-            for (let i = 0; i < points.length; i++) {
-                let p1 = points[i];
-                let p2 = points[(i + 1) % points.length];
-                let mx = (p1.x + p2.x) / 2;
-                let my = (p1.y + p2.y) / 2;
-                let d = Math.hypot(mx - x, my - y);
-                if (d < minDist) {
-                    minDist = d;
-                    bestWallIdx = i;
-                }
-            }
-            points.splice(bestWallIdx + 1, 0, { x, y, label: getPointLabel(points.length) });
-            const presetCorners = document.getElementById('presetCornersCount');
-            if (presetCorners) presetCorners.value = points.length;
-            rebuildWallInputs();
-            updateHint();
-            drawSketch();
-            persistSketchToStorage();
-            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         }
     }
 });
@@ -1399,24 +1228,6 @@ canvas.addEventListener('pointermove', (e) => {
         syncInputsValuesOnly();
         drawSketch();
         return;
-    }
-
-    if (draggedInnerIdx !== null && draggedInnerVertex !== null && innerElements[draggedInnerIdx]) {
-        e.preventDefault();
-        let el = innerElements[draggedInnerIdx];
-        if (el.pts && el.pts[draggedInnerVertex]) {
-            el.pts[draggedInnerVertex].x = Math.max(20, Math.min(canvas.width - 20, curX));
-            el.pts[draggedInnerVertex].y = Math.max(20, Math.min(canvas.height - 20, curY));
-
-            let sx = 0, sy = 0;
-            el.pts.forEach(p => { sx += p.x; sy += p.y; });
-            el.x = sx / el.pts.length;
-            el.y = sy / el.pts.length;
-
-            renderInnerElementsList();
-            drawSketch();
-            return;
-        }
     }
 
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
@@ -1452,7 +1263,6 @@ canvas.addEventListener('pointerup', () => {
     isDragging = false;
     draggedPointIndex = null;
     draggedInnerIdx = null;
-    draggedInnerVertex = null;
 });
 
 // --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
@@ -1480,6 +1290,8 @@ function rebuildWallInputs() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
+        if (!p1 || !p2) continue;
+
         let distM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
         let dir = detectWallDir(p1, p2);
 
@@ -1515,6 +1327,8 @@ function syncInputsValuesOnly() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
+        if (!p1 || !p2) continue;
+
         let distM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
         let input = document.getElementById(`wall-input-${i}`);
         if (input && document.activeElement !== input) input.value = distM;
@@ -1537,6 +1351,8 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     let p1 = points[wallIndex];
     let p2 = points[wallIndex + 1];
+    if (!p1 || !p2) return;
+
     let dx = p2.x - p1.x;
     let dy = p2.y - p1.y;
     let curPx = Math.hypot(dx, dy);
@@ -1623,16 +1439,6 @@ function createFromTablePreset() {
             { x: cx + w/2, y: cy - h/2, label: 'C' },
             { x: cx + w/2, y: cy + h/2, label: 'D' }
         ];
-    } else if (count === 6) {
-        let w = 400 / cmPerPixel, h = 350 / cmPerPixel;
-        points = [
-            { x: cx - w/2, y: cy + h/2, label: 'A' },
-            { x: cx - w/2, y: cy, label: 'B' },
-            { x: cx, y: cy, label: 'C' },
-            { x: cx, y: cy - h/2, label: 'D' },
-            { x: cx + w/2, y: cy - h/2, label: 'E' },
-            { x: cx + w/2, y: cy + h/2, label: 'F' }
-        ];
     } else {
         points = [];
         let r = 115;
@@ -1656,11 +1462,12 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
-// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
     let p2 = points[(wallIdx + 1) % points.length];
+    if (!p1 || !p2) return;
+
     let inp = document.getElementById(`wall-input-${wallIdx}`);
     let curVal = inp ? inp.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
