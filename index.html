@@ -91,7 +91,6 @@
                         </div>
 
                         <div class="fab-group">
-                            <!-- Кнопка переключения слоя: Контур комнаты / Короба -->
                             <button class="canvas-fab" id="layerSwitchBtn" onclick="toggleEditLayer()" title="Слой: Комната / Короба">
                                 <span style="font-size: 14px;">📦</span>
                             </button>
@@ -109,7 +108,7 @@
                 </div>
             </div>
 
-            <!-- ПАНЕЛЬ ДОБАВЛЕНИЯ ВНУТРЕННИХ ФИГУР (КОРОБОВ И КОЛОНН) -->
+            <!-- ПАНЕЛЬ ДОБАВЛЕНИЯ ВНУТРЕННИХ ФИГУР -->
             <div class="section-card" id="innerElementsToolbar" style="display: flex; flex-direction: column; gap: 8px;">
                 <div class="section-title">
                     <span>📦 Внутренние короба и колонны</span>
@@ -126,7 +125,6 @@
                         ✏️ Произвольный
                     </button>
                 </div>
-                <!-- Список добавленных элементов с отступами -->
                 <div id="innerElementsContainer" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;"></div>
             </div>
 
@@ -184,7 +182,6 @@
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <!-- ВСТАВКА С ГАЛОЧКОЙ (СЧИТАТЬ / НЕ СЧИТАТЬ) -->
                     <div class="item-row">
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="useInsertCheckbox" onchange="toggleInsertUsage()" style="width: 17px; height: 17px; accent-color: var(--indigo-main); cursor: pointer;">
@@ -356,7 +353,7 @@
                     <span>✅ Чек-лист на монтаж</span>
                     <span id="checklistProgress" style="font-size: 11px; color: var(--success); text-transform: none;">0 / 0</span>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">Добавляйте свои позиции, отмечайте галочками перед выездом (всё сохраняется автоматически):</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Добавляйте свои позиции, отмечайте галочками перед выездом:</div>
                 
                 <div style="display: flex; gap: 6px;">
                     <input type="text" id="newChecklistItemInput" class="input-field" placeholder="Новый пункт (напр: Брус 50х50, Вставка...)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
@@ -405,7 +402,7 @@
         </div>
     </nav>
 
-    <!-- ШТОРКА: ТОЧНЫЕ ПАРАМЕТРЫ И ПРИВЯЗКА ЭЛЕМЕНТА ПО ТАПУ -->
+    <!-- ШТОРКА: ТОЧНЫЕ ПАРАМЕТРЫ И ДИНАМИЧЕСКИЕ ПРИВЯЗКИ ЭЛЕМЕНТА ПО ТАПУ -->
     <div class="bottom-sheet-overlay" id="innerEditSheetOverlay" onclick="closeInnerEditSheet()">
         <div class="bottom-sheet" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
@@ -416,26 +413,22 @@
 
             <!-- Блок 1: Собственные размеры элемента -->
             <div style="display: flex; flex-direction: column; gap: 6px;">
-                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (ММ):</span>
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (М):</span>
                 <div id="innerDimensionsBlock" style="display: flex; gap: 8px;"></div>
             </div>
 
-            <!-- Блок 2: Точные отступы от стен -->
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (ММ):</span>
+            <!-- Блок 2: Динамические отступы от стен -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (М):</span>
+                    <button class="theme-toggle-btn" type="button" onclick="addInnerWallBindingRow()" style="padding: 4px 8px; font-size: 11px; color: var(--indigo-main);">➕ Добавить привязку</button>
+                </div>
                 
-                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
-                    <select class="dir-select" id="innerWallSelect1"></select>
-                    <input type="number" id="innerWallDist1" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
-                    <select class="dir-select" id="innerWallSelect2"></select>
-                    <input type="number" id="innerWallDist2" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
-                </div>
+                <!-- Контейнер для строк с привязками -->
+                <div id="innerWallBindingsContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
             </div>
 
-            <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
                 <button class="btn btn-primary" onclick="applyInnerSheetSettings()" style="flex: 1; padding: 12px; font-size: 13px;">💾 Применить</button>
                 <button class="btn btn-danger" onclick="deleteCurrentInnerFromSheet()" style="padding: 12px 14px; font-size: 13px;" title="Удалить этот короб">🗑️</button>
             </div>
@@ -451,7 +444,7 @@
                 <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="м" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <input type="text" inputmode="numeric" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="0.000" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
                 <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
@@ -525,7 +518,6 @@
                 Для продолжения работы выберите удобный тариф через <b>RuStore</b>. Оплата защищена и восстанавливается на любом вашем устройстве.
             </div>
             
-            <!-- Тариф 1: 3 месяца -->
             <div style="background: var(--sub-block-bg); border: 1px solid var(--border); padding: 12px; border-radius: 10px; text-align: center;">
                 <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">СЕЗОН (3 МЕСЯЦА)</div>
                 <div style="font-size: 22px; font-weight: 800; margin: 2px 0;">500 ₽</div>
@@ -533,7 +525,6 @@
                 <button class="btn btn-primary" onclick="buyViaRuStore('sub_3m_500')" style="width: 100%; padding: 11px; font-size: 13px;">🛒 Выбрать на 3 месяца</button>
             </div>
 
-            <!-- Тариф 2: 1 год -->
             <div style="background: var(--sub-block-bg); border: 1px solid var(--accent); padding: 12px; border-radius: 10px; text-align: center;">
                 <div style="font-size: 11px; color: var(--accent); font-weight: 700;">ВЫГОДНЫЙ PRO (1 ГОД)</div>
                 <div style="font-size: 22px; font-weight: 800; margin: 2px 0;">1 500 ₽</div>
@@ -541,12 +532,10 @@
                 <button class="btn btn-primary" onclick="buyViaRuStore('sub_1y_1500')" style="width: 100%; padding: 11px; font-size: 13px; background: var(--indigo-main);">👑 Выбрать на 1 год</button>
             </div>
 
-            <!-- Кнопка восстановления покупок -->
             <button class="btn" onclick="restorePurchasesRuStore()" style="width: 100%; padding: 10px; font-size: 12px; background: var(--card-bg); border: 1px solid var(--border);">
                 🔄 Уже оплачивали? Восстановить покупки
             </button>
 
-            <!-- Резервный блок по ключу/почте -->
             <div class="device-id-box" style="margin-top: 4px;">
                 <div>ID устройства: <b id="deviceIdLabel" style="color: var(--text-main); font-size: 13px;">—</b></div>
                 <div style="font-size: 11px;">Почта техподдержки: <b>Prilojeniea-p-k@mail.ru</b></div>
