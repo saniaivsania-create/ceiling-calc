@@ -409,6 +409,7 @@ function calculate() {
         (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
 }
 
+// --- УПРАВЛЕНИЕ ВЫГРУЗКОЙ ---
 function selectExportFormat(fmt) {
     selectedExportFormat = fmt;
     document.getElementById('fmtTabPng')?.classList.toggle('active', fmt === 'png');
@@ -427,6 +428,7 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
+// ГЛАВНАЯ КНОПКА ОТПРАВКИ ЧЕРЕЗ СИСТЕМНОЕ МЕНЮ ANDROID
 function triggerCombinedShare(target) {
     let isClient = (target === 'client');
     let title = isClient 
@@ -440,17 +442,8 @@ function triggerCombinedShare(target) {
         return;
     }
 
+    // Закрываем шторку только после инициализации
     closeExportSheet();
-
-    // [ИСПРАВЛЕНИЕ БАГА 4]: Поддержка выгрузки в PNG или Word, если выбран соответствующий формат
-    if (selectedExportFormat === 'doc') {
-        exportWordDoc(target);
-        return;
-    } else if (selectedExportFormat === 'png') {
-        if (isClient) exportClientImage();
-        else exportFactoryImage();
-        return;
-    }
 
     if (navigator.share) {
         navigator.share({
@@ -476,6 +469,7 @@ function copyTextFallback(text) {
     }
 }
 
+// ПРЯМАЯ ОТПРАВКА В TELEGRAM: КОПИРУЕТ РАСЧЕТ И СРАЗУ ОТКРЫВАЕТ ПРИЛОЖЕНИЕ TG
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -484,15 +478,18 @@ function shareDirectTelegram(target) {
         return;
     }
     
+    // Копируем готовый структурированный текст в буфер обмена
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
             showToast('📋 Расчёт скопирован! Выберите чат и вставьте', 'success');
         });
     }
     
+    // Открываем само установленное приложение Telegram
     window.location.href = "tg://";
 }
 
+// ПРЯМАЯ ОТПРАВКА В MAX
 function shareDirectMax(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -511,6 +508,7 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
+// Сохранение картинки клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -579,6 +577,7 @@ function exportClientImage() {
     downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
+// Сохранение картинки в цех (чистые размеры без усадки)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -675,6 +674,7 @@ function downloadCanvasImage(cnv, fileName) {
     showToast('Чертёж сохранён в Загрузки');
 }
 
+// Экспорт Word
 function exportWordDoc(target = 'client') {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
