@@ -463,12 +463,12 @@ function getCleanDiagonals() {
     return diags;
 }
 
+// Поиск проекции точки на отрезок (чистая формула без опечаток)
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
     let aby = b.y - a.y;
     let apx = p.x - a.x;
     let apy = p.y - a.y;
-    let lenSq = abx * abx + aby * handy = aby * aby;
     let lenTotal = abx * abx + aby * aby;
     let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
     return { x: a.x + t * abx, y: a.y + t * aby };
@@ -642,7 +642,7 @@ function addQuickCircleColumn() {
     showToast('Добавлена круглая колонна');
 }
 
-// ЗАПУСК РЕЖИМА РИСОВАНИЯ ПРОИЗВОЛЬНОГО КОРОБА
+// Запуск рисования произвольного короба
 function startCustomBoxDrawing() {
     if (!isClosed || points.length < 3) {
         showToast('Сначала замкните комнату!', 'error');
