@@ -180,19 +180,30 @@ function calculate() {
         totalInnerAreaM2 += m.areaM2;
         totalInnerCorners += m.cornersCount;
 
-        let offsets = (typeof getElementWallDistances === 'function') ? getElementWallDistances(el) : [];
-        let offsetStr = offsets.map(o => `${Math.round(o.distCm * 10)} мм до ст. ${o.wallName}`).join(', ');
+        // Исправлено: поддержка кастомных привязок и корректных метров без NaN
+        let offsetStr = '';
+        if (el.customBindings && el.customBindings.length > 0) {
+            offsetStr = el.customBindings.map(b => {
+                let p1 = points[b.wallIdx];
+                let p2 = points[(b.wallIdx + 1) % points.length];
+                let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${b.wallIdx + 1}`;
+                return `${b.distM} м до ст. ${wName}`;
+            }).join(', ');
+        } else if (typeof getElementWallDistances === 'function') {
+            let offsets = getElementWallDistances(el);
+            offsetStr = offsets.map(o => `${o.distM.toFixed(3)} м до ст. ${o.wallName}`).join(', ');
+        }
 
         let desc = '';
-        if (el.type === 'rect') desc = `Прямоуг./Люк ${Math.round(el.lenCm * 10)}×${Math.round(el.widCm * 10)} мм`;
-        else if (el.type === 'circle') desc = `Колонна/Круг ⌀${Math.round(el.diamCm * 10)} мм`;
+        if (el.type === 'rect') desc = `Прямоуг./Люк ${(el.lenCm/100).toFixed(3)}×${(el.widCm/100).toFixed(3)} м`;
+        else if (el.type === 'circle') desc = `Колонна/Круг ⌀${(el.diamCm/100).toFixed(3)} м`;
         else desc = `Короб (${el.pts ? el.pts.length : 0} угл.)`;
 
         innerSummaryList.push({
             name: `${el.title || 'Элемент ' + (idx + 1)} (${desc})`,
-            perimM: m.perimM.toFixed(2),
-            areaM2: m.areaM2.toFixed(2),
-            offsetStr: offsetStr || 'центр'
+            perimM: m.perimM.toFixed(3),
+            areaM2: m.areaM2.toFixed(3),
+            offsetStr: offsetStr || 'по центру'
         });
     });
 
@@ -428,31 +439,36 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-// ГЛАВНАЯ КНОПКА ОТПРАВКИ ЧЕРЕЗ СИСТЕМНОЕ МЕНЮ ANDROID
+// ГЛАВНАЯ КНОПКА ОТПРАВКИ: ПОДДЕРЖКА ВЫБРАННОГО ФОРМАТА (PNG / DOC / ТЕКСТ)
 function triggerCombinedShare(target) {
     let isClient = (target === 'client');
-    let title = isClient 
-        ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
-        : `🏭 Раскрой в цех (БЕЗ УСАДКИ): ${lastCalcData?.clientName || 'Заказ'}`;
-    
-    let shareText = isClient ? lastEstimateText : lastFactoryText;
 
-    if (!shareText) {
+    if (!lastCalcData) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
     }
 
-    // Закрываем шторку только после инициализации
     closeExportSheet();
 
+    if (selectedExportFormat === 'png') {
+        if (isClient) exportClientImage();
+        else exportFactoryImage();
+        return;
+    }
+
+    if (selectedExportFormat === 'doc') {
+        exportWordDoc(target);
+        return;
+    }
+
+    let title = isClient 
+        ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
+        : `🏭 Раскрой в цех (БЕЗ УСАДКИ): ${lastCalcData?.clientName || 'Заказ'}`;
+    let shareText = isClient ? lastEstimateText : lastFactoryText;
+
     if (navigator.share) {
-        navigator.share({
-            title: title,
-            text: shareText
-        }).catch(err => {
-            if (err.name !== 'AbortError') {
-                copyTextFallback(shareText);
-            }
+        navigator.share({ title, text: shareText }).catch(err => {
+            if (err.name !== 'AbortError') copyTextFallback(shareText);
         });
     } else {
         copyTextFallback(shareText);
@@ -469,7 +485,7 @@ function copyTextFallback(text) {
     }
 }
 
-// ПРЯМАЯ ОТПРАВКА В TELEGRAM: КОПИРУЕТ РАСЧЕТ И СРАЗУ ОТКРЫВАЕТ ПРИЛОЖЕНИЕ TG
+// ПРЯМАЯ ОТПРАВКА В TELEGRAM
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -478,14 +494,11 @@ function shareDirectTelegram(target) {
         return;
     }
     
-    // Копируем готовый структурированный текст в буфер обмена
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
             showToast('📋 Расчёт скопирован! Выберите чат и вставьте', 'success');
         });
     }
-    
-    // Открываем само установленное приложение Telegram
     window.location.href = "tg://";
 }
 
