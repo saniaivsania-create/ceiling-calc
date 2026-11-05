@@ -431,7 +431,7 @@ function selectExportTheme(thm) {
     selectedExportTheme = thm;
     document.getElementById('thmTabDark')?.classList.toggle('active', thm === 'dark');
     document.getElementById('thmTabLight')?.classList.toggle('active', thm === 'light');
-    showToast(thm === 'light' ? 'Тема экспорта: Белая (для печати)' : 'Тема экспорта: Тёмная');
+    showToast(thm === 'light' ? '☀️ Выбрана Белая тема (печать)' : '🌙 Выбрана Тёмная тема');
 }
 
 function openExportSheet() {
@@ -512,7 +512,164 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
-// Генерация карточки клиента с поддержкой Светлой и Тёмной темы
+// Чистая перерисовка контура чертежа под выбранный цвет (белый или темный)
+function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
+    if (points.length < 2) return;
+    targetCtx.save();
+    targetCtx.translate(destX, destY);
+
+    // Сетка
+    targetCtx.strokeStyle = isWhite ? '#e2e8f0' : '#1e293b';
+    targetCtx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 20) {
+        targetCtx.beginPath(); targetCtx.moveTo(x, 0); targetCtx.lineTo(x, canvas.height); targetCtx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 20) {
+        targetCtx.beginPath(); targetCtx.moveTo(0, y); targetCtx.lineTo(canvas.width, y); targetCtx.stroke();
+    }
+
+    // Диагонали
+    let diags = getCleanDiagonals();
+    if (diags.length > 0) {
+        targetCtx.save();
+        targetCtx.strokeStyle = isWhite ? '#64748b' : 'rgba(255, 255, 255, 0.35)';
+        targetCtx.lineWidth = 1.3;
+        targetCtx.setLineDash([4, 4]);
+        diags.forEach((d, idx) => {
+            targetCtx.beginPath(); targetCtx.moveTo(d.from.x, d.from.y); targetCtx.lineTo(d.to.x, d.to.y); targetCtx.stroke();
+            let ratio = 0.4 + (idx % 3) * 0.12;
+            let mx = d.from.x + (d.to.x - d.from.x) * ratio;
+            let my = d.from.y + (d.to.y - d.from.y) * ratio;
+            targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+            targetCtx.fillRect(mx - 24, my - 9, 48, 14);
+            targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+            targetCtx.strokeRect(mx - 24, my - 9, 48, 14);
+            targetCtx.fillStyle = isWhite ? '#475569' : '#94a3b8';
+            targetCtx.font = '500 10px sans-serif';
+            targetCtx.textAlign = 'center';
+            targetCtx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 2);
+        });
+        targetCtx.restore();
+    }
+
+    // Контур стен
+    targetCtx.beginPath();
+    targetCtx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) targetCtx.lineTo(points[i].x, points[i].y);
+    if (isClosed) {
+        targetCtx.closePath();
+        targetCtx.fillStyle = isWhite ? 'rgba(37, 99, 235, 0.04)' : 'rgba(79, 70, 229, 0.1)';
+        targetCtx.fill();
+    }
+    targetCtx.strokeStyle = isWhite ? '#0f172a' : '#e2e8f0';
+    targetCtx.lineWidth = 2.5;
+    targetCtx.stroke();
+
+    // Короба и привязки
+    innerElements.forEach(el => {
+        let activeWallDists = [];
+        if (el.customBindings && el.customBindings.length > 0) {
+            el.customBindings.forEach(b => {
+                let p1 = points[b.wallIdx];
+                let p2 = points[(b.wallIdx + 1) % points.length];
+                if (p1 && p2) {
+                    let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
+                    activeWallDists.push({ edgeX: edgePoint.x, edgeY: edgePoint.y, projX: proj.x, projY: proj.y, distM: (distPx * cmPerPixel) / 100 });
+                }
+            });
+        } else {
+            activeWallDists = getElementWallDistances(el);
+        }
+
+        // Красные пунктирные привязки
+        targetCtx.save();
+        targetCtx.strokeStyle = '#ef4444';
+        targetCtx.lineWidth = 1.3;
+        targetCtx.setLineDash([3, 3]);
+        activeWallDists.forEach(w => {
+            targetCtx.beginPath(); targetCtx.moveTo(w.edgeX, w.edgeY); targetCtx.lineTo(w.projX, w.projY); targetCtx.stroke();
+            let midX = (w.edgeX + w.projX) / 2;
+            let midY = (w.edgeY + w.projY) / 2;
+            targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+            targetCtx.fillRect(midX - 32, midY - 8, 64, 16);
+            targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+            targetCtx.strokeRect(midX - 32, midY - 8, 64, 16);
+            targetCtx.fillStyle = '#ef4444';
+            targetCtx.font = '700 10px sans-serif';
+            targetCtx.textAlign = 'center';
+            targetCtx.fillText(`${w.distM.toFixed(3)} м`, midX, midY + 4);
+        });
+        targetCtx.restore();
+
+        // Тело короба
+        targetCtx.save();
+        targetCtx.strokeStyle = '#2563eb';
+        targetCtx.lineWidth = 2;
+        targetCtx.fillStyle = isWhite ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.25)';
+
+        if (el.type === 'rect') {
+            let rw = el.w || (el.lenCm / cmPerPixel);
+            let rh = el.h || (el.widCm / cmPerPixel);
+            targetCtx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
+            targetCtx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
+        } else if (el.type === 'circle') {
+            let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
+            targetCtx.beginPath(); targetCtx.arc(el.x, el.y, rad, 0, Math.PI * 2);
+            targetCtx.stroke(); targetCtx.fill();
+        } else if (el.type === 'poly' && el.pts) {
+            targetCtx.beginPath(); targetCtx.moveTo(el.pts[0].x, el.pts[0].y);
+            for (let i = 1; i < el.pts.length; i++) targetCtx.lineTo(el.pts[i].x, el.pts[i].y);
+            targetCtx.closePath(); targetCtx.stroke(); targetCtx.fill();
+        }
+        targetCtx.restore();
+    });
+
+    // Размеры стен
+    let centerX = 0, centerY = 0;
+    points.forEach(p => { centerX += p.x; centerY += p.y; });
+    centerX /= points.length; centerY /= points.length;
+
+    let wallCount = getWallCount();
+    targetCtx.textAlign = 'center';
+    for (let i = 0; i < wallCount; i++) {
+        let p1 = points[i];
+        let p2 = points[(i + 1) % points.length];
+        if (!p1 || !p2) continue;
+        let inputEl = document.getElementById(`wall-input-${i}`);
+        let lenVal = inputEl ? inputEl.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
+        let midX = (p1.x + p2.x) / 2;
+        let midY = (p1.y + p2.y) / 2;
+        let outX = midX - centerX;
+        let outY = midY - centerY;
+        let outLen = Math.hypot(outX, outY) || 1;
+        let labelX = midX + (outX / outLen) * 18;
+        let labelY = midY + (outY / outLen) * 18;
+
+        targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+        targetCtx.fillRect(labelX - 28, labelY - 11, 56, 16);
+        targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+        targetCtx.strokeRect(labelX - 28, labelY - 11, 56, 16);
+        targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
+        targetCtx.font = '600 11px sans-serif';
+        targetCtx.fillText(`${lenVal} м`, labelX, labelY);
+    }
+
+    // Углы (буквы A, B, C...)
+    points.forEach(p => {
+        targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
+        targetCtx.beginPath(); targetCtx.arc(p.x, p.y, 6, 0, Math.PI * 2); targetCtx.fill();
+        let vx = p.x - centerX; let vy = p.y - centerY;
+        let vLen = Math.hypot(vx, vy) || 1;
+        let lx = p.x + (vx / vLen) * 16;
+        let ly = p.y + (vy / vLen) * 16 + 4;
+        targetCtx.font = '700 12px sans-serif';
+        targetCtx.fillText(p.label, lx, ly);
+    });
+
+    targetCtx.restore();
+}
+
+// Карточка сметы клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -520,12 +677,12 @@ function exportClientImage() {
     }
 
     const tempCanvas = document.createElement('canvas');
-    const pad = 18;
+    const pad = 20;
     const headerH = 80;
     const rowH = 32;
     const footerH = lastBreakdownItems.length * rowH + 65;
 
-    tempCanvas.width = Math.max(canvas.width, 380);
+    tempCanvas.width = Math.max(canvas.width, 540);
     tempCanvas.height = headerH + canvas.height + footerH;
     const tCtx = tempCanvas.getContext('2d');
 
@@ -546,7 +703,7 @@ function exportClientImage() {
     tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}`, pad, 70);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
-    tCtx.drawImage(canvas, offsetX, headerH);
+    renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
 
     let startY = headerH + canvas.height + 20;
     lastBreakdownItems.forEach((item, idx) => {
@@ -582,7 +739,7 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Генерация карточки для цеха (исправлено наложение 2-х колонок)
+// Карточка раскроя в цех (Ширина 540px, отступ колонок 270px — текст не слипается)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -590,14 +747,14 @@ function exportFactoryImage() {
     }
 
     const tempCanvas = document.createElement('canvas');
-    const pad = 16;
+    const pad = 20;
     const headerH = 92;
     const inCount = lastCalcData.innerElements ? lastCalcData.innerElements.length : 0;
     const wallsRows = Math.ceil(lastCalcData.wallsData.length / 2);
     const diagsRows = Math.ceil(lastCalcData.diags.length / 2);
     const footerH = (wallsRows + diagsRows) * 22 + (inCount > 0 ? inCount * 18 + 26 : 0) + 60;
 
-    tempCanvas.width = Math.max(canvas.width, 400);
+    tempCanvas.width = Math.max(canvas.width, 540);
     tempCanvas.height = headerH + canvas.height + footerH;
     const tCtx = tempCanvas.getContext('2d');
 
@@ -621,7 +778,7 @@ function exportFactoryImage() {
     tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 86);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
-    tCtx.drawImage(canvas, offsetX, headerH);
+    renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
 
     let y = headerH + canvas.height + 22;
     tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
@@ -629,10 +786,10 @@ function exportFactoryImage() {
     tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
     y += 20;
 
-    // Чёткое разделение колонок с отступом 210px
+    // Чёткое разделение колонок с отступом 270px
     tCtx.fillStyle = isWhite ? '#1e293b' : '#ffffff';
     tCtx.font = '12px Inter, Roboto, monospace';
-    const col2X = pad + 195;
+    const col2X = pad + 270;
 
     lastCalcData.wallsData.forEach((w, i) => {
         let isLeft = (i % 2 === 0);
