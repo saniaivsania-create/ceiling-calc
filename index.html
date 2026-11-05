@@ -420,14 +420,19 @@
                 <div id="innerDimensionsBlock" style="display: flex; gap: 8px;"></div>
             </div>
 
-            <!-- Блок 2: Точные отступы от стен (динамический список с плюсиком) -->
+            <!-- Блок 2: Точные отступы от стен -->
             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (ММ):</span>
-                    <button class="btn btn-primary" onclick="addOffsetRow()" style="padding: 4px 10px; font-size: 11px;">➕ Привязка</button>
-                </div>
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (ММ):</span>
                 
-                <div id="innerOffsetsRowsContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
+                    <select class="dir-select" id="innerWallSelect1"></select>
+                    <input type="number" id="innerWallDist1" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; align-items: center;">
+                    <select class="dir-select" id="innerWallSelect2"></select>
+                    <input type="number" id="innerWallDist2" class="input-field" placeholder="мм" style="font-weight: 600; text-align: center;">
+                </div>
             </div>
 
             <div style="display: flex; gap: 8px; margin-top: 8px;">
@@ -446,7 +451,7 @@
                 <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" inputmode="decimal" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="м" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <input type="number" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="м" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
                 <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
