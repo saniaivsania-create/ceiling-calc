@@ -251,6 +251,7 @@ function grantAccess(days, message) {
     if (modal) modal.style.display = 'none';
     showToast(message, 'success');
     if (typeof calculate === 'function') calculate();
+    if (typeof performCalculation === 'function') performCalculation();
 }
 
 function activateByCode() {
@@ -323,6 +324,7 @@ function createDefaultRoom(title = 'Комната 1') {
         scale: 2.5,
         walls: [],
         innerElements: [],
+        hatchSubtractArea: true,
         countInsert: 0,
         useInsert: false,
         countLights: 4,
@@ -357,6 +359,11 @@ function syncCurrentRoomState() {
     if (typeof innerElements !== 'undefined') {
         r.innerElements = JSON.parse(JSON.stringify(innerElements));
     }
+
+    const subCheckbox = document.getElementById('hatchSubtractArea');
+    if (subCheckbox) {
+        r.hatchSubtractArea = subCheckbox.checked;
+    }
     
     r.countInsert = parseFloat(document.getElementById('countInsert')?.value) || 0;
     r.useInsert = document.getElementById('useInsertCheckbox')?.checked || false;
@@ -390,6 +397,11 @@ function loadRoomIntoUI(idx) {
     if (typeof innerElements !== 'undefined') {
         innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
+    }
+
+    const subCheckbox = document.getElementById('hatchSubtractArea');
+    if (subCheckbox) {
+        subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
     }
 
     if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
@@ -480,8 +492,11 @@ function deleteCurrentRoom() {
     }
 }
 
-// Моментальное создание нового замера без всплывающих окон подтверждения
+// Переменная для отслеживания текущего открытого проекта (предотвращает создание дубликатов)
+let currentLoadedProjectId = null;
+
 function startNewProject() {
+    currentLoadedProjectId = null;
     document.getElementById('clientName').value = '';
     document.getElementById('clientAddress').value = '';
     document.getElementById('clientPhone').value = '';
@@ -492,7 +507,7 @@ function startNewProject() {
     showToast('Создан новый замер', 'success');
 }
 
-// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА / УДАЛЕНИЕ СТРОГО ПО ID) ---
+// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ОБНОВЛЕНИЕ / ЗАГРУЗКА ПО ID) ---
 function directDial(phoneNum) {
     if (!phoneNum) return;
     let clean = phoneNum.replace(/[^\d+]/g, '');
@@ -539,8 +554,11 @@ function saveProject() {
         return;
     }
 
+    let saved = getStoredProjects();
+    let existingIdx = currentLoadedProjectId ? saved.findIndex(p => p.id === currentLoadedProjectId) : -1;
+
     let projectData = {
-        id: 'proj_' + Date.now(),
+        id: existingIdx !== -1 ? currentLoadedProjectId : ('proj_' + Date.now()),
         name,
         address,
         phone,
@@ -553,10 +571,16 @@ function saveProject() {
         date: new Date().toLocaleDateString()
     };
 
-    let saved = getStoredProjects();
-    saved.push(projectData);
+    if (existingIdx !== -1) {
+        saved[existingIdx] = projectData;
+        showToast(`Замер клиента "${name}" обновлён!`, 'success');
+    } else {
+        saved.push(projectData);
+        currentLoadedProjectId = projectData.id;
+        showToast(`Замер клиента "${name}" сохранён!`, 'success');
+    }
+
     localStorage.setItem('pro_projects', JSON.stringify(saved));
-    showToast(`Замер клиента "${name}" сохранён!`, 'success');
 }
 
 function openProjectsModal() {
@@ -625,6 +649,7 @@ function loadSavedProject(projId) {
     let proj = saved.find(p => p.id === projId);
     if (!proj) return;
 
+    currentLoadedProjectId = proj.id;
     document.getElementById('clientName').value = proj.name;
     document.getElementById('clientAddress').value = proj.address || '';
     document.getElementById('clientPhone').value = proj.phone || '';
@@ -653,6 +678,9 @@ function deleteSavedProject(projId) {
     if (!proj) return;
 
     if (confirm(`Удалить замер клиента "${proj.name}"?`)) {
+        if (currentLoadedProjectId === projId) {
+            currentLoadedProjectId = null;
+        }
         saved = saved.filter(p => p.id !== projId);
         localStorage.setItem('pro_projects', JSON.stringify(saved));
         renderProjectsList();
