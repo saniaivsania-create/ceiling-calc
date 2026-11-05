@@ -337,6 +337,7 @@ function createDefaultRoom(title = 'Комната 1') {
         customPrice1: 0,
         customName2: 'Обход короба',
         customPrice2: 0,
+        hatchSubtractArea: true,
         lastTotal: 0
     };
 }
@@ -373,6 +374,9 @@ function syncCurrentRoomState() {
     r.customPrice1 = parseFloat(document.getElementById('customPrice1')?.value) || 0;
     r.customName2 = document.getElementById('customName2')?.value || '';
     r.customPrice2 = parseFloat(document.getElementById('customPrice2')?.value) || 0;
+    
+    const hatchSub = document.getElementById('hatchSubtractArea');
+    if (hatchSub) r.hatchSubtractArea = hatchSub.checked;
 }
 
 function loadRoomIntoUI(idx) {
@@ -380,6 +384,7 @@ function loadRoomIntoUI(idx) {
     let r = rooms[activeRoomIdx];
     if (!r) return;
 
+    // ИСПРАВЛЕНИЕ БАГА 1: Безопасное чтение координат y с сохранением label
     if (typeof points !== 'undefined') {
         points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
     }
@@ -407,6 +412,9 @@ function loadRoomIntoUI(idx) {
     if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
     if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
     if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
+
+    const hatchSub = document.getElementById('hatchSubtractArea');
+    if (hatchSub) hatchSub.checked = r.hatchSubtractArea ?? true;
 
     const presetCorners = document.getElementById('presetCornersCount');
     if (presetCorners && points && points.length >= 3) {
@@ -486,6 +494,7 @@ function startNewProject() {
         document.getElementById('clientAddress').value = '';
         document.getElementById('clientPhone').value = '';
         document.getElementById('clientDate').value = '';
+        localStorage.removeItem('_pz_active_sketch_backup');
         rooms = [createDefaultRoom('Зал / Комната 1')];
         loadRoomIntoUI(0);
         showToast('Создан новый замер', 'success');
@@ -525,7 +534,6 @@ function saveProject() {
     }
 
     let projectData = {
-        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         name,
         address,
         phone,
@@ -553,39 +561,27 @@ function closeProjectsModal() {
     document.getElementById('projectsModal').style.display = 'none';
 }
 
-// РЕНДЕР СПИСКА КЛИЕНТОВ: ИСПРАВЛЕН БАГ УДАЛЕНИЯ ЧЕРЕЗ УНИКАЛЬНЫЙ ID
+// ИСПРАВЛЕНИЕ БАГА 3: Сохранение оригинальных индексов при поиске в базе клиентов
 function renderProjectsList() {
     const listEl = document.getElementById('savedProjectsList');
-    const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase().trim();
-    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase();
+    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]')
+        .map((p, realIdx) => ({ ...p, realIdx }));
 
-    // Назначаем ID старым записям, если их не было
-    let updated = false;
-    allProjects.forEach((p, i) => {
-        if (!p.id) {
-            p.id = 'legacy_' + i + '_' + Date.now();
-            updated = true;
-        }
-    });
-    if (updated) {
-        localStorage.setItem('pro_projects', JSON.stringify(allProjects));
-    }
-
-    let displayList = allProjects;
     if (searchQ) {
-        displayList = allProjects.filter(p => 
+        saved = saved.filter(p => 
             (p.name && p.name.toLowerCase().includes(searchQ)) ||
             (p.address && p.address.toLowerCase().includes(searchQ)) ||
             (p.phone && p.phone.toLowerCase().includes(searchQ))
         );
     }
 
-    if (displayList.length === 0) {
+    if (saved.length === 0) {
         listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 20px 0; font-size: 13px;">Список клиентов пуст или ничего не найдено</div>`;
         return;
     }
 
-    listEl.innerHTML = displayList.map((p, idx) => {
+    listEl.innerHTML = saved.map((p, idx) => {
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
         
@@ -612,20 +608,18 @@ function renderProjectsList() {
                 ${callBtn}
                 ${tgBtn}
                 ${maxBtn}
-                <button class="btn btn-primary" onclick="loadSavedProjectById('${p.id}')" style="padding: 7px 9px;" title="Открыть замер">📂</button>
-                <button class="btn btn-danger" onclick="deleteSavedProjectById('${p.id}')" style="padding: 7px 9px;" title="Удалить замер">🗑️</button>
+                <button class="btn btn-primary" onclick="loadSavedProject(${p.realIdx})" style="padding: 7px 9px;">📂</button>
+                <button class="btn btn-danger" onclick="deleteSavedProject(${p.realIdx})" style="padding: 7px 9px;">🗑️</button>
             </div>
         </div>
     `}).join('');
 }
 
-// ТОЧНАЯ ЗАГРУЗКА ПО ID
-function loadSavedProjectById(projectId) {
-    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    let proj = allProjects.find(p => p.id === projectId);
-    if (!proj) return;
-
-    document.getElementById('clientName').value = proj.name || '';
+function loadSavedProject(index) {
+    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    if (!saved[index]) return;
+    let proj = saved[index];
+    document.getElementById('clientName').value = proj.name;
     document.getElementById('clientAddress').value = proj.address || '';
     document.getElementById('clientPhone').value = proj.phone || '';
     document.getElementById('clientDate').value = proj.dateVal || '';
@@ -647,28 +641,15 @@ function loadSavedProjectById(projectId) {
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
-// ТОЧНОЕ УДАЛЕНИЕ ПО ID
-function deleteSavedProjectById(projectId) {
-    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    let proj = allProjects.find(p => p.id === projectId);
-    if (!proj) return;
-
-    if (confirm(`Удалить замер клиента "${proj.name}"?`)) {
-        allProjects = allProjects.filter(p => p.id !== projectId);
-        localStorage.setItem('pro_projects', JSON.stringify(allProjects));
-        renderProjectsList();
-        showToast(`Замер клиента "${proj.name}" удалён`);
-    }
-}
-
-// Совместимость со старыми вызовами
-function loadSavedProject(index) {
-    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (allProjects[index]) loadSavedProjectById(allProjects[index].id);
-}
 function deleteSavedProject(index) {
-    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (allProjects[index]) deleteSavedProjectById(allProjects[index].id);
+    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    if (!saved[index]) return;
+    if (confirm(`Удалить замер клиента "${saved[index].name}"?`)) {
+        saved.splice(index, 1);
+        localStorage.setItem('pro_projects', JSON.stringify(saved));
+        renderProjectsList();
+        showToast('Замер удалён');
+    }
 }
 
 // --- ЧЕК-ЛИСТ МОНТАЖА И БЛОКНОТ ЗАМЕТОК ---
@@ -705,6 +686,7 @@ function saveChecklist() {
     localStorage.setItem('_pz_checklist_v1', JSON.stringify(checklistData));
 }
 
+// ИСПРАВЛЕНИЕ БАГА 7: Устранение двойного срабатывания клика на чекбоксе
 function renderChecklist() {
     const container = document.getElementById('checklistContainer');
     const badge = document.getElementById('checklistProgress');
@@ -721,7 +703,7 @@ function renderChecklist() {
     container.innerHTML = checklistData.map((item, idx) => `
         <div class="checklist-item ${item.checked ? 'checked' : ''}">
             <label class="checklist-left" onclick="toggleChecklistItem(${idx}); return false;">
-                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem(${idx})">
+                <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} style="pointer-events: none;">
                 <span class="checklist-text">${item.text}</span>
             </label>
             <div class="checklist-actions">
