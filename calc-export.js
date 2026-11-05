@@ -89,7 +89,7 @@ function getCurrentRoomPerimeterM() {
 
     for (let i = 0; i < wallCount; i++) {
         let inp = document.getElementById(`wall-input-${i}`);
-        let val = inp ? parseFloat(inp.value.replace(',', '.')) : 0;
+        let val = inp ? parseFloat(inp.value) : 0;
         if (!val || isNaN(val)) {
             let p1 = points[i];
             let p2 = points[(i + 1) % points.length];
@@ -152,8 +152,7 @@ function calculate() {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
         let inp = document.getElementById(`wall-input-${i}`);
-        let rawVal = inp ? inp.value.replace(',', '.') : '';
-        let valM = parseFloat(rawVal) || 0;
+        let valM = inp ? parseFloat(inp.value) : 0;
         
         if (!valM || isNaN(valM)) {
             valM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel) / 100;
@@ -410,7 +409,6 @@ function calculate() {
         (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
 }
 
-// --- УПРАВЛЕНИЕ ВЫГРУЗКОЙ ---
 function selectExportFormat(fmt) {
     selectedExportFormat = fmt;
     document.getElementById('fmtTabPng')?.classList.toggle('active', fmt === 'png');
@@ -429,151 +427,11 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-// СОЗДАНИЕ ВЫСОКОКАЧЕСТВЕННОГО ИЗОБРАЖЕНИЯ ЧЕРТЕЖА СО СМЕТОЙ
-function generateCombinedCanvas(target = 'client') {
-    const isClient = (target === 'client');
-    const tempCanvas = document.createElement('canvas');
-    const pad = 18;
-    const headerH = isClient ? 82 : 92;
-    const inCount = lastCalcData?.innerElements ? lastCalcData.innerElements.length : 0;
-    
-    let footerH = 0;
-    if (isClient) {
-        const rowH = 32;
-        footerH = lastBreakdownItems.length * rowH + 65;
-    } else {
-        const linesCount = Math.ceil((lastCalcData?.wallsData.length || 0) / 2) + 
-                           Math.ceil((lastCalcData?.diags.length || 0) / 2) + 
-                           (inCount > 0 ? inCount + 4 : 3);
-        footerH = linesCount * 22 + 50;
-    }
-
-    tempCanvas.width = Math.max(canvas.width, 400);
-    tempCanvas.height = headerH + canvas.height + footerH;
-    const tCtx = tempCanvas.getContext('2d');
-
-    // Чистый светлый фон для читаемости на печати и в цеху
-    tCtx.fillStyle = '#ffffff';
-    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-    if (isClient) {
-        tCtx.fillStyle = '#0f172a';
-        tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
-        tCtx.fillText(`📋 Смета — ${lastCalcData.clientName}`, pad, 28);
-
-        tCtx.fillStyle = '#64748b';
-        tCtx.font = '13px Inter, Roboto, sans-serif';
-        tCtx.fillText(`📍 ${lastCalcData.clientAddr}`, pad, 50);
-
-        tCtx.fillStyle = '#059669';
-        tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-        tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.`, pad, 70);
-    } else {
-        tCtx.fillStyle = '#0f172a';
-        tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
-        tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 26);
-
-        tCtx.fillStyle = '#dc2626';
-        tCtx.font = 'bold 12px Inter, Roboto, sans-serif';
-        tCtx.fillText(`⚠️ РАЗМЕРЫ БЕЗ УСАДКИ (чистый габарит помещения)!`, pad, 48);
-
-        tCtx.fillStyle = '#475569';
-        tCtx.font = '12px Inter, Roboto, sans-serif';
-        tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
-
-        let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт` : '';
-        tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 86);
-    }
-
-    // Вставляем сам холст чертежа
-    let offsetX = (tempCanvas.width - canvas.width) / 2;
-    tCtx.drawImage(canvas, offsetX, headerH);
-
-    // Добавляем табличные данные внизу
-    if (isClient) {
-        let startY = headerH + canvas.height + 18;
-        const rowH = 32;
-        lastBreakdownItems.forEach((item, idx) => {
-            let y = startY + idx * rowH;
-            tCtx.fillStyle = '#0f172a';
-            tCtx.font = '400 13px Inter, Roboto, sans-serif';
-            tCtx.fillText(item.title, pad, y);
-
-            tCtx.fillStyle = '#64748b';
-            tCtx.font = '400 11px Inter, Roboto, sans-serif';
-            tCtx.fillText(item.sub, pad, y + 14);
-
-            tCtx.fillStyle = '#0f172a';
-            tCtx.font = '600 13px Inter, Roboto, sans-serif';
-            let valW = tCtx.measureText(item.val).width;
-            tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 6);
-        });
-
-        let totalY = startY + lastBreakdownItems.length * rowH + 12;
-        tCtx.fillStyle = '#f1f5f9';
-        tCtx.fillRect(pad, totalY - 18, tempCanvas.width - pad * 2, 34);
-
-        tCtx.fillStyle = '#0f172a';
-        tCtx.font = '600 14px Inter, Roboto, sans-serif';
-        tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 4);
-
-        tCtx.font = '700 16px Inter, Roboto, sans-serif';
-        let totW = tCtx.measureText(lastCalcData.totalText).width;
-        tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 4);
-    } else {
-        let y = headerH + canvas.height + 20;
-        tCtx.fillStyle = '#0f172a';
-        tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-        tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
-        y += 20;
-
-        tCtx.font = '12px Inter, Roboto, monospace';
-        lastCalcData.wallsData.forEach((w, i) => {
-            let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
-            tCtx.fillText(`Стена ${w.name}: ${w.m} м`, colX, y);
-            if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 20;
-        });
-
-        if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
-            y += 6;
-            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-            tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
-            y += 18;
-
-            tCtx.fillStyle = '#475569';
-            tCtx.font = '11px Inter, Roboto, monospace';
-            lastCalcData.innerElements.forEach(item => {
-                tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
-                y += 16;
-            });
-        }
-
-        if (lastCalcData.diags.length > 0) {
-            y += 6;
-            tCtx.fillStyle = '#0f172a';
-            tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-            tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
-            y += 20;
-
-            tCtx.fillStyle = '#475569';
-            tCtx.font = '12px Inter, Roboto, monospace';
-            lastCalcData.diags.forEach((d, i) => {
-                let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
-                tCtx.fillText(`Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м`, colX, y);
-                if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 20;
-            });
-        }
-    }
-
-    return tempCanvas;
-}
-
-// ОТПРАВКА С ЧЕРТЕЖОМ КАРТИНКОЙ ЧЕРЕЗ СИСТЕМНОЕ МЕНЮ ANDROID (TELEGRAM / WHATSAPP)
 function triggerCombinedShare(target) {
     let isClient = (target === 'client');
     let title = isClient 
         ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
-        : `🏭 Раскрой в цех: ${lastCalcData?.clientName || 'Заказ'}`;
+        : `🏭 Раскрой в цех (БЕЗ УСАДКИ): ${lastCalcData?.clientName || 'Заказ'}`;
     
     let shareText = isClient ? lastEstimateText : lastFactoryText;
 
@@ -584,60 +442,40 @@ function triggerCombinedShare(target) {
 
     closeExportSheet();
 
-    // Если выбран экспорт Word
+    // [ИСПРАВЛЕНИЕ БАГА 4]: Поддержка выгрузки в PNG или Word, если выбран соответствующий формат
     if (selectedExportFormat === 'doc') {
         exportWordDoc(target);
         return;
+    } else if (selectedExportFormat === 'png') {
+        if (isClient) exportClientImage();
+        else exportFactoryImage();
+        return;
     }
 
-    showToast('Готовим чертёж для отправки...');
-    const combinedCanvas = generateCombinedCanvas(target);
-
-    // Преобразуем холст в файл PNG и передаем в меню «Поделиться»
-    combinedCanvas.toBlob((blob) => {
-        if (!blob) {
-            copyTextFallback(shareText);
-            return;
-        }
-
-        const fileName = isClient ? `Smeta_${Date.now()}.png` : `Raskroy_${Date.now()}.png`;
-        const file = new File([blob], fileName, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({
-                files: [file],
-                title: title,
-                text: shareText
-            }).catch(err => {
-                if (err.name !== 'AbortError') {
-                    downloadCanvasImage(combinedCanvas, fileName);
-                    copyTextFallback(shareText);
-                }
-            });
-        } else if (navigator.share) {
-            navigator.share({
-                title: title,
-                text: shareText
-            }).catch(() => copyTextFallback(shareText));
-            downloadCanvasImage(combinedCanvas, fileName);
-        } else {
-            downloadCanvasImage(combinedCanvas, fileName);
-            copyTextFallback(shareText);
-        }
-    }, 'image/png');
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: shareText
+        }).catch(err => {
+            if (err.name !== 'AbortError') {
+                copyTextFallback(shareText);
+            }
+        });
+    } else {
+        copyTextFallback(shareText);
+    }
 }
 
 function copyTextFallback(text) {
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('📋 Текст скопирован! Чертёж сохранён в Загрузки', 'success');
+            showToast('📋 Текст скопирован! Вставьте в нужный мессенджер', 'success');
         });
     } else {
         showToast('Скопируйте текст вручную');
     }
 }
 
-// ПРЯМАЯ ОТПРАВКА В TELEGRAM: СОХРАНЯЕТ КАРТИНКУ И ОТКРЫВАЕТ ТЕЛЕГРАМ С ТЕКСТОМ
 function shareDirectTelegram(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -646,22 +484,15 @@ function shareDirectTelegram(target) {
         return;
     }
     
-    const combinedCanvas = generateCombinedCanvas(target);
-    const fileName = (target === 'client') ? `Smeta_${Date.now()}.png` : `Raskroy_${Date.now()}.png`;
-    downloadCanvasImage(combinedCanvas, fileName);
-
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('Чертёж в Галерее, текст скопирован! Выберите чат в TG', 'success');
+            showToast('📋 Расчёт скопирован! Выберите чат и вставьте', 'success');
         });
     }
     
-    setTimeout(() => {
-        window.location.href = "tg://";
-    }, 400);
+    window.location.href = "tg://";
 }
 
-// ПРЯМАЯ ОТПРАВКА В MAX
 function shareDirectMax(target) {
     closeExportSheet();
     let text = target === 'client' ? lastEstimateText : lastFactoryText;
@@ -685,8 +516,67 @@ function exportClientImage() {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
     }
-    const combined = generateCombinedCanvas('client');
-    downloadCanvasImage(combined, `Smeta_${lastCalcData.clientName}.png`);
+
+    const tempCanvas = document.createElement('canvas');
+    const pad = 18;
+    const headerH = 78;
+    const rowH = 34;
+    const footerH = lastBreakdownItems.length * rowH + 65;
+
+    tempCanvas.width = Math.max(canvas.width, 380);
+    tempCanvas.height = headerH + canvas.height + footerH;
+    const tCtx = tempCanvas.getContext('2d');
+
+    const isLight = document.body.classList.contains('light-theme');
+    tCtx.fillStyle = isLight ? '#ffffff' : '#0f172a';
+    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+    tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
+    tCtx.fillText(`📋 Смета — ${lastCalcData.clientName}`, pad, 28);
+
+    tCtx.fillStyle = isLight ? '#64748b' : '#94a3b8';
+    tCtx.font = '13px Inter, Roboto, sans-serif';
+    tCtx.fillText(`📍 ${lastCalcData.clientAddr}`, pad, 50);
+
+    tCtx.fillStyle = '#059669';
+    tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.`, pad, 70);
+
+    let offsetX = (tempCanvas.width - canvas.width) / 2;
+    tCtx.drawImage(canvas, offsetX, headerH);
+
+    let startY = headerH + canvas.height + 20;
+    lastBreakdownItems.forEach((item, idx) => {
+        let y = startY + idx * rowH;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+        tCtx.font = '400 13px Inter, Roboto, sans-serif';
+        tCtx.fillText(item.title, pad, y);
+
+        tCtx.fillStyle = isLight ? '#64748b' : '#94a3b8';
+        tCtx.font = '400 11px Inter, Roboto, sans-serif';
+        tCtx.fillText(item.sub, pad, y + 14);
+
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+        tCtx.font = '600 13px Inter, Roboto, sans-serif';
+        let valW = tCtx.measureText(item.val).width;
+        tCtx.fillText(item.val, tempCanvas.width - pad - valW, y + 6);
+    });
+
+    let totalY = startY + lastBreakdownItems.length * rowH + 14;
+    tCtx.fillStyle = isLight ? '#f1f5f9' : '#1e293b';
+    tCtx.fillRect(pad, totalY - 20, tempCanvas.width - pad * 2, 36);
+
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+    tCtx.font = '600 14px Inter, Roboto, sans-serif';
+    tCtx.fillText('ИТОГО К ОПЛАТЕ:', pad + 10, totalY + 3);
+
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+    tCtx.font = '700 16px Inter, Roboto, sans-serif';
+    let totW = tCtx.measureText(lastCalcData.totalText).width;
+    tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
+
+    downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
 }
 
 function exportFactoryImage() {
@@ -694,8 +584,87 @@ function exportFactoryImage() {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
         return;
     }
-    const combined = generateCombinedCanvas('factory');
-    downloadCanvasImage(combined, `Raskroy_Ceh_${lastCalcData.clientName}.png`);
+
+    const tempCanvas = document.createElement('canvas');
+    const pad = 18;
+    const headerH = 92;
+    const inCount = lastCalcData.innerElements ? lastCalcData.innerElements.length : 0;
+    const linesCount = Math.ceil(lastCalcData.wallsData.length / 2) + Math.ceil(lastCalcData.diags.length / 2) + (inCount > 0 ? inCount + 4 : 3);
+    const footerH = linesCount * 22 + 45;
+
+    tempCanvas.width = Math.max(canvas.width, 380);
+    tempCanvas.height = headerH + canvas.height + footerH;
+    const tCtx = tempCanvas.getContext('2d');
+
+    const isLight = document.body.classList.contains('light-theme');
+    tCtx.fillStyle = isLight ? '#ffffff' : '#0f172a';
+    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    const textMainExport = isLight ? '#0f172a' : '#ffffff';
+    tCtx.fillStyle = textMainExport;
+    tCtx.font = 'bold 16px Inter, Roboto, sans-serif';
+    tCtx.fillText(`🏭 ЗАКАЗ В ЦЕХ (ЛИСТ РАСКРОЯ)`, pad, 26);
+
+    tCtx.fillStyle = '#dc2626';
+    tCtx.font = 'bold 12px Inter, Roboto, sans-serif';
+    tCtx.fillText(`⚠️ РАЗМЕРЫ БЕЗ УСАДКИ (чистый габарит помещения)!`, pad, 48);
+
+    tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
+    tCtx.font = '12px Inter, Roboto, sans-serif';
+    tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
+
+    let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт` : '';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 86);
+
+    let offsetX = (tempCanvas.width - canvas.width) / 2;
+    tCtx.drawImage(canvas, offsetX, headerH);
+
+    let y = headerH + canvas.height + 22;
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+    tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+    tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
+    y += 20;
+
+    tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+    tCtx.font = '12px Inter, Roboto, monospace';
+    lastCalcData.wallsData.forEach((w, i) => {
+        let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
+        tCtx.fillText(`Стена ${w.name}: ${w.m} м`, colX, y);
+        if (i % 2 === 1 || i === lastCalcData.wallsData.length - 1) y += 20;
+    });
+
+    if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
+        y += 8;
+        tCtx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+        tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+        tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
+        y += 18;
+
+        tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
+        tCtx.font = '11px Inter, Roboto, monospace';
+        lastCalcData.innerElements.forEach(item => {
+            tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
+            y += 16;
+        });
+    }
+
+    if (lastCalcData.diags.length > 0) {
+        y += 8;
+        tCtx.fillStyle = textMainExport;
+        tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
+        tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
+        y += 20;
+
+        tCtx.fillStyle = isLight ? '#475569' : '#cbd5e1';
+        tCtx.font = '12px Inter, Roboto, monospace';
+        lastCalcData.diags.forEach((d, i) => {
+            let colX = (i % 2 === 0) ? pad : tempCanvas.width / 2;
+            tCtx.fillText(`Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м`, colX, y);
+            if (i % 2 === 1 || i === lastCalcData.diags.length - 1) y += 20;
+        });
+    }
+
+    downloadCanvasImage(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`);
 }
 
 function downloadCanvasImage(cnv, fileName) {
@@ -703,10 +672,9 @@ function downloadCanvasImage(cnv, fileName) {
     link.download = fileName;
     link.href = cnv.toDataURL('image/png');
     link.click();
-    showToast('Чертёж сохранён в Загрузки / Галерею');
+    showToast('Чертёж сохранён в Загрузки');
 }
 
-// Экспорт Word
 function exportWordDoc(target = 'client') {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
