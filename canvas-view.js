@@ -15,7 +15,7 @@ let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
 let innerElements = [];
 let selectedInnerIdx = null;
 let draggedInnerIdx = null;
-let draggedInnerVertex = null;
+let draggedInnerVertex = null; // Индекс перетаскиваемой вершины произвольного короба
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
@@ -33,22 +33,18 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-// --- УНИВЕРСАЛЬНЫЙ ПАРСИНГ ЧИСЕЛ (ТОЧКА ИЛИ ЗАПЯТАЯ) ---
-function parseCleanNumber(val) {
-    if (val === null || val === undefined) return 0;
-    let s = val.toString().trim().replace(',', '.');
-    let n = parseFloat(s);
-    return isNaN(n) ? 0 : n;
-}
+// --- БАНКОМАТНЫЙ ВВОД РАЗМЕРОВ (СДВИГ СПРАВА НАЛЕВО) ---
+function formatLaserShift(rawVal) {
+    if (!rawVal) return '';
+    let digits = rawVal.toString().replace(/\D/g, '');
+    if (!digits) return '';
 
-function cleanDecimalInput(str) {
-    if (!str) return '';
-    let cleaned = str.replace(',', '.').replace(/[^0-9.]/g, '');
-    let parts = cleaned.split('.');
-    if (parts.length > 2) {
-        cleaned = parts[0] + '.' + parts.slice(1).join('');
-    }
-    return cleaned;
+    if (digits.length > 5) digits = digits.slice(-5);
+
+    let num = parseInt(digits, 10);
+    if (isNaN(num) || num === 0) return '0.000';
+
+    return (num / 1000).toFixed(3);
 }
 
 // --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
@@ -205,6 +201,7 @@ setTimeout(() => {
     if (restoreSketchFromStorage()) {
         rebuildWallInputs();
         renderInnerElementsList();
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     updateHint();
     drawSketch();
@@ -243,7 +240,7 @@ function updateHint() {
     }
 
     if (editMode === 'inner') {
-        hint.innerText = '📦 Тяните короб или его углы; тапните по фигуре для настроек';
+        hint.innerText = '📦 Тяните короб или его углы; тапните по фигуре для точных миллиметров';
         return;
     }
 
@@ -549,7 +546,6 @@ function getElementWallDistances(el) {
     for (let i = 0; i < count; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        if (!p1 || !p2) continue;
 
         let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
         let distCm = Math.round(distPx * cmPerPixel);
@@ -675,7 +671,7 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Диаметр ⌀ (мм):</label>
-                <input type="text" inputmode="decimal" id="sheetInnerDiam" class="input-field" value="${dMm}" style="font-weight:700;">
+                <input type="number" id="sheetInnerDiam" class="input-field" value="${dMm}" style="font-weight:700;">
             </div>
         `;
     } else if (el.type === 'rect') {
@@ -684,11 +680,30 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Длина (мм):</label>
-                <input type="text" inputmode="decimal" id="sheetInnerLen" class="input-field" value="${lMm}" style="font-weight:700;">
+                <input type="number" id="sheetInnerLen" class="input-field" value="${lMm}" style="font-weight:700;">
             </div>
             <div style="flex: 1;">
                 <label style="font-size:11px; color:var(--text-muted);">Ширина (мм):</label>
-                <input type="text" inputmode="decimal" id="sheetInnerWid" class="input-field" value="${wMm}" style="font-weight:700;">
+                <input type="number" id="sheetInnerWid" class="input-field" value="${wMm}" style="font-weight:700;">
+            </div>
+        `;
+    } else if (el.type === 'poly' && el.pts) {
+        let rowsHtml = '';
+        for (let i = 0; i < el.pts.length; i++) {
+            let p1 = el.pts[i];
+            let p2 = el.pts[(i + 1) % el.pts.length];
+            let curLenMm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel * 10);
+            let nextIdx = (i + 1) % el.pts.length;
+            rowsHtml += `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-main); white-space: nowrap;">Сторона ${i + 1}–${nextIdx + 1}:</span>
+                    <input type="number" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenMm}" style="font-weight: 700; width: 110px; text-align: center;">
+                </div>
+            `;
+        }
+        dimBlock.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                ${rowsHtml}
             </div>
         `;
     } else {
@@ -700,26 +715,22 @@ function openInnerEditSheet(idx) {
     for (let i = 0; i < count; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        if (p1 && p2) {
-            wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
-        }
+        wallOptions += `<option value="${i}">Стена ${p1.label}–${p2.label}</option>`;
     }
 
     const sel1 = document.getElementById('innerWallSelect1');
     const sel2 = document.getElementById('innerWallSelect2');
-    if (sel1 && sel2) {
-        sel1.innerHTML = wallOptions;
-        sel2.innerHTML = wallOptions;
+    sel1.innerHTML = wallOptions;
+    sel2.innerHTML = wallOptions;
 
-        let nearest = getElementWallDistances(el);
-        if (nearest.length > 0) {
-            sel1.value = nearest[0].wallIdx;
-            document.getElementById('innerWallDist1').value = Math.round(nearest[0].distCm * 10);
-        }
-        if (nearest.length > 1) {
-            sel2.value = nearest[1].wallIdx;
-            document.getElementById('innerWallDist2').value = Math.round(nearest[1].distCm * 10);
-        }
+    let nearest = getElementWallDistances(el);
+    if (nearest.length > 0) {
+        sel1.value = nearest[0].wallIdx;
+        document.getElementById('innerWallDist1').value = Math.round(nearest[0].distCm * 10);
+    }
+    if (nearest.length > 1) {
+        sel2.value = nearest[1].wallIdx;
+        document.getElementById('innerWallDist2').value = Math.round(nearest[1].distCm * 10);
     }
 
     document.getElementById('innerEditSheetOverlay').classList.add('open');
@@ -736,29 +747,59 @@ function applyInnerSheetSettings() {
     let el = innerElements[selectedInnerIdx];
 
     if (el.type === 'circle') {
-        let dMm = parseCleanNumber(document.getElementById('sheetInnerDiam')?.value);
-        if (dMm > 0) {
+        let dMm = parseFloat(document.getElementById('sheetInnerDiam')?.value);
+        if (dMm && dMm > 0) {
             el.diamCm = dMm / 10;
             el.radius = (el.diamCm / 2) / cmPerPixel;
             el.title = `Колонна ⌀${Math.round(el.diamCm)} см`;
         }
     } else if (el.type === 'rect') {
-        let lMm = parseCleanNumber(document.getElementById('sheetInnerLen')?.value);
-        let wMm = parseCleanNumber(document.getElementById('sheetInnerWid')?.value);
-        if (lMm > 0 && wMm > 0) {
+        let lMm = parseFloat(document.getElementById('sheetInnerLen')?.value);
+        let wMm = parseFloat(document.getElementById('sheetInnerWid')?.value);
+        if (lMm && wMm && lMm > 0 && wMm > 0) {
             el.lenCm = lMm / 10;
             el.widCm = wMm / 10;
             el.w = el.lenCm / cmPerPixel;
             el.h = el.widCm / cmPerPixel;
             el.title = `Люк ${Math.round(el.lenCm)}×${Math.round(el.widCm)}`;
         }
+    } else if (el.type === 'poly' && el.pts) {
+        const sideInputs = document.querySelectorAll('.poly-side-input');
+        sideInputs.forEach(inp => {
+            let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
+            let targetMm = parseFloat(inp.value);
+            if (!isNaN(sideIdx) && targetMm && targetMm > 0 && el.pts[sideIdx]) {
+                let p1 = el.pts[sideIdx];
+                let nextI = (sideIdx + 1) % el.pts.length;
+                let p2 = el.pts[nextI];
+                let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                let targetLenPx = (targetMm / 10) / cmPerPixel;
+
+                if (curLenPx > 0.001) {
+                    let dirX = (p2.x - p1.x) / curLenPx;
+                    let dirY = (p2.y - p1.y) / curLenPx;
+                    let diffX = (p1.x + dirX * targetLenPx) - p2.x;
+                    let diffY = (p1.y + dirY * targetLenPx) - p2.y;
+
+                    for (let k = nextI; k < el.pts.length; k++) {
+                        el.pts[k].x += diffX;
+                        el.pts[k].y += diffY;
+                    }
+                }
+            }
+        });
+
+        let sx = 0, sy = 0;
+        el.pts.forEach(p => { sx += p.x; sy += p.y; });
+        el.x = sx / el.pts.length;
+        el.y = sy / el.pts.length;
     }
 
-    let wIdx1 = parseInt(document.getElementById('innerWallSelect1')?.value);
-    let d1Mm = parseCleanNumber(document.getElementById('innerWallDist1')?.value);
+    let wIdx1 = parseInt(document.getElementById('innerWallSelect1').value);
+    let d1Mm = parseFloat(document.getElementById('innerWallDist1').value);
 
-    let wIdx2 = parseInt(document.getElementById('innerWallSelect2')?.value);
-    let d2Mm = parseCleanNumber(document.getElementById('innerWallDist2')?.value);
+    let wIdx2 = parseInt(document.getElementById('innerWallSelect2').value);
+    let d2Mm = parseFloat(document.getElementById('innerWallDist2').value);
 
     let targetD1Px = (d1Mm / 10) / cmPerPixel;
     let targetD2Px = (d2Mm / 10) / cmPerPixel;
@@ -786,6 +827,13 @@ function applyInnerSheetSettings() {
 
         el.x += moveX;
         el.y += moveY;
+
+        if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                pt.x += moveX;
+                pt.y += moveY;
+            });
+        }
     }
 
     closeInnerEditSheet();
@@ -793,7 +841,7 @@ function applyInnerSheetSettings() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Параметры и применены отступы!', 'success');
+    showToast('Параметры и отступы применены!', 'success');
 }
 
 function deleteCurrentInnerFromSheet() {
@@ -865,7 +913,6 @@ function drawSketch() {
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
     const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
-    // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 20) {
@@ -882,7 +929,6 @@ function drawSketch() {
     centerX /= points.length;
     centerY /= points.length;
 
-    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         ctx.save();
@@ -910,7 +956,6 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 3. Контур стен помещения
     if (points.length >= 2) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
@@ -939,8 +984,7 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов
-    innerElements.forEach((el) => {
+    innerElements.forEach((el, elIdx) => {
         let nearest = getElementWallDistances(el);
 
         ctx.save();
@@ -1028,6 +1072,19 @@ function drawSketch() {
                 ctx.fillStyle = '#2563eb';
                 ctx.fillText(`${sideMm}`, midX, midY + 4);
             }
+
+            if (editMode === 'inner') {
+                ctx.setLineDash([]);
+                el.pts.forEach((pt, vIdx) => {
+                    ctx.fillStyle = '#2563eb';
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '700 9px "Inter", sans-serif';
+                    ctx.fillText(`${vIdx + 1}`, pt.x, pt.y + 3);
+                });
+            }
         }
         ctx.restore();
     });
@@ -1043,19 +1100,23 @@ function drawSketch() {
             ctx.lineTo(activeDrawingPoly[i].x, activeDrawingPoly[i].y);
         }
         ctx.stroke();
+
+        activeDrawingPoly.forEach((pt, i) => {
+            ctx.fillStyle = i === 0 ? '#10b981' : '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
         ctx.restore();
     }
 
-    // 5. Размеры внешних стен помещения
     let wallCount = getWallCount();
     ctx.textAlign = 'center';
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        if (!p1 || !p2) continue;
-
         let inputEl = document.getElementById(`wall-input-${i}`);
-        let lenVal = inputEl ? cleanDecimalInput(inputEl.value) : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
+        let lenVal = inputEl ? inputEl.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
         let midX = (p1.x + p2.x) / 2;
         let midY = (p1.y + p2.y) / 2;
@@ -1079,9 +1140,7 @@ function drawSketch() {
         ctx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
-    // 6. Углы (вершины) комнаты
     points.forEach((p, idx) => {
-        if (!p || !p.label) return;
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
         ctx.beginPath();
         ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
@@ -1093,6 +1152,9 @@ function drawSketch() {
         let lx = p.x + (vx / vLen) * 16;
         let ly = p.y + (vy / vLen) * 16 + 4;
 
+        lx = Math.min(canvas.width - 14, Math.max(14, lx));
+        ly = Math.min(canvas.height - 52, Math.max(14, ly));
+
         ctx.fillStyle = pointLabelColor;
         ctx.font = '700 12px "Inter", "Roboto", sans-serif';
         ctx.fillText(p.label, lx, ly);
@@ -1100,7 +1162,6 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
-// --- ТАЧ-СОБЫТИЯ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -1140,6 +1201,23 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
+    if (editMode === 'inner') {
+        for (let i = innerElements.length - 1; i >= 0; i--) {
+            let el = innerElements[i];
+            if (el.type === 'poly' && el.pts) {
+                for (let v = 0; v < el.pts.length; v++) {
+                    if (Math.hypot(el.pts[v].x - x, el.pts[v].y - y) < 22) {
+                        saveState();
+                        draggedInnerIdx = i;
+                        draggedInnerVertex = v;
+                        canvas.setPointerCapture(e.pointerId);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     for (let i = innerElements.length - 1; i >= 0; i--) {
         let el = innerElements[i];
         let hit = false;
@@ -1162,6 +1240,7 @@ canvas.addEventListener('pointerdown', (e) => {
             }
             saveState();
             draggedInnerIdx = i;
+            draggedInnerVertex = null;
             innerDragOffset = { x: x - el.x, y: y - el.y };
             canvas.setPointerCapture(e.pointerId);
             return;
@@ -1209,6 +1288,33 @@ canvas.addEventListener('pointerdown', (e) => {
             drawSketch();
             persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        } else {
+            saveState();
+            let bestWallIdx = points.length - 1;
+            let minDist = Infinity;
+            for (let i = 0; i < points.length; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let mx = (p1.x + p2.x) / 2;
+                let my = (p1.y + p2.y) / 2;
+                let d = Math.hypot(mx - x, my - y);
+                if (d < minDist) {
+                    minDist = d;
+                    bestWallIdx = i;
+                }
+            }
+            points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
+            
+            // [ИСПРАВЛЕНИЕ БАГА 8]: Автоматическое обновление меток точек по порядку обхода
+            points.forEach((pt, idx) => pt.label = getPointLabel(idx));[cite: 3]
+            
+            const presetCorners = document.getElementById('presetCornersCount');
+            if (presetCorners) presetCorners.value = points.length;
+            rebuildWallInputs();
+            updateHint();
+            drawSketch();
+            persistSketchToStorage();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         }
     }
 });
@@ -1228,6 +1334,24 @@ canvas.addEventListener('pointermove', (e) => {
         syncInputsValuesOnly();
         drawSketch();
         return;
+    }
+
+    if (draggedInnerIdx !== null && draggedInnerVertex !== null && innerElements[draggedInnerIdx]) {
+        e.preventDefault();
+        let el = innerElements[draggedInnerIdx];
+        if (el.pts && el.pts[draggedInnerVertex]) {
+            el.pts[draggedInnerVertex].x = Math.max(20, Math.min(canvas.width - 20, curX));
+            el.pts[draggedInnerVertex].y = Math.max(20, Math.min(canvas.height - 20, curY));
+
+            let sx = 0, sy = 0;
+            el.pts.forEach(p => { sx += p.x; sy += p.y; });
+            el.x = sx / el.pts.length;
+            el.y = sy / el.pts.length;
+
+            renderInnerElementsList();
+            drawSketch();
+            return;
+        }
     }
 
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
@@ -1263,9 +1387,9 @@ canvas.addEventListener('pointerup', () => {
     isDragging = false;
     draggedPointIndex = null;
     draggedInnerIdx = null;
+    draggedInnerVertex = null;
 });
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -1290,8 +1414,6 @@ function rebuildWallInputs() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        if (!p1 || !p2) continue;
-
         let distM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
         let dir = detectWallDir(p1, p2);
 
@@ -1299,7 +1421,7 @@ function rebuildWallInputs() {
         row.className = 'wall-row-input';
         row.innerHTML = `
             <span class="wall-row-label"><b>${p1.label}–${p2.label}</b></span>
-            <input type="text" inputmode="decimal" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
+            <input type="text" inputmode="numeric" class="input-field wall-len" id="wall-input-${i}" value="${distM}" oninput="handleWallSmartInput(${i}, this)" onkeydown="if(event.key==='Enter') this.blur()">
             <div class="wall-dir-wrap">
                 <select class="dir-select" id="wall-dir-${i}" onchange="onWallDirEdit(${i})">
                     <option value="U" ${dir === 'U' ? 'selected' : ''}>⬆️ Вверх</option>
@@ -1314,11 +1436,12 @@ function rebuildWallInputs() {
 }
 
 function handleWallSmartInput(wallIndex, inputEl) {
-    let raw = cleanDecimalInput(inputEl.value);
-    inputEl.value = raw;
-    let m = parseCleanNumber(raw);
+    let formatted = formatLaserShift(inputEl.value);
+    inputEl.value = formatted;
+
+    let m = parseFloat(formatted);
     if (m && m >= 0.1 && m <= 50) {
-        onWallLengthEdit(wallIndex, raw);
+        onWallLengthEdit(wallIndex, formatted);
     }
 }
 
@@ -1327,8 +1450,6 @@ function syncInputsValuesOnly() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
-        if (!p1 || !p2) continue;
-
         let distM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
         let input = document.getElementById(`wall-input-${i}`);
         if (input && document.activeElement !== input) input.value = distM;
@@ -1338,7 +1459,7 @@ function syncInputsValuesOnly() {
 }
 
 function onWallLengthEdit(wallIndex, valStr) {
-    let m = parseCleanNumber(valStr);
+    let m = parseFloat(valStr);
     if (!m || m <= 0) return;
     let cm = m * 100;
 
@@ -1351,8 +1472,6 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     let p1 = points[wallIndex];
     let p2 = points[wallIndex + 1];
-    if (!p1 || !p2) return;
-
     let dx = p2.x - p1.x;
     let dy = p2.y - p1.y;
     let curPx = Math.hypot(dx, dy);
@@ -1375,6 +1494,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     fitToScreen(false);
     drawSketch();
+    syncInputsValuesOnly();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
@@ -1393,7 +1513,7 @@ function buildSketchFromTable() {
     for (let i = 0; i < points.length - 1; i++) {
         let lenInput = document.getElementById(`wall-input-${i}`);
         let dirSelect = document.getElementById(`wall-dir-${i}`);
-        let m = lenInput ? (parseCleanNumber(lenInput.value) || 2.0) : 2.0;
+        let m = lenInput ? (parseFloat(lenInput.value) || 2.0) : 2.0;
         let cm = m * 100;
         let dir = dirSelect ? dirSelect.value : 'R';
         let px = cm / cmPerPixel;
@@ -1405,7 +1525,8 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        else if (dir === 'L') nx += px;
+        // [ИСПРАВЛЕНИЕ БАГА 2]: Исправлено направление 'L' на минус
+        else if (dir === 'L') nx -= px;[cite: 3]
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
@@ -1418,7 +1539,7 @@ function buildSketchFromTable() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертёж перестроен по размерам', 'success');
+    showToast('Чертёж перестроен по направлениям', 'success');
 }
 
 function createFromTablePreset() {
@@ -1438,6 +1559,16 @@ function createFromTablePreset() {
             { x: cx - w/2, y: cy - h/2, label: 'B' },
             { x: cx + w/2, y: cy - h/2, label: 'C' },
             { x: cx + w/2, y: cy + h/2, label: 'D' }
+        ];
+    } else if (count === 6) {
+        let w = 400 / cmPerPixel, h = 350 / cmPerPixel;
+        points = [
+            { x: cx - w/2, y: cy + h/2, label: 'A' },
+            { x: cx - w/2, y: cy, label: 'B' },
+            { x: cx, y: cy, label: 'C' },
+            { x: cx, y: cy - h/2, label: 'D' },
+            { x: cx + w/2, y: cy - h/2, label: 'E' },
+            { x: cx + w/2, y: cy + h/2, label: 'F' }
         ];
     } else {
         points = [];
@@ -1466,19 +1597,17 @@ function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
     let p2 = points[(wallIdx + 1) % points.length];
-    if (!p1 || !p2) return;
-
     let inp = document.getElementById(`wall-input-${wallIdx}`);
     let curVal = inp ? inp.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
     document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (м)`;
     const sheetInput = document.getElementById('wallSheetInput');
     sheetInput.type = "text";
-    sheetInput.setAttribute("inputmode", "decimal");
+    sheetInput.setAttribute("inputmode", "numeric");
     sheetInput.value = curVal;
     
     sheetInput.oninput = function() {
-        this.value = cleanDecimalInput(this.value);
+        this.value = formatLaserShift(this.value);
     };
 
     document.getElementById('wallEditSheetOverlay').classList.add('open');
@@ -1496,12 +1625,12 @@ function closeWallEditSheet() {
 function applyWallSheetValue() {
     if (editingWallIdx === null) return;
     let raw = document.getElementById('wallSheetInput').value;
-    let cleaned = cleanDecimalInput(raw);
-    let val = parseCleanNumber(cleaned);
+    let formatted = formatLaserShift(raw);
+    let val = parseFloat(formatted);
     if (val && val >= 0.1 && val <= 50) {
         let inp = document.getElementById(`wall-input-${editingWallIdx}`);
         if (inp) inp.value = val.toFixed(3);
-        onWallLengthEdit(editingWallIdx, val.toFixed(3));
+        onWallLengthEdit(editingWallIdx, val);
         showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
     }
     closeWallEditSheet();
