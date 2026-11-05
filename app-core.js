@@ -286,7 +286,7 @@ function copySupportInfo() {
     }
 }
 
-// --- ИНТЕГРАЦИЯ RUSTORE BILLING (ТАРИФЫ И ВОССТАНОВЛЕНИЕ) ---
+// --- ИНТЕГРАЦИЯ RUSTORE BILLING ---
 function buyViaRuStore(productId = 'sub_3m_500') {
     if (window.RuStoreBilling) {
         showToast('Открываем окно оплаты RuStore...');
@@ -381,7 +381,8 @@ function loadRoomIntoUI(idx) {
     if (!r) return;
 
     if (typeof points !== 'undefined') {
-        points = (r.points || []).map(p => ({ x: p.x, y: p.label ? p.label : '' }));
+        // Исправлена координата y (ранее ошибочно подставлялся p.label)
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
@@ -492,7 +493,7 @@ function startNewProject() {
     }
 }
 
-// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА / TELEGRAM И MAX) ---
+// --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА / УДАЛЕНИЕ СТРОГО ПО ID) ---
 function directDial(phoneNum) {
     if (!phoneNum) return;
     let clean = phoneNum.replace(/[^\d+]/g, '');
@@ -513,6 +514,22 @@ function openTelegramClient(rawPhone) {
     }, 700);
 }
 
+function getStoredProjects() {
+    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    let modified = false;
+    // Гарантируем, что у каждого сохранённого клиента есть уникальный ID
+    saved.forEach((p, idx) => {
+        if (!p.id) {
+            p.id = 'proj_' + (Date.now() + idx);
+            modified = true;
+        }
+    });
+    if (modified) {
+        localStorage.setItem('pro_projects', JSON.stringify(saved));
+    }
+    return saved;
+}
+
 function saveProject() {
     syncCurrentRoomState();
     let name = document.getElementById('clientName').value.trim();
@@ -525,6 +542,7 @@ function saveProject() {
     }
 
     let projectData = {
+        id: 'proj_' + Date.now(),
         name,
         address,
         phone,
@@ -537,7 +555,7 @@ function saveProject() {
         date: new Date().toLocaleDateString()
     };
 
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    let saved = getStoredProjects();
     saved.push(projectData);
     localStorage.setItem('pro_projects', JSON.stringify(saved));
     showToast(`Замер клиента "${name}" сохранён!`, 'success');
@@ -555,7 +573,7 @@ function closeProjectsModal() {
 function renderProjectsList() {
     const listEl = document.getElementById('savedProjectsList');
     const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase();
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    let saved = getStoredProjects();
 
     if (searchQ) {
         saved = saved.filter(p => 
@@ -584,6 +602,7 @@ function renderProjectsList() {
         let tgBtn = tgPhone ? `<button class="btn" onclick="openTelegramClient('${tgPhone}')" style="padding: 7px 9px; background:#0284c7; color:#fff;" title="Написать в Telegram">✈️ TG</button>` : '';
         let maxBtn = tgPhone ? `<a href="https://max.ru/${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
 
+        // Передаем строго p.id вместо порядкового номера idx
         return `
         <div class="saved-item">
             <div class="saved-item-info">
@@ -597,17 +616,18 @@ function renderProjectsList() {
                 ${callBtn}
                 ${tgBtn}
                 ${maxBtn}
-                <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 9px;">📂</button>
-                <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 9px;">🗑️</button>
+                <button class="btn btn-primary" onclick="loadSavedProject('${p.id}')" style="padding: 7px 9px;" title="Загрузить чертёж">📂</button>
+                <button class="btn btn-danger" onclick="deleteSavedProject('${p.id}')" style="padding: 7px 9px;" title="Удалить">🗑️</button>
             </div>
         </div>
     `}).join('');
 }
 
-function loadSavedProject(index) {
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (!saved[index]) return;
-    let proj = saved[index];
+function loadSavedProject(projId) {
+    let saved = getStoredProjects();
+    let proj = saved.find(p => p.id === projId);
+    if (!proj) return;
+
     document.getElementById('clientName').value = proj.name;
     document.getElementById('clientAddress').value = proj.address || '';
     document.getElementById('clientPhone').value = proj.phone || '';
@@ -630,11 +650,13 @@ function loadSavedProject(index) {
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
-function deleteSavedProject(index) {
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (!saved[index]) return;
-    if (confirm(`Удалить замер клиента "${saved[index].name}"?`)) {
-        saved.splice(index, 1);
+function deleteSavedProject(projId) {
+    let saved = getStoredProjects();
+    let proj = saved.find(p => p.id === projId);
+    if (!proj) return;
+
+    if (confirm(`Удалить замер клиента "${proj.name}"?`)) {
+        saved = saved.filter(p => p.id !== projId);
         localStorage.setItem('pro_projects', JSON.stringify(saved));
         renderProjectsList();
         showToast('Замер удалён');
