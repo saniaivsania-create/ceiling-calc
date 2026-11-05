@@ -381,7 +381,6 @@ function loadRoomIntoUI(idx) {
     if (!r) return;
 
     if (typeof points !== 'undefined') {
-        // Исправлена координата y (ранее ошибочно подставлялся p.label)
         points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
@@ -481,16 +480,16 @@ function deleteCurrentRoom() {
     }
 }
 
+// Моментальное создание нового замера без всплывающих окон подтверждения
 function startNewProject() {
-    if (confirm('Начать новый замер? Все текущие данные и чертежи будут сброшены.')) {
-        document.getElementById('clientName').value = '';
-        document.getElementById('clientAddress').value = '';
-        document.getElementById('clientPhone').value = '';
-        document.getElementById('clientDate').value = '';
-        rooms = [createDefaultRoom('Зал / Комната 1')];
-        loadRoomIntoUI(0);
-        showToast('Создан новый замер', 'success');
-    }
+    document.getElementById('clientName').value = '';
+    document.getElementById('clientAddress').value = '';
+    document.getElementById('clientPhone').value = '';
+    document.getElementById('clientDate').value = '';
+    rooms = [createDefaultRoom('Зал / Комната 1')];
+    if (typeof resetSketch === 'function') resetSketch();
+    loadRoomIntoUI(0);
+    showToast('Создан новый замер', 'success');
 }
 
 // --- БАЗА КЛИЕНТОВ (СОХРАНЕНИЕ / ЗАГРУЗКА / УДАЛЕНИЕ СТРОГО ПО ID) ---
@@ -517,7 +516,6 @@ function openTelegramClient(rawPhone) {
 function getStoredProjects() {
     let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
     let modified = false;
-    // Гарантируем, что у каждого сохранённого клиента есть уникальный ID
     saved.forEach((p, idx) => {
         if (!p.id) {
             p.id = 'proj_' + (Date.now() + idx);
@@ -602,7 +600,6 @@ function renderProjectsList() {
         let tgBtn = tgPhone ? `<button class="btn" onclick="openTelegramClient('${tgPhone}')" style="padding: 7px 9px; background:#0284c7; color:#fff;" title="Написать в Telegram">✈️ TG</button>` : '';
         let maxBtn = tgPhone ? `<a href="https://max.ru/${tgPhone}" target="_blank" class="btn" style="padding: 7px 9px; background:#2563eb; color:#fff; text-decoration:none;" title="Написать в MAX">💬 MAX</a>` : '';
 
-        // Передаем строго p.id вместо порядкового номера idx
         return `
         <div class="saved-item">
             <div class="saved-item-info">
