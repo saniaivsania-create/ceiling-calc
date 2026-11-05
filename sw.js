@@ -1,4 +1,4 @@
-const CACHE_NAME = 'potolok-pro-offline-v16';
+const CACHE_NAME = 'potolok-pro-offline-v17';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -9,16 +9,17 @@ const ASSETS_TO_CACHE = [
   './manifest.json'
 ];
 
-// Установка: скачиваем свежие файлы в память телефона
+// Установка: скачиваем свежие файлы в память устройства
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
-// Активация: мгновенно стираем старый кэш (v12) и переключаемся на v13
+// Активация: мгновенно стираем все старые версии кэша
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -33,7 +34,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Перехват запросов: сначала проверяем свежую версию в сети, при оффлайне берём из памяти
+// Перехват запросов: сначала сеть, при отсутствии интернета — память
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
