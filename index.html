@@ -411,20 +411,17 @@
                 <button class="btn" onclick="closeInnerEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
 
-            <!-- Блок 1: Собственные размеры элемента -->
             <div style="display: flex; flex-direction: column; gap: 6px;">
                 <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (М):</span>
                 <div id="innerDimensionsBlock" style="display: flex; gap: 8px;"></div>
             </div>
 
-            <!-- Блок 2: Динамические отступы от стен -->
             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (М):</span>
                     <button class="theme-toggle-btn" type="button" onclick="addInnerWallBindingRow()" style="padding: 4px 8px; font-size: 11px; color: var(--indigo-main);">➕ Добавить привязку</button>
                 </div>
                 
-                <!-- Контейнер для строк с привязками -->
                 <div id="innerWallBindingsContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
             </div>
 
@@ -467,7 +464,16 @@
                 </div>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+            <!-- ВЫБОР ЦВЕТА КАРТИНКИ -->
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ЦВЕТ КАРТИНКИ:</span>
+                <div class="format-tabs">
+                    <button type="button" class="format-tab-btn active" id="thmTabDark" onclick="selectExportTheme('dark')">🌙 Тёмная</button>
+                    <button type="button" class="format-tab-btn" id="thmTabLight" onclick="selectExportTheme('light')">☀️ Белая (печать)</button>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
                 <button class="btn-calc-pill" onclick="triggerCombinedShare('client')">
                     📤 Поделиться сметой (Клиенту)
                 </button>
