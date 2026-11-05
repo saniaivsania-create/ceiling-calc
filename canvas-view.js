@@ -285,26 +285,45 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
+// Выравнивание строго под 90 градусов (без эффекта 3D-перекоса)
 function snapOrthogonal() {
-    if (isSketchLocked || points.length < 2) return;
+    if (isSketchLocked || points.length < 3) return;
     saveState();
-    for (let i = 1; i < points.length; i++) {
-        let prev = points[i - 1];
-        let curr = points[i];
-        let dx = Math.abs(curr.x - prev.x);
-        let dy = Math.abs(curr.y - prev.y);
-        if (dx > dy) {
-            curr.y = prev.y;
-        } else {
-            curr.x = prev.x;
+
+    if (points.length === 4 && isClosed) {
+        let p0 = points[0];
+        let p1 = points[1];
+        let p2 = points[2];
+        let p3 = points[3];
+
+        let w = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+        let h = Math.hypot(p3.x - p0.x, p3.y - p0.y);
+
+        let cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+        let cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+
+        points[0] = { x: cx - w/2, y: cy + h/2, label: 'A' };
+        points[1] = { x: cx - w/2, y: cy - h/2, label: 'B' };
+        points[2] = { x: cx + w/2, y: cy - h/2, label: 'C' };
+        points[3] = { x: cx + w/2, y: cy + h/2, label: 'D' };
+    } else {
+        for (let i = 1; i < points.length; i++) {
+            let prev = points[i - 1];
+            let curr = points[i];
+            if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
+                curr.y = prev.y;
+            } else {
+                curr.x = prev.x;
+            }
         }
     }
+
     fitToScreen(false);
     syncInputsValuesOnly();
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Углы выровнены под 90°');
+    showToast('Углы выровнены под 90°', 'success');
 }
 
 function rotateSketch() {
@@ -463,13 +482,14 @@ function getCleanDiagonals() {
     return diags;
 }
 
+// Исправленный расчет расстояния: убрана опечатка handy
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
     let aby = b.y - a.y;
     let apx = p.x - a.x;
     let apy = p.y - a.y;
     let lenTotal = abx * abx + aby * aby;
-    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * handy) / lenTotal));
+    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
     return { x: a.x + t * abx, y: a.y + t * aby };
 }
 
@@ -657,7 +677,6 @@ function startCustomBoxDrawing() {
     showToast('Ставьте точки короба по холсту', 'success');
 }
 
-// Построение выпадающего списка стен для привязки
 function getWallOptionsHtml(selectedWallIdx) {
     let count = getWallCount();
     let html = '';
@@ -672,7 +691,6 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
-// Добавление строки отступа (Вариант Б)
 function addInnerWallBindingRow(wallIdx = 0, distVal = '') {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
@@ -743,7 +761,6 @@ function openInnerEditSheet(idx) {
         dimBlock.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Произвольный короб (${el.pts ? el.pts.length : 0} углов)</span>`;
     }
 
-    // Заполнение динамических привязок к стенам
     const bindingsContainer = document.getElementById('innerWallBindingsContainer');
     if (bindingsContainer) {
         bindingsContainer.innerHTML = '';
@@ -820,7 +837,6 @@ function applyInnerSheetSettings() {
         el.y = sy / el.pts.length;
     }
 
-    // Сохранение и позиционирование по всем заданным привязкам
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
@@ -1253,8 +1269,9 @@ canvas.addEventListener('pointerdown', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Режим рисования произвольного короба: увеличенная зона клика (45px) для удобного замыкания пальцем
     if (editMode === 'drawing_poly') {
-        if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 28) {
+        if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45) {
             saveState();
             let sx = 0, sy = 0;
             activeDrawingPoly.forEach(p => { sx += p.x; sy += p.y; });
