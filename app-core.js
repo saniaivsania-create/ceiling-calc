@@ -381,7 +381,7 @@ function loadRoomIntoUI(idx) {
     if (!r) return;
 
     if (typeof points !== 'undefined') {
-        points = (r.points || []).map(p => ({ x: p.x, y: p.label ? p.label : '' }));
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
     }
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
@@ -525,6 +525,7 @@ function saveProject() {
     }
 
     let projectData = {
+        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         name,
         address,
         phone,
@@ -552,25 +553,39 @@ function closeProjectsModal() {
     document.getElementById('projectsModal').style.display = 'none';
 }
 
+// РЕНДЕР СПИСКА КЛИЕНТОВ: ИСПРАВЛЕН БАГ УДАЛЕНИЯ ЧЕРЕЗ УНИКАЛЬНЫЙ ID
 function renderProjectsList() {
     const listEl = document.getElementById('savedProjectsList');
-    const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase();
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    const searchQ = (document.getElementById('projectSearchInput').value || '').toLowerCase().trim();
+    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
 
+    // Назначаем ID старым записям, если их не было
+    let updated = false;
+    allProjects.forEach((p, i) => {
+        if (!p.id) {
+            p.id = 'legacy_' + i + '_' + Date.now();
+            updated = true;
+        }
+    });
+    if (updated) {
+        localStorage.setItem('pro_projects', JSON.stringify(allProjects));
+    }
+
+    let displayList = allProjects;
     if (searchQ) {
-        saved = saved.filter(p => 
+        displayList = allProjects.filter(p => 
             (p.name && p.name.toLowerCase().includes(searchQ)) ||
             (p.address && p.address.toLowerCase().includes(searchQ)) ||
             (p.phone && p.phone.toLowerCase().includes(searchQ))
         );
     }
 
-    if (saved.length === 0) {
+    if (displayList.length === 0) {
         listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 20px 0; font-size: 13px;">Список клиентов пуст или ничего не найдено</div>`;
         return;
     }
 
-    listEl.innerHTML = saved.map((p, idx) => {
+    listEl.innerHTML = displayList.map((p, idx) => {
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
         
@@ -597,18 +612,20 @@ function renderProjectsList() {
                 ${callBtn}
                 ${tgBtn}
                 ${maxBtn}
-                <button class="btn btn-primary" onclick="loadSavedProject(${idx})" style="padding: 7px 9px;">📂</button>
-                <button class="btn btn-danger" onclick="deleteSavedProject(${idx})" style="padding: 7px 9px;">🗑️</button>
+                <button class="btn btn-primary" onclick="loadSavedProjectById('${p.id}')" style="padding: 7px 9px;" title="Открыть замер">📂</button>
+                <button class="btn btn-danger" onclick="deleteSavedProjectById('${p.id}')" style="padding: 7px 9px;" title="Удалить замер">🗑️</button>
             </div>
         </div>
     `}).join('');
 }
 
-function loadSavedProject(index) {
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (!saved[index]) return;
-    let proj = saved[index];
-    document.getElementById('clientName').value = proj.name;
+// ТОЧНАЯ ЗАГРУЗКА ПО ID
+function loadSavedProjectById(projectId) {
+    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    let proj = allProjects.find(p => p.id === projectId);
+    if (!proj) return;
+
+    document.getElementById('clientName').value = proj.name || '';
     document.getElementById('clientAddress').value = proj.address || '';
     document.getElementById('clientPhone').value = proj.phone || '';
     document.getElementById('clientDate').value = proj.dateVal || '';
@@ -630,15 +647,28 @@ function loadSavedProject(index) {
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
-function deleteSavedProject(index) {
-    let saved = JSON.parse(localStorage.getItem('pro_projects') || '[]');
-    if (!saved[index]) return;
-    if (confirm(`Удалить замер клиента "${saved[index].name}"?`)) {
-        saved.splice(index, 1);
-        localStorage.setItem('pro_projects', JSON.stringify(saved));
+// ТОЧНОЕ УДАЛЕНИЕ ПО ID
+function deleteSavedProjectById(projectId) {
+    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    let proj = allProjects.find(p => p.id === projectId);
+    if (!proj) return;
+
+    if (confirm(`Удалить замер клиента "${proj.name}"?`)) {
+        allProjects = allProjects.filter(p => p.id !== projectId);
+        localStorage.setItem('pro_projects', JSON.stringify(allProjects));
         renderProjectsList();
-        showToast('Замер удалён');
+        showToast(`Замер клиента "${proj.name}" удалён`);
     }
+}
+
+// Совместимость со старыми вызовами
+function loadSavedProject(index) {
+    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    if (allProjects[index]) loadSavedProjectById(allProjects[index].id);
+}
+function deleteSavedProject(index) {
+    let allProjects = JSON.parse(localStorage.getItem('pro_projects') || '[]');
+    if (allProjects[index]) deleteSavedProjectById(allProjects[index].id);
 }
 
 // --- ЧЕК-ЛИСТ МОНТАЖА И БЛОКНОТ ЗАМЕТОК ---
