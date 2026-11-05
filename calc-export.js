@@ -180,7 +180,6 @@ function calculate() {
         totalInnerAreaM2 += m.areaM2;
         totalInnerCorners += m.cornersCount;
 
-        // Исправлено: поддержка кастомных привязок и корректных метров без NaN
         let offsetStr = '';
         if (el.customBindings && el.customBindings.length > 0) {
             offsetStr = el.customBindings.map(b => {
@@ -425,6 +424,7 @@ function selectExportFormat(fmt) {
     selectedExportFormat = fmt;
     document.getElementById('fmtTabPng')?.classList.toggle('active', fmt === 'png');
     document.getElementById('fmtTabDoc')?.classList.toggle('active', fmt === 'doc');
+    showToast(fmt === 'png' ? 'Выбран формат: Картинка (PNG)' : 'Выбран формат: Документ Word (.doc)');
 }
 
 function openExportSheet() {
@@ -439,7 +439,7 @@ function closeExportSheet() {
     document.getElementById('exportSheetOverlay')?.classList.remove('open');
 }
 
-// ГЛАВНАЯ КНОПКА ОТПРАВКИ: ПОДДЕРЖКА ВЫБРАННОГО ФОРМАТА (PNG / DOC / ТЕКСТ)
+// ГЛАВНАЯ КНОПКА ОТПРАВКИ: ПОДДЕРЖКА ВЫБРАННОГО ФОРМАТА (PNG / DOC)
 function triggerCombinedShare(target) {
     let isClient = (target === 'client');
 
@@ -459,19 +459,6 @@ function triggerCombinedShare(target) {
     if (selectedExportFormat === 'doc') {
         exportWordDoc(target);
         return;
-    }
-
-    let title = isClient 
-        ? `📋 Смета: ${lastCalcData?.clientName || 'Потолок'}` 
-        : `🏭 Раскрой в цех (БЕЗ УСАДКИ): ${lastCalcData?.clientName || 'Заказ'}`;
-    let shareText = isClient ? lastEstimateText : lastFactoryText;
-
-    if (navigator.share) {
-        navigator.share({ title, text: shareText }).catch(err => {
-            if (err.name !== 'AbortError') copyTextFallback(shareText);
-        });
-    } else {
-        copyTextFallback(shareText);
     }
 }
 
@@ -496,7 +483,7 @@ function shareDirectTelegram(target) {
     
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('📋 Расчёт скопирован! Выберите чат и вставьте', 'success');
+            showToast('📋 Текст скопирован! Открываю Telegram...', 'success');
         });
     }
     window.location.href = "tg://";
@@ -515,13 +502,13 @@ function shareDirectMax(target) {
     let url = cleanPhone ? `https://max.ru/${cleanPhone}` : `https://max.ru/`;
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('📋 Текст скопирован! Вставьте в диалог MAX', 'success');
+            showToast('📋 Текст скопирован! Открываю MAX...', 'success');
         });
     }
     window.open(url, '_blank');
 }
 
-// Сохранение картинки клиенту
+// Генерация и отправка/скачивание PNG клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -587,10 +574,11 @@ function exportClientImage() {
     let totW = tCtx.measureText(lastCalcData.totalText).width;
     tCtx.fillText(lastCalcData.totalText, tempCanvas.width - pad - totW - 10, totalY + 3);
 
-    downloadCanvasImage(tempCanvas, `Smeta_${lastCalcData.clientName}.png`);
+    let fileName = `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
+    shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Сохранение картинки в цех (чистые размеры без усадки)
+// Генерация и отправка/скачивание PNG в цех
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -676,15 +664,49 @@ function exportFactoryImage() {
         });
     }
 
-    downloadCanvasImage(tempCanvas, `Raskroy_Ceh_${lastCalcData.clientName}.png`);
+    let fileName = `Raskroy_Ceh_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.png`;
+    shareOrDownloadCanvas(tempCanvas, fileName, `Раскрой в цех — ${lastCalcData.clientName}`);
 }
 
-function downloadCanvasImage(cnv, fileName) {
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = cnv.toDataURL('image/png');
-    link.click();
-    showToast('Чертёж сохранён в Загрузки');
+// Отправка картинки через системное меню Android (в Telegram/WhatsApp) или скачивание
+function shareOrDownloadCanvas(cnv, fileName, shareTitle) {
+    cnv.toBlob((blob) => {
+        if (!blob) {
+            showToast('Ошибка создания изображения', 'error');
+            return;
+        }
+
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+                files: [file],
+                title: shareTitle,
+                text: shareTitle
+            }).catch((err) => {
+                if (err.name !== 'AbortError') {
+                    downloadBlobFile(blob, fileName);
+                }
+            });
+        } else {
+            downloadBlobFile(blob, fileName);
+        }
+    }, 'image/png');
+}
+
+function downloadBlobFile(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('Файл сохранён в Загрузки!', 'success');
 }
 
 // Экспорт Word
@@ -755,11 +777,16 @@ function exportWordDoc(target = 'client') {
         ? `Smeta_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`
         : `Ceh_Raskroy_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`;
 
-    let link = document.createElement('a');
-    const objUrl = URL.createObjectURL(blob);
-    link.href = objUrl;
-    link.download = fileName;
-    link.click();
-    showToast('Документ Word сохранён в Загрузки');
-    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    if (navigator.canShare) {
+        const file = new File([blob], fileName, { type: 'application/msword' });
+        if (navigator.canShare({ files: [file] })) {
+            navigator.share({
+                files: [file],
+                title: docTitle
+            }).catch(() => downloadBlobFile(blob, fileName));
+            return;
+        }
+    }
+
+    downloadBlobFile(blob, fileName);
 }
