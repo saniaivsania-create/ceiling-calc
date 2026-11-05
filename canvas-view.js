@@ -201,7 +201,6 @@ setTimeout(() => {
     if (restoreSketchFromStorage()) {
         rebuildWallInputs();
         renderInnerElementsList();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     updateHint();
     drawSketch();
@@ -688,6 +687,7 @@ function openInnerEditSheet(idx) {
             </div>
         `;
     } else if (el.type === 'poly' && el.pts) {
+        // ДИНАМИЧЕСКИЙ ВВОД СТОРОН ПРОИЗВОЛЬНОГО КОРОБА
         let rowsHtml = '';
         for (let i = 0; i < el.pts.length; i++) {
             let p1 = el.pts[i];
@@ -764,6 +764,7 @@ function applyInnerSheetSettings() {
             el.title = `Люк ${Math.round(el.lenCm)}×${Math.round(el.widCm)}`;
         }
     } else if (el.type === 'poly' && el.pts) {
+        // Применяем введенные длины сторон к контуру многоугольника
         const sideInputs = document.querySelectorAll('.poly-side-input');
         sideInputs.forEach(inp => {
             let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
@@ -781,6 +782,7 @@ function applyInnerSheetSettings() {
                     let diffX = (p1.x + dirX * targetLenPx) - p2.x;
                     let diffY = (p1.y + dirY * targetLenPx) - p2.y;
 
+                    // Смещаем последующие вершины, чтобы сторона встала в точный размер
                     for (let k = nextI; k < el.pts.length; k++) {
                         el.pts[k].x += diffX;
                         el.pts[k].y += diffY;
@@ -789,6 +791,7 @@ function applyInnerSheetSettings() {
             }
         });
 
+        // Пересчитываем центральную опорную точку
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
         el.x = sx / el.pts.length;
@@ -913,6 +916,7 @@ function drawSketch() {
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
     const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
+    // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 20) {
@@ -929,6 +933,7 @@ function drawSketch() {
     centerX /= points.length;
     centerY /= points.length;
 
+    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         ctx.save();
@@ -956,6 +961,7 @@ function drawSketch() {
         ctx.restore();
     }
 
+    // 3. Контур стен помещения
     if (points.length >= 2) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
@@ -984,6 +990,7 @@ function drawSketch() {
         }
     }
 
+    // 4. Отрисовка внутренних элементов
     innerElements.forEach((el, elIdx) => {
         let nearest = getElementWallDistances(el);
 
@@ -1058,6 +1065,7 @@ function drawSketch() {
             ctx.stroke();
             ctx.fill();
 
+            // Отрисовка длин граней многоугольника
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
             for (let i = 0; i < el.pts.length; i++) {
@@ -1073,6 +1081,7 @@ function drawSketch() {
                 ctx.fillText(`${sideMm}`, midX, midY + 4);
             }
 
+            // Маркеры вершин в режиме работы с коробами
             if (editMode === 'inner') {
                 ctx.setLineDash([]);
                 el.pts.forEach((pt, vIdx) => {
@@ -1110,6 +1119,7 @@ function drawSketch() {
         ctx.restore();
     }
 
+    // 5. Размеры внешних стен помещения
     let wallCount = getWallCount();
     ctx.textAlign = 'center';
     for (let i = 0; i < wallCount; i++) {
@@ -1140,6 +1150,7 @@ function drawSketch() {
         ctx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
+    // 6. Углы (вершины) комнаты
     points.forEach((p, idx) => {
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
         ctx.beginPath();
@@ -1162,6 +1173,7 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
+// --- ТАЧ-СОБЫТИЯ И ОТКРЫТИЕ НАСТРОЕК ПО ТАПУ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -1201,6 +1213,7 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
+    // Проверка захвата вершин произвольного короба для перетаскивания углов
     if (editMode === 'inner') {
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
@@ -1218,6 +1231,7 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
+    // Проверка клика по коробам
     for (let i = innerElements.length - 1; i >= 0; i--) {
         let el = innerElements[i];
         let hit = false;
@@ -1303,11 +1317,7 @@ canvas.addEventListener('pointerdown', (e) => {
                     bestWallIdx = i;
                 }
             }
-            points.splice(bestWallIdx + 1, 0, { x, y, label: '' });
-            
-            // [ИСПРАВЛЕНИЕ БАГА 8]: Автоматическое обновление меток точек по порядку обхода
-            points.forEach((pt, idx) => pt.label = getPointLabel(idx));[cite: 3]
-            
+            points.splice(bestWallIdx + 1, 0, { x, y, label: getPointLabel(points.length) });
             const presetCorners = document.getElementById('presetCornersCount');
             if (presetCorners) presetCorners.value = points.length;
             rebuildWallInputs();
@@ -1336,6 +1346,7 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
+    // Перемещение конкретного угла произвольного короба
     if (draggedInnerIdx !== null && draggedInnerVertex !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
@@ -1354,6 +1365,7 @@ canvas.addEventListener('pointermove', (e) => {
         }
     }
 
+    // Перемещение короба целиком
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
@@ -1390,6 +1402,7 @@ canvas.addEventListener('pointerup', () => {
     draggedInnerVertex = null;
 });
 
+// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ (БАНКОМАТНЫЙ ВВОД) ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -1494,7 +1507,6 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     fitToScreen(false);
     drawSketch();
-    syncInputsValuesOnly();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
@@ -1525,8 +1537,7 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        // [ИСПРАВЛЕНИЕ БАГА 2]: Исправлено направление 'L' на минус
-        else if (dir === 'L') nx -= px;[cite: 3]
+        else if (dir === 'L') nx += px;
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
@@ -1539,7 +1550,7 @@ function buildSketchFromTable() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертёж перестроен по направлениям', 'success');
+    showToast('Чертёж перестроен по размерам', 'success');
 }
 
 function createFromTablePreset() {
@@ -1593,6 +1604,7 @@ function createFromTablePreset() {
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
+// --- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ (БАНКОМАТНЫЙ ВВОД) ---
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
     let p1 = points[wallIdx];
