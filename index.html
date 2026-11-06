@@ -128,12 +128,13 @@
                 <div id="innerElementsContainer" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;"></div>
             </div>
 
-            <!-- ДЛИНЫ СТЕН ОСНОВНОГО ПЕРИМЕТРА -->
+            <!-- ДЛИНЫ СТЕН И ДИАГОНАЛЕЙ -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>📏 Длины внешних стен</span>
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                    <span>📏 Стены и Диагонали</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
                         <span id="wallsAnglesBadge" style="font-size: 11px; color: var(--text-muted); text-transform: none;">Углов: 0</span>
+                        <button class="theme-toggle-btn" onclick="toggleDiagonalsMode()" id="diagToggleBtn" style="padding: 3px 7px; font-size: 10px;">📐 Диагонали</button>
                         <button class="theme-toggle-btn" onclick="toggleDirectionsMode()" id="dirToggleBtn" style="padding: 3px 7px; font-size: 10px;">⚙️ Направления</button>
                     </div>
                 </div>
@@ -148,9 +149,13 @@
                     <button class="btn btn-primary" onclick="createFromTablePreset()" style="flex: 1; padding: 9px;">📋 Создать по числу углов</button>
                 </div>
 
+                <!-- Контейнер стен -->
                 <div id="wallsInputsContainer"></div>
 
-                <div style="display: none; gap: 8px; margin-top: 2px;" id="tableActionButtons">
+                <!-- Контейнер ручного ввода диагоналей (по умолчанию скрыт) -->
+                <div id="diagonalsInputsContainer" style="display: none; flex-direction: column; gap: 6px; margin-top: 6px;"></div>
+
+                <div style="display: none; gap: 8px; margin-top: 4px;" id="tableActionButtons">
                     <button class="btn btn-primary" id="buildByDirBtn" onclick="buildSketchFromTable()" style="display: none; flex: 1; padding: 10px;">🔨 Построить по направлениям</button>
                     <button class="btn" onclick="fitToScreen(true)" style="flex: 1; padding: 10px;">🔍 Вписать чертёж в экран</button>
                 </div>
