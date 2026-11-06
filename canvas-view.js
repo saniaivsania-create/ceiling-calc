@@ -1216,7 +1216,7 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА С АВТОМАТИЧЕСКИМ РАЗВЕДЕНИЕМ НАЛОЖЕННЫХ БЕЙДЖЕЙ ---
+// --- ОТРИСОВКА ХОЛСТА С КОМПАКТНЫМИ ДИНАМИЧЕСКИМИ БЕЙДЖАМИ ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1378,23 +1378,32 @@ function drawSketch() {
         }
 
         ctx.save();
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1.3;
-        ctx.setLineDash([3, 3]);
+        ctx.font = '700 9px "Inter", sans-serif';
 
         activeBindsToRender.forEach(w => {
+            // Линия привязки
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([3, 3]);
             ctx.beginPath();
             ctx.moveTo(w.edgeX, w.edgeY);
             ctx.lineTo(w.projX, w.projY);
             ctx.stroke();
+
+            // Динамический расчёт ширины бейджа
+            let text = `${w.distM.toFixed(3)} м`;
+            let textW = ctx.measureText(text).width;
+            let padX = 6;
+            let boxW = textW + padX * 2;
+            let boxH = 14;
 
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
 
             // Защита от наложения бейджей (anti-collision)
             for (let b of renderedBadgeBoxes) {
-                if (Math.abs(b.x - midX) < 48 && Math.abs(b.y - midY) < 18) {
-                    midY += (midY >= b.y) ? 18 : -18;
+                if (Math.abs(b.x - midX) < (boxW / 2 + 10) && Math.abs(b.y - midY) < 14) {
+                    midY += (midY >= b.y) ? 14 : -14;
                 }
             }
             renderedBadgeBoxes.push({ x: midX, y: midY });
@@ -1405,19 +1414,25 @@ function drawSketch() {
                     bindIdx: w.bindIdx,
                     distM: w.distM,
                     x: midX,
-                    y: midY
+                    y: midY,
+                    w: boxW,
+                    h: boxH
                 });
             }
 
+            // Компактная плашка
+            ctx.setLineDash([]);
             ctx.fillStyle = badgeBgColor;
-            ctx.fillRect(midX - 32, midY - 8, 64, 16);
+            ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
             ctx.strokeStyle = '#ef4444';
-            ctx.strokeRect(midX - 32, midY - 8, 64, 16);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
 
+            // Текст размера
             ctx.fillStyle = '#ef4444';
-            ctx.font = '700 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${w.distM.toFixed(3)} м`, midX, midY + 4);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, midX, midY + 0.5);
         });
         ctx.restore();
 
@@ -1707,7 +1722,9 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 1. Тап по бейджу привязки (редактирование / удаление)
     for (let bBox of bindHitBoxes) {
-        if (x >= bBox.x - 32 && x <= bBox.x + 32 && y >= bBox.y - 10 && y <= bBox.y + 10) {
+        let halfW = (bBox.w || 64) / 2;
+        let halfH = (bBox.h || 16) / 2;
+        if (x >= bBox.x - halfW && x <= bBox.x + halfW && y >= bBox.y - halfH && y <= bBox.y + halfH) {
             editCreatedBinding(bBox);
             return;
         }
