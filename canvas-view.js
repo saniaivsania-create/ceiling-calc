@@ -19,7 +19,7 @@ let draggedInnerVertex = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
-let customDiagonals = []; // [{ fromIdx: 0, toIdx: 2, name: 'A-C', lenM: 5.460 }]
+let customDiagonals = [];
 let editingWallIdx = null;
 let editingDiagObj = null;
 let wallHitBoxes = [];
@@ -261,7 +261,7 @@ function updateHint() {
     }
 
     if (editMode === 'inner') {
-        hint.innerText = '📦 Тяните короб или его углы; тапните по фигуре для точных размеров';
+        hint.innerText = '📦 Режим коробов: кнопка 📐 выравнивает короб под 90°';
         return;
     }
 
@@ -299,10 +299,57 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
-// Выравнивание строго под 90 градусов (без эффекта 3D-перекоса)
+// Выравнивание строго под 90 градусов (умное: для комнаты или для короба)
 function snapOrthogonal() {
-    if (isSketchLocked || points.length < 3) return;
     saveState();
+
+    // 1. ЕСЛИ АКТИВЕН СЛОЙ КОРОБОВ — ВЫРАВНИВАЕМ КОРОБ
+    if (editMode === 'inner' && innerElements.length > 0) {
+        let el = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) 
+                 ? innerElements[selectedInnerIdx] 
+                 : innerElements[innerElements.length - 1];
+
+        if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
+            if (el.pts.length === 4) {
+                let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
+                let w = (Math.hypot(p1.x - p0.x, p1.y - p0.y) + Math.hypot(p2.x - p3.x, p2.y - p3.y)) / 2;
+                let h = (Math.hypot(p3.x - p0.x, p3.y - p0.y) + Math.hypot(p2.x - p1.x, p2.y - p1.y)) / 2;
+
+                let cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+                let cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+
+                el.pts[0] = { x: cx - w/2, y: cy + h/2 }; // 1
+                el.pts[1] = { x: cx - w/2, y: cy - h/2 }; // 2
+                el.pts[2] = { x: cx + w/2, y: cy - h/2 }; // 3
+                el.pts[3] = { x: cx + w/2, y: cy + h/2 }; // 4
+            } else {
+                for (let i = 1; i < el.pts.length; i++) {
+                    let prev = el.pts[i - 1];
+                    let curr = el.pts[i];
+                    if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
+                        curr.y = prev.y;
+                    } else {
+                        curr.x = prev.x;
+                    }
+                }
+            }
+
+            let sx = 0, sy = 0;
+            el.pts.forEach(p => { sx += p.x; sy += p.y; });
+            el.x = sx / el.pts.length;
+            el.y = sy / el.pts.length;
+
+            renderInnerElementsList();
+            drawSketch();
+            persistSketchToStorage();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast('Углы короба выровнены под 90°', 'success');
+            return;
+        }
+    }
+
+    // 2. ИНАЧЕ ВЫРАВНИВАЕМ ОСНОВНУЮ КОМНАТУ
+    if (isSketchLocked || points.length < 3) return;
 
     if (points.length === 4 && isClosed) {
         let p0 = points[0];
@@ -337,7 +384,7 @@ function snapOrthogonal() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Углы выровнены под 90°', 'success');
+    showToast('Углы комнаты выровнены под 90°', 'success');
 }
 
 function rotateSketch() {
@@ -453,12 +500,10 @@ function segmentsStrictlyIntersect(a, b, c, d) {
     return (ccw(a, c, d) !== ccw(b, c, d)) && (ccw(a, b, c) !== ccw(a, b, d));
 }
 
-// Получение списка диагоналей (пользовательские + автоматические)
 function getCleanDiagonals() {
     let diags = [];
     if (!isClosed || points.length < 4) return diags;
 
-    // 1. Добавляем диагонали, заданные вручную
     customDiagonals.forEach(cd => {
         let p1 = points[cd.fromIdx];
         let p2 = points[cd.toIdx];
@@ -471,7 +516,6 @@ function getCleanDiagonals() {
     let n = points.length;
     let needed = n - 3;
 
-    // 2. Дополняем автоматическими при необходимости
     for (let i = 0; i < n; i++) {
         for (let j = i + 2; j < n; j++) {
             if (i === 0 && j === n - 1) continue;
@@ -511,7 +555,6 @@ function getCleanDiagonals() {
     return diags;
 }
 
-// Триангуляция: точное изменение угла по диагонали без деформации стен
 function applyDiagonalLength(fromIdx, toIdx, targetM) {
     if (!targetM || targetM <= 0) return;
     saveState();
@@ -519,7 +562,6 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
     let i1 = Math.min(fromIdx, toIdx);
     let i2 = Math.max(fromIdx, toIdx);
 
-    // Сохраняем в список пользовательских диагоналей
     let existing = customDiagonals.find(d => (d.fromIdx === i1 && d.toIdx === i2) || (d.fromIdx === i2 && d.toIdx === i1));
     if (existing) {
         existing.lenM = targetM;
@@ -615,12 +657,12 @@ function removeCustomDiagonal(idx) {
 
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
-    let aby = b.y - a.y;
+    let handyY = b.y - a.y;
     let apx = p.x - a.x;
     let apy = p.y - a.y;
-    let lenTotal = abx * abx + aby * aby;
-    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * aby };
+    let lenTotal = abx * abx + handyY * handyY;
+    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * handyY) / lenTotal));
+    return { x: a.x + t * abx, y: a.y + t * handyY };
 }
 
 function getClosestPointOnElementToSegment(el, p1, p2) {
@@ -936,29 +978,50 @@ function applyInnerSheetSettings() {
         }
     } else if (el.type === 'poly' && el.pts) {
         const sideInputs = document.querySelectorAll('.poly-side-input');
-        sideInputs.forEach(inp => {
-            let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
-            let targetM = parseFloat(inp.value);
-            if (!isNaN(sideIdx) && targetM && targetM > 0 && el.pts[sideIdx]) {
-                let p1 = el.pts[sideIdx];
-                let nextI = (sideIdx + 1) % el.pts.length;
-                let p2 = el.pts[nextI];
-                let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let targetLenPx = (targetM * 100) / cmPerPixel;
+        let vals = [];
+        sideInputs.forEach(inp => vals.push(parseFloat(inp.value) || 0));
 
-                if (curLenPx > 0.001) {
-                    let dirX = (p2.x - p1.x) / curLenPx;
-                    let dirY = (p2.y - p1.y) / curLenPx;
-                    let diffX = (p1.x + dirX * targetLenPx) - p2.x;
-                    let diffY = (p1.y + dirY * targetLenPx) - p2.y;
+        // Если это 4-угольный короб — строим строгий прямоугольник
+        if (el.pts.length === 4) {
+            let targetW = vals[0] > 0 ? vals[0] : (vals[2] > 0 ? vals[2] : 2.5);
+            let targetH = vals[1] > 0 ? vals[1] : (vals[3] > 0 ? vals[3] : 2.5);
 
-                    for (let k = nextI; k < el.pts.length; k++) {
-                        el.pts[k].x += diffX;
-                        el.pts[k].y += diffY;
+            let wPx = (targetW * 100) / cmPerPixel;
+            let hPx = (targetH * 100) / cmPerPixel;
+
+            let cx = (el.pts[0].x + el.pts[1].x + el.pts[2].x + el.pts[3].x) / 4;
+            let cy = (el.pts[0].y + el.pts[1].y + el.pts[2].y + el.pts[3].y) / 4;
+
+            el.pts[0] = { x: cx - wPx/2, y: cy + hPx/2 }; // 1
+            el.pts[1] = { x: cx - wPx/2, y: cy - hPx/2 }; // 2
+            el.pts[2] = { x: cx + wPx/2, y: cy - hPx/2 }; // 3
+            el.pts[3] = { x: cx + wPx/2, y: cy + hPx/2 }; // 4
+        } else {
+            // Для многоугольников более 4 сторон
+            sideInputs.forEach(inp => {
+                let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
+                let targetM = parseFloat(inp.value);
+                if (!isNaN(sideIdx) && targetM && targetM > 0 && el.pts[sideIdx]) {
+                    let p1 = el.pts[sideIdx];
+                    let nextI = (sideIdx + 1) % el.pts.length;
+                    let p2 = el.pts[nextI];
+                    let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    let targetLenPx = (targetM * 100) / cmPerPixel;
+
+                    if (curLenPx > 0.001) {
+                        let dirX = (p2.x - p1.x) / curLenPx;
+                        let dirY = (p2.y - p1.y) / curLenPx;
+                        let diffX = (p1.x + dirX * targetLenPx) - p2.x;
+                        let diffY = (p1.y + dirY * targetLenPx) - p2.y;
+
+                        for (let k = nextI; k < el.pts.length; k++) {
+                            el.pts[k].x += diffX;
+                            el.pts[k].y += diffY;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
@@ -966,12 +1029,14 @@ function applyInnerSheetSettings() {
         el.y = sy / el.pts.length;
     }
 
+    // Привязки к стенам
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
     let totalMoveX = 0;
     let totalMoveY = 0;
     let appliedCount = 0;
+    let handledWalls = new Set();
 
     bindingRows.forEach(row => {
         let wallSelect = row.querySelector('.inner-bind-wall');
@@ -981,7 +1046,8 @@ function applyInnerSheetSettings() {
         let wIdx = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
 
-        if (!isNaN(wIdx) && !isNaN(distM) && distM >= 0) {
+        if (!isNaN(wIdx) && !isNaN(distM) && distM > 0 && !handledWalls.has(wIdx)) {
+            handledWalls.add(wIdx);
             el.customBindings.push({ wallIdx: wIdx, distM: distM.toFixed(3) });
 
             let pA = points[wIdx];
@@ -1411,7 +1477,6 @@ canvas.addEventListener('pointerdown', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Режим рисования произвольного короба
     if (editMode === 'drawing_poly') {
         if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45) {
             saveState();
@@ -1451,6 +1516,7 @@ canvas.addEventListener('pointerdown', (e) => {
                         saveState();
                         draggedInnerIdx = i;
                         draggedInnerVertex = v;
+                        selectedInnerIdx = i;
                         canvas.setPointerCapture(e.pointerId);
                         return;
                     }
@@ -1475,6 +1541,7 @@ canvas.addEventListener('pointerdown', (e) => {
         }
 
         if (hit) {
+            selectedInnerIdx = i;
             if (editMode === 'inner') {
                 openInnerEditSheet(i);
                 return;
@@ -1493,7 +1560,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // Проверка клика по плашке диагонали (редактирование триангуляции)
     for (let dBox of diagHitBoxes) {
         if (x >= dBox.x - 26 && x <= dBox.x + 26 && y >= dBox.y - 12 && y <= dBox.y + 12) {
             openDiagonalEditSheet(dBox);
@@ -1501,7 +1567,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Проверка клика по плашке стены
     for (let box of wallHitBoxes) {
         if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
             openWallEditSheet(box.wallIdx);
@@ -1638,7 +1703,6 @@ function toggleDiagonalsMode() {
     }
 }
 
-// Генерация выпадающего списка букв комнаты для ручной диагонали
 function getCornerLetterOptionsHtml(selectedIdx = 0) {
     let html = '';
     points.forEach((p, idx) => {
@@ -1648,7 +1712,6 @@ function getCornerLetterOptionsHtml(selectedIdx = 0) {
     return html;
 }
 
-// Добавление новой диагонали через панель выбора букв
 function submitNewCustomDiagonal() {
     const selFrom = document.getElementById('newDiagFrom');
     const selTo = document.getElementById('newDiagTo');
@@ -1684,7 +1747,6 @@ function submitNewCustomDiagonal() {
     showToast(`Диагональ ${points[fIdx].label}–${points[tIdx].label} добавлена!`, 'success');
 }
 
-// Генерация списка диагоналей и блока добавления своей диагонали
 function rebuildDiagonalInputs() {
     const container = document.getElementById('diagonalsInputsContainer');
     if (!container) return;
@@ -1695,7 +1757,6 @@ function rebuildDiagonalInputs() {
         return;
     }
 
-    // Блок добавления своей диагонали
     let addBox = document.createElement('div');
     addBox.style.cssText = 'background: var(--sub-block-bg); border: 1px dashed var(--accent); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;';
     addBox.innerHTML = `
@@ -1972,7 +2033,6 @@ function openWallEditSheet(wallIdx) {
     }
 }
 
-// Открытие диалогового окна по тапу на диагональ
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null;
     editingDiagObj = dBox;
