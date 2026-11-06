@@ -20,7 +20,9 @@ let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
 let editingWallIdx = null;
+let editingDiagObj = null;
 let wallHitBoxes = [];
+let diagHitBoxes = [];
 
 const MAX_CORNERS = 50;
 
@@ -263,7 +265,7 @@ function updateHint() {
         closeBtn?.classList.remove('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
     } else {
-        hint.innerText = `Тяните углы; нажмите 📦 для работы с коробами`;
+        hint.innerText = `Тапайте по стенам или диагоналям 📐 для точного размера`;
         closeBtn?.classList.add('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
     }
@@ -475,14 +477,95 @@ function getCleanDiagonals() {
             if (crosses) continue;
 
             let len = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
-            diags.push({ from: p1, to: p2, name: `${p1.label}-${p2.label}`, len });
+            diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len });
             if (diags.length >= needed) return diags;
         }
     }
     return diags;
 }
 
-// Исправленный расчет расстояния: убрана опечатка handy
+// Триангуляция: точное изменение угла по диагонали без деформации стен
+function applyDiagonalLength(fromIdx, toIdx, targetM) {
+    if (!targetM || targetM <= 0) return;
+    saveState();
+
+    // Нормализуем индексы
+    let i1 = Math.min(fromIdx, toIdx);
+    let i2 = Math.max(fromIdx, toIdx);
+
+    // Если вершины через одну (например i1=0, mid=1, i2=2)
+    let midIdx = -1;
+    if (i2 - i1 === 2) {
+        midIdx = i1 + 1;
+    } else if (i1 === 0 && i2 === points.length - 2) {
+        midIdx = points.length - 1;
+    }
+
+    let pFrom = points[i1];
+    let pTo = points[i2];
+
+    if (midIdx !== -1) {
+        let pCorner = points[midIdx];
+        let a = Math.hypot(pFrom.x - pCorner.x, pFrom.y - pCorner.y);
+        let b = Math.hypot(pTo.x - pCorner.x, pTo.y - pCorner.y);
+        let targetC = (targetM * 100) / cmPerPixel;
+
+        // Проверка треугольника
+        if (targetC >= a + b) targetC = (a + b) * 0.98;
+        if (targetC <= Math.abs(a - b)) targetC = Math.abs(a - b) * 1.02;
+
+        let cosVal = (a * a + b * b - targetC * targetC) / (2 * a * b);
+        cosVal = Math.max(-1, Math.min(1, cosVal));
+        let targetAngle = Math.acos(cosVal);
+
+        let baseAngle = Math.atan2(pFrom.y - pCorner.y, pFrom.x - pCorner.x);
+        let curAngle = Math.atan2(pTo.y - pCorner.y, pTo.x - pCorner.x);
+        let diff = curAngle - baseAngle;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+
+        let sign = diff >= 0 ? 1 : -1;
+        let newAngle = baseAngle + sign * targetAngle;
+
+        let oldToX = pTo.x;
+        let oldToY = pTo.y;
+        pTo.x = pCorner.x + b * Math.cos(newAngle);
+        pTo.y = pCorner.y + b * Math.sin(newAngle);
+
+        let shiftX = pTo.x - oldToX;
+        let shiftY = pTo.y - oldToY;
+
+        // Подтягиваем оставшиеся точки контура
+        for (let k = i2 + 1; k < points.length; k++) {
+            points[k].x += shiftX;
+            points[k].y += shiftY;
+        }
+    } else {
+        // Прямое пропорциональное масштабирование расстояния между двумя любыми точками
+        let curDist = Math.hypot(pTo.x - pFrom.x, pTo.y - pFrom.y);
+        let targetDistPx = (targetM * 100) / cmPerPixel;
+        if (curDist > 0.001) {
+            let ratio = targetDistPx / curDist;
+            let dirX = (pTo.x - pFrom.x) / curDist;
+            let dirY = (pTo.y - pFrom.y) / curDist;
+            let shiftX = (pFrom.x + dirX * targetDistPx) - pTo.x;
+            let shiftY = (pFrom.y + dirY * targetDistPx) - pTo.y;
+
+            for (let k = i2; k < points.length; k++) {
+                points[k].x += shiftX;
+                points[k].y += shiftY;
+            }
+        }
+    }
+
+    fitToScreen(false);
+    syncInputsValuesOnly();
+    drawSketch();
+    persistSketchToStorage();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast(`Диагональ выставлена: ${targetM.toFixed(3)} м`, 'success');
+}
+
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
     let aby = b.y - a.y;
@@ -663,7 +746,6 @@ function addQuickCircleColumn() {
     showToast('Добавлена круглая колонна');
 }
 
-// Запуск рисования произвольного короба
 function startCustomBoxDrawing() {
     if (!isClosed || points.length < 3) {
         showToast('Сначала замкните комнату!', 'error');
@@ -963,6 +1045,7 @@ function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     wallHitBoxes = [];
+    diagHitBoxes = [];
 
     const isLight = document.body.classList.contains('light-theme');
     const gridColor = isLight ? '#f1f5f9' : '#1e293b';
@@ -1010,12 +1093,24 @@ function drawSketch() {
             let mx = d.from.x + (d.to.x - d.from.x) * ratio;
             let my = d.from.y + (d.to.y - d.from.y) * ratio;
 
+            diagHitBoxes.push({
+                fromIdx: d.idxFrom,
+                toIdx: d.idxTo,
+                name: d.name,
+                lenM: (d.len / 100).toFixed(3),
+                x: mx,
+                y: my
+            });
+
             ctx.fillStyle = badgeBgColor;
-            ctx.fillRect(mx - 22, my - 9, 44, 13);
+            ctx.fillRect(mx - 24, my - 9, 48, 14);
+            ctx.strokeStyle = isLight ? '#cbd5e1' : '#334155';
+            ctx.strokeRect(mx - 24, my - 9, 48, 14);
+
             ctx.fillStyle = diagTextColor;
             ctx.font = '500 10px "Inter", "Roboto", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 1);
+            ctx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 2);
         });
         ctx.restore();
     }
@@ -1269,7 +1364,7 @@ canvas.addEventListener('pointerdown', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Режим рисования произвольного короба: увеличенная зона клика (45px) для удобного замыкания пальцем
+    // Режим рисования произвольного короба
     if (editMode === 'drawing_poly') {
         if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45) {
             saveState();
@@ -1351,6 +1446,22 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
+    // Проверка клика по плашке диагонали (редактирование триангуляции)
+    for (let dBox of diagHitBoxes) {
+        if (x >= dBox.x - 26 && x <= dBox.x + 26 && y >= dBox.y - 12 && y <= dBox.y + 12) {
+            openDiagonalEditSheet(dBox);
+            return;
+        }
+    }
+
+    // Проверка клика по плашке стены
+    for (let box of wallHitBoxes) {
+        if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
+            openWallEditSheet(box.wallIdx);
+            return;
+        }
+    }
+
     if (editMode === 'room') {
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 25) {
@@ -1360,13 +1471,6 @@ canvas.addEventListener('pointerdown', (e) => {
                 canvas.setPointerCapture(e.pointerId);
                 return;
             }
-        }
-    }
-
-    for (let box of wallHitBoxes) {
-        if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) {
-            openWallEditSheet(box.wallIdx);
-            return;
         }
     }
 
@@ -1662,6 +1766,7 @@ function createFromTablePreset() {
 
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx;
+    editingDiagObj = null;
     let p1 = points[wallIdx];
     let p2 = points[(wallIdx + 1) % points.length];
     if (!p1 || !p2) return;
@@ -1686,22 +1791,55 @@ function openWallEditSheet(wallIdx) {
     }, 120);
 }
 
+// Открытие шторки для точного задания диагонали
+function openDiagonalEditSheet(dBox) {
+    editingWallIdx = null;
+    editingDiagObj = dBox;
+
+    document.getElementById('wallEditSheetTitle').innerText = `📐 Диагональ ${dBox.name} (м)`;
+    const sheetInput = document.getElementById('wallSheetInput');
+    sheetInput.type = "text";
+    sheetInput.setAttribute("inputmode", "numeric");
+    sheetInput.value = dBox.lenM;
+
+    sheetInput.oninput = function() {
+        this.value = formatLaserShift(this.value);
+    };
+
+    document.getElementById('wallEditSheetOverlay').classList.add('open');
+    setTimeout(() => {
+        sheetInput.focus();
+        sheetInput.select();
+    }, 120);
+}
+
 function closeWallEditSheet() {
     const el = document.getElementById('wallEditSheetOverlay');
     if (el) el.classList.remove('open');
     editingWallIdx = null;
+    editingDiagObj = null;
 }
 
 function applyWallSheetValue() {
-    if (editingWallIdx === null) return;
     let raw = document.getElementById('wallSheetInput').value;
     let formatted = formatLaserShift(raw);
     let val = parseFloat(formatted);
-    if (val && val >= 0.1 && val <= 50) {
-        let inp = document.getElementById(`wall-input-${editingWallIdx}`);
-        if (inp) inp.value = val.toFixed(3);
-        onWallLengthEdit(editingWallIdx, val);
-        showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
+
+    if (editingDiagObj !== null) {
+        if (val && val >= 0.1 && val <= 50) {
+            applyDiagonalLength(editingDiagObj.fromIdx, editingDiagObj.toIdx, val);
+        }
+        closeWallEditSheet();
+        return;
     }
-    closeWallEditSheet();
+
+    if (editingWallIdx !== null) {
+        if (val && val >= 0.1 && val <= 50) {
+            let inp = document.getElementById(`wall-input-${editingWallIdx}`);
+            if (inp) inp.value = val.toFixed(3);
+            onWallLengthEdit(editingWallIdx, val);
+            showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
+        }
+        closeWallEditSheet();
+    }
 }
