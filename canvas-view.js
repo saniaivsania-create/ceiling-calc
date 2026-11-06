@@ -23,6 +23,7 @@ let editingWallIdx = null;
 let editingDiagObj = null;
 let wallHitBoxes = [];
 let diagHitBoxes = [];
+let showDiagonalsList = false;
 
 const MAX_CORNERS = 50;
 
@@ -123,6 +124,7 @@ function undoPoint() {
         presetCorners.value = points.length;
     }
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     renderInnerElementsList();
     updateHint();
     drawSketch();
@@ -143,6 +145,7 @@ function resetSketch() {
     draggedInnerVertex = null;
     localStorage.removeItem('_pz_active_sketch_backup');
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     renderInnerElementsList();
     updateHint();
     drawSketch();
@@ -212,6 +215,7 @@ setTimeout(() => {
     resizeCanvas();
     if (restoreSketchFromStorage()) {
         rebuildWallInputs();
+        rebuildDiagonalInputs();
         renderInnerElementsList();
     }
     updateHint();
@@ -265,7 +269,7 @@ function updateHint() {
         closeBtn?.classList.remove('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`;
     } else {
-        hint.innerText = `Тапайте по стенам или диагоналям 📐 для точного размера`;
+        hint.innerText = `Тапайте по стенам или кнопке «📐 Диагонали»`;
         closeBtn?.classList.add('fab-active');
         if (lockSvg) lockSvg.innerHTML = `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`;
     }
@@ -280,6 +284,7 @@ function closePolygon() {
     saveState();
     isClosed = !isClosed;
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     updateHint();
     drawSketch();
     persistSketchToStorage();
@@ -364,6 +369,7 @@ function rotateSketch() {
 
     fitToScreen(true);
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     renderInnerElementsList();
     drawSketch();
     persistSketchToStorage();
@@ -567,9 +573,8 @@ function getClosestPointOnSegment(p, a, b) {
     let apy = p.y - a.y;
     let lenTotal = abx * abx + aby * aby;
     let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * handy(aby) ? a.y : a.y + t * aby };
+    return { x: a.x + t * abx, y: a.y + t * aby };
 }
-function handy(val) { return false; }
 
 function getClosestPointOnElementToSegment(el, p1, p2) {
     let isHorizontalWall = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
@@ -1482,6 +1487,7 @@ canvas.addEventListener('pointerdown', (e) => {
             const presetCorners = document.getElementById('presetCornersCount');
             if (presetCorners) presetCorners.value = points.length;
             rebuildWallInputs();
+            rebuildDiagonalInputs();
             updateHint();
             drawSketch();
             persistSketchToStorage();
@@ -1550,6 +1556,7 @@ canvas.addEventListener('pointerup', () => {
         persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         rebuildWallInputs();
+        rebuildDiagonalInputs();
     }
     if (draggedInnerIdx !== null) {
         persistSketchToStorage();
@@ -1560,6 +1567,64 @@ canvas.addEventListener('pointerup', () => {
     draggedInnerIdx = null;
     draggedInnerVertex = null;
 });
+
+// --- ПЕРЕКЛЮЧЕНИЕ СПИСКА ДИАГОНАЛЕЙ ---
+function toggleDiagonalsMode() {
+    showDiagonalsList = !showDiagonalsList;
+    const diagBtn = document.getElementById('diagToggleBtn');
+    const diagContainer = document.getElementById('diagonalsInputsContainer');
+    const wallsContainer = document.getElementById('wallsInputsContainer');
+
+    if (diagBtn) diagBtn.classList.toggle('fab-active', showDiagonalsList);
+
+    if (showDiagonalsList) {
+        if (wallsContainer) wallsContainer.style.display = 'none';
+        if (diagContainer) {
+            diagContainer.style.display = 'flex';
+            rebuildDiagonalInputs();
+        }
+        showToast('Показан список диагоналей для лазерной рулетки', 'success');
+    } else {
+        if (wallsContainer) wallsContainer.style.display = 'block';
+        if (diagContainer) diagContainer.style.display = 'none';
+        showToast('Показан список внешних стен');
+    }
+}
+
+// Генерация списка диагоналей
+function rebuildDiagonalInputs() {
+    const container = document.getElementById('diagonalsInputsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    let diags = getCleanDiagonals();
+    if (diags.length === 0) {
+        container.innerHTML = `<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 10px 0;">Для 3-угольных комнат диагонали не требуются</div>`;
+        return;
+    }
+
+    diags.forEach((d, i) => {
+        let mVal = (d.len / 100).toFixed(3);
+        let row = document.createElement('div');
+        row.className = 'wall-row-input';
+        row.innerHTML = `
+            <span class="wall-row-label" style="color: var(--accent);"><b>Диагональ ${d.name}</b></span>
+            <input type="text" inputmode="numeric" class="input-field diag-len" id="diag-input-${i}" value="${mVal}" oninput="handleDiagSmartInput(${d.idxFrom}, ${d.idxTo}, this)" onkeydown="if(event.key==='Enter') this.blur()" style="font-weight: 700; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); padding-right: 4px;">м</div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function handleDiagSmartInput(fromIdx, toIdx, inputEl) {
+    let formatted = formatLaserShift(inputEl.value);
+    inputEl.value = formatted;
+
+    let m = parseFloat(formatted);
+    if (m && m >= 0.1 && m <= 50) {
+        applyDiagonalLength(fromIdx, toIdx, m);
+    }
+}
 
 // --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
 function rebuildWallInputs() {
@@ -1631,6 +1696,16 @@ function syncInputsValuesOnly() {
         if (input && document.activeElement !== input) input.value = distM;
         let dirSel = document.getElementById(`wall-dir-${i}`);
         if (dirSel) dirSel.value = detectWallDir(p1, p2);
+    }
+
+    if (showDiagonalsList) {
+        let diags = getCleanDiagonals();
+        diags.forEach((d, i) => {
+            let diagInp = document.getElementById(`diag-input-${i}`);
+            if (diagInp && document.activeElement !== diagInp) {
+                diagInp.value = (d.len / 100).toFixed(3);
+            }
+        });
     }
 }
 
@@ -1711,6 +1786,7 @@ function buildSketchFromTable() {
     isClosed = true;
     fitToScreen(true);
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     updateHint();
     drawSketch();
     persistSketchToStorage();
@@ -1752,6 +1828,7 @@ function createFromTablePreset() {
     isClosed = true;
     fitToScreen(true);
     rebuildWallInputs();
+    rebuildDiagonalInputs();
     updateHint();
     drawSketch();
     persistSketchToStorage();
@@ -1780,7 +1857,7 @@ function openWallEditSheet(wallIdx) {
     }
 }
 
-// Открытие окна для точного задания диагонали
+// Открытие диалогового окна по тапу на диагональ
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null;
     editingDiagObj = dBox;
