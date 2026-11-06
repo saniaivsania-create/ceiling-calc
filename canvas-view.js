@@ -885,13 +885,27 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
-// Добавление строки привязки с реальным расстоянием и автопересчетом при смене стены
-function addInnerWallBindingRow(wallIdx = 0, distVal = '') {
+// Автоматический выбор свободной стены и подстановка реального расстояния
+function addInnerWallBindingRow(wallIdx = null, distVal = '') {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
 
-    if (!distVal && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
-        distVal = getDistanceToSpecificWall(innerElements[selectedInnerIdx], wallIdx);
+    let el = (selectedInnerIdx !== null) ? innerElements[selectedInnerIdx] : null;
+
+    if (wallIdx === null || wallIdx === undefined) {
+        let existingWalls = Array.from(container.querySelectorAll('.inner-bind-wall')).map(s => parseInt(s.value));
+        wallIdx = 0;
+        let count = getWallCount();
+        for (let i = 0; i < count; i++) {
+            if (!existingWalls.includes(i)) {
+                wallIdx = i;
+                break;
+            }
+        }
+    }
+
+    if ((distVal === '' || distVal === undefined) && el) {
+        distVal = getDistanceToSpecificWall(el, wallIdx);
     }
 
     let row = document.createElement('div');
@@ -992,7 +1006,7 @@ function closeInnerEditSheet() {
     selectedInnerIdx = null;
 }
 
-// Применение настроек с раздельным позиционированием по осям X и Y
+// Применение настроек с абсолютно жесткой посадкой по X и Y
 function applyInnerSheetSettings() {
     if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
     saveState();
@@ -1027,8 +1041,8 @@ function applyInnerSheetSettings() {
             let wPx = (targetW * 100) / cmPerPixel;
             let hPx = (targetH * 100) / cmPerPixel;
 
-            let cx = (el.pts[0].x + el.pts[1].x + el.pts[2].x + el.pts[3].x) / 4;
-            let cy = (el.pts[0].y + el.pts[1].y + el.pts[2].y + el.pts[3].y) / 4;
+            let cx = el.x;
+            let cy = el.y;
 
             el.pts[0] = { x: cx - wPx/2, y: cy + hPx/2 }; // 1
             el.pts[1] = { x: cx - wPx/2, y: cy - hPx/2 }; // 2
@@ -1066,15 +1080,9 @@ function applyInnerSheetSettings() {
         el.y = sy / el.pts.length;
     }
 
-    // Привязки: раздельные сдвиги по X и Y без деления надвое
+    // Точная установка отступов без взаимных помех
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
-
-    let moveX = 0;
-    let moveY = 0;
-    let hasXMove = false;
-    let hasYMove = false;
-    let handledWalls = new Set();
 
     bindingRows.forEach(row => {
         let wallSelect = row.querySelector('.inner-bind-wall');
@@ -1084,44 +1092,32 @@ function applyInnerSheetSettings() {
         let wIdx = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
 
-        if (!isNaN(wIdx) && !isNaN(distM) && distM > 0 && !handledWalls.has(wIdx)) {
-            handledWalls.add(wIdx);
+        if (!isNaN(wIdx) && !isNaN(distM) && distM > 0) {
             el.customBindings.push({ wallIdx: wIdx, distM: distM.toFixed(3) });
 
             let pA = points[wIdx];
             let pB = points[(wIdx + 1) % points.length];
+            if (!pA || !pB) return;
+
             let targetDistPx = (distM * 100) / cmPerPixel;
+            let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, pA, pB);
 
-            if (pA && pB) {
-                let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, pA, pB);
-                let shift = distPx - targetDistPx;
-                let dx = proj.x - edgePoint.x;
-                let dy = proj.y - edgePoint.y;
-                let len = Math.hypot(dx, dy) || 1;
+            let shift = distPx - targetDistPx;
+            let isHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
 
-                let isHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
-                if (isHoriz && !hasYMove) {
-                    moveY = (dy / len) * shift;
-                    hasYMove = true;
-                } else if (!isHoriz && !hasXMove) {
-                    moveX = (dx / len) * shift;
-                    hasXMove = true;
-                }
+            if (isHoriz) {
+                let signY = (proj.y > edgePoint.y) ? 1 : -1;
+                let dy = signY * shift;
+                el.y += dy;
+                if (el.pts) el.pts.forEach(p => p.y += dy);
+            } else {
+                let signX = (proj.x > edgePoint.x) ? 1 : -1;
+                let dx = signX * shift;
+                el.x += dx;
+                if (el.pts) el.pts.forEach(p => p.x += dx);
             }
         }
     });
-
-    if (hasXMove || hasYMove) {
-        el.x += moveX;
-        el.y += moveY;
-
-        if (el.type === 'poly' && el.pts) {
-            el.pts.forEach(pt => {
-                pt.x += moveX;
-                pt.y += moveY;
-            });
-        }
-    }
 
     closeInnerEditSheet();
     renderInnerElementsList();
