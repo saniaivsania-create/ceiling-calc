@@ -190,7 +190,7 @@ function toggleEditLayer() {
     activeBindSource = null;
     if (editMode === 'room') {
         editMode = 'inner';
-        showToast('📦 Режим коробов. Стены комнаты заблокированы от случайного сдвига', 'success');
+        showToast('📦 Режим коробов', 'success');
     } else {
         editMode = 'room';
         activeDrawingPoly = [];
@@ -207,15 +207,16 @@ function toggleEditLayer() {
 
 function toggleFullscreen() {
     const card = document.getElementById('canvasCard');
+    if (!card) return;
     const isFull = card.classList.toggle('fullscreen');
     document.getElementById('bottomFullscreenBtn')?.classList.toggle('fab-active', isFull);
     const topClose = document.getElementById('fsCloseTopBtn');
     if (topClose) topClose.style.display = isFull ? 'block' : 'none';
     setTimeout(() => {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+        canvas.width = canvas.clientWidth || window.innerWidth;
+        canvas.height = canvas.clientHeight || (window.innerHeight - 80);
         fitToScreen(false);
-    }, 60);
+    }, 80);
 }
 
 function resizeCanvas() {
@@ -263,17 +264,17 @@ function updateHint() {
     }
 
     if (activeBindSource !== null) {
-        hint.innerText = `🎯 Угол короба ${activeBindSource.vertexIdx + 1} выбран! Тапните по стене или углу комнаты`;
+        hint.innerText = `🎯 Угол ${activeBindSource.vertexIdx + 1} выбран! Тапните по стене или углу комнаты`;
         return;
     }
 
     if (editMode === 'drawing_poly') {
-        hint.innerText = `✏️ Ставьте точки короба (${activeDrawingPoly.length}). Тапните на 1-ю точку для завершения`;
+        hint.innerText = `✏️ Ставьте точки (${activeDrawingPoly.length}). Тап на 1-ю точку замкнёт короб`;
         return;
     }
 
     if (editMode === 'inner') {
-        hint.innerText = '📦 Перетаскивайте короб или тапните угол для лазерной привязки';
+        hint.innerText = '📦 Перетаскивайте короб или тапните угол для привязки';
         return;
     }
 
@@ -689,19 +690,6 @@ function getClosestPointOnSegment(p, a, b) {
     return { x: a.x + t * abx, y: a.y + t * aby };
 }
 
-function rayCrossesOwnElement(pStart, pEnd, el) {
-    if (!el || !el.pts || el.pts.length < 3) return false;
-    let n = el.pts.length;
-    for (let i = 0; i < n; i++) {
-        let pA = el.pts[i];
-        let pB = el.pts[(i + 1) % n];
-        if (segmentsStrictlyIntersect(pStart, pEnd, pA, pB)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 function getClosestPointOnElementToSegment(el, p1, p2) {
     let isHorizontalWall = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
@@ -751,7 +739,7 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
         for (let pt of el.pts) {
             let pr = getClosestPointOnSegment(pt, p1, p2);
             let d = Math.hypot(pr.x - pt.x, pr.y - pt.y);
-            if (d < bestDist && !rayCrossesOwnElement(pt, pr, el)) {
+            if (d < bestDist) {
                 bestDist = d;
                 bestEdgePt = pt;
                 bestProj = pr;
@@ -1581,7 +1569,6 @@ function drawSketch() {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
-        // Разведение плашек внешних стен при коллизиях
         for (let b of renderedBadgeBoxes) {
             if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
                 labelY += (labelY >= b.y) ? 16 : -16;
@@ -1732,7 +1719,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 2. Если уже выбрана точка короба (activeBindSource)
     if (activeBindSource !== null) {
-        // Тап по углу комнаты
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
                 createInteractiveBinding('corner', i);
@@ -1740,7 +1726,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Тап по стене комнаты
         let count = getWallCount();
         for (let i = 0; i < count; i++) {
             let p1 = points[i];
@@ -1786,7 +1771,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 4. Режим короба: взаимодействие только с коробом
     if (editMode === 'inner') {
-        // Выбор угла короба для привязки или перетаскивания вершины
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             if (el.type === 'poly' && el.pts) {
@@ -1808,7 +1792,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Клик по телу короба (перетаскивание короба)
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             let hit = false;
@@ -1835,7 +1818,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // В РЕЖИМЕ КОРОБОВ ТАЧ СТЕН КОМНАТЫ ИГНОРИРУЕТСЯ
         return;
     }
 
