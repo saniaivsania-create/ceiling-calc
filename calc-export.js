@@ -126,6 +126,7 @@ function performCalculation() {
     if (!isClosed) {
         isClosed = true;
         rebuildWallInputs();
+        if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
         updateHint();
         drawSketch();
     }
@@ -417,7 +418,7 @@ function calculate() {
         innerFactoryText +
         `📏 СТЕНЫ (чистые):\n` +
         wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('\n') + `\n` +
-        (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
+        (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}${d.isCustom ? ' [ручной замер]' : ''}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
 }
 
 // --- УПРАВЛЕНИЕ ВЫГРУЗКОЙ ---
@@ -532,19 +533,26 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         targetCtx.save();
-        targetCtx.strokeStyle = isWhite ? '#64748b' : 'rgba(255, 255, 255, 0.35)';
         targetCtx.lineWidth = 1.3;
         targetCtx.setLineDash([4, 4]);
+
         diags.forEach((d, idx) => {
-            targetCtx.beginPath(); targetCtx.moveTo(d.from.x, d.from.y); targetCtx.lineTo(d.to.x, d.to.y); targetCtx.stroke();
+            targetCtx.strokeStyle = d.isCustom ? '#0284c7' : (isWhite ? '#64748b' : 'rgba(255, 255, 255, 0.35)');
+            targetCtx.beginPath(); 
+            targetCtx.moveTo(d.from.x, d.from.y); 
+            targetCtx.lineTo(d.to.x, d.to.y); 
+            targetCtx.stroke();
+
             let ratio = 0.4 + (idx % 3) * 0.12;
             let mx = d.from.x + (d.to.x - d.from.x) * ratio;
             let my = d.from.y + (d.to.y - d.from.y) * ratio;
+
             targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
             targetCtx.fillRect(mx - 24, my - 9, 48, 14);
-            targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+            targetCtx.strokeStyle = d.isCustom ? '#0284c7' : (isWhite ? '#cbd5e1' : '#334155');
             targetCtx.strokeRect(mx - 24, my - 9, 48, 14);
-            targetCtx.fillStyle = isWhite ? '#475569' : '#94a3b8';
+
+            targetCtx.fillStyle = d.isCustom ? '#0284c7' : (isWhite ? '#475569' : '#94a3b8');
             targetCtx.font = '500 10px sans-serif';
             targetCtx.textAlign = 'center';
             targetCtx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 2);
@@ -786,7 +794,6 @@ function exportFactoryImage() {
     tCtx.fillText('📏 СТЕНЫ (чистые):', pad, y);
     y += 20;
 
-    // Чёткое разделение колонок с отступом 270px
     tCtx.fillStyle = isWhite ? '#1e293b' : '#ffffff';
     tCtx.font = '12px Inter, Roboto, monospace';
     const col2X = pad + 270;
@@ -825,7 +832,8 @@ function exportFactoryImage() {
         lastCalcData.diags.forEach((d, i) => {
             let isLeft = (i % 2 === 0);
             let curX = isLeft ? pad : col2X;
-            tCtx.fillText(`Диагональ ${d.name}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`, curX, y);
+            let mark = d.isCustom ? ' *' : '';
+            tCtx.fillText(`Диагональ ${d.name}${mark}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`, curX, y);
             if (!isLeft || i === lastCalcData.diags.length - 1) y += 20;
         });
     }
@@ -914,8 +922,8 @@ function exportWordDoc(target = 'client') {
             ${lastCalcData.diags.length > 0 ? `
             <h3>Таблица чистых диагоналей для раскроя:</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
-                <tr style="background:#f1f5f9;"><th>Диагональ</th><th>Длина (м)</th></tr>
-                ${lastCalcData.diags.map(d => `<tr><td>Диагональ <b>${d.name}</b></td><td><b>${(d.len / 100).toFixed(2)} м</b></td></tr>`).join('')}
+                <tr style="background:#f1f5f9;"><th>Диагональ</th><th>Длина (м)</th><th>Тип</th></tr>
+                ${lastCalcData.diags.map(d => `<tr><td>Диагональ <b>${d.name}</b></td><td><b>${(d.len / 100).toFixed(2)} м</b></td><td>${d.isCustom ? 'Ручной замер' : 'Авто'}</td></tr>`).join('')}
             </table>` : ''}
         `;
     }
