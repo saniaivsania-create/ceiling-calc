@@ -738,6 +738,67 @@ function getClosestPointOnElementToSegment(el, p1, p2) {
     return { edgePoint: bestEdgePt, proj: bestProj, distPx: bestDist };
 }
 
+// Расчет расстояния от конкретной грани элемента до стены комнаты
+function getEdgeToWallDistance(el, edgeIdx, wIdx) {
+    if (!el || !points[wIdx]) return { distM: '0.500', edgePoint: { x: el.x, y: el.y }, proj: { x: el.x, y: el.y } };
+    let pA = points[wIdx];
+    let pB = points[(wIdx + 1) % points.length];
+    if (!pA || !pB) return { distM: '0.500', edgePoint: { x: el.x, y: el.y }, proj: { x: el.x, y: el.y } };
+
+    if (el.pts && el.pts.length >= 3) {
+        let ep1 = el.pts[edgeIdx];
+        let ep2 = el.pts[(edgeIdx + 1) % el.pts.length];
+        let edgeMid = { x: (ep1.x + ep2.x) / 2, y: (ep1.y + ep2.y) / 2 };
+        let proj = getClosestPointOnSegment(edgeMid, pA, pB);
+        let distPx = Math.hypot(proj.x - edgeMid.x, proj.y - edgeMid.y);
+        return {
+            distM: ((distPx * cmPerPixel) / 100).toFixed(3),
+            edgePoint: edgeMid,
+            proj,
+            distPx
+        };
+    }
+
+    let res = getClosestPointOnElementToSegment(el, pA, pB);
+    return {
+        distM: ((res.distPx * cmPerPixel) / 100).toFixed(3),
+        edgePoint: res.edgePoint,
+        proj: res.proj,
+        distPx: res.distPx
+    };
+}
+
+// Находит ближайшую параллельную стену комнаты для грани короба
+function getBestWallForEdge(el, edgeIdx) {
+    let count = getWallCount();
+    if (count < 2 || !el) return 0;
+
+    let isEdgeHoriz = true;
+    if (el.pts && el.pts.length >= 3) {
+        let ep1 = el.pts[edgeIdx];
+        let ep2 = el.pts[(edgeIdx + 1) % el.pts.length];
+        isEdgeHoriz = Math.abs(ep2.x - ep1.x) >= Math.abs(ep2.y - ep1.y);
+    }
+
+    let bestWallIdx = 0;
+    let minDist = Infinity;
+
+    for (let i = 0; i < count; i++) {
+        let pA = points[i];
+        let pB = points[(i + 1) % points.length];
+        let isWallHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
+
+        if (isEdgeHoriz === isWallHoriz) {
+            let calc = getEdgeToWallDistance(el, edgeIdx, i);
+            if (calc.distPx < minDist) {
+                minDist = calc.distPx;
+                bestWallIdx = i;
+            }
+        }
+    }
+    return bestWallIdx;
+}
+
 function getElementWallDistances(el) {
     if (!el || points.length < 3) return [];
     let count = getWallCount();
@@ -778,16 +839,6 @@ function getElementWallDistances(el) {
     }
 
     return result;
-}
-
-// Расчет расстояния от края элемента до конкретной стены
-function getDistanceToSpecificWall(el, wIdx) {
-    if (!el || !points[wIdx]) return '0.500';
-    let p1 = points[wIdx];
-    let p2 = points[(wIdx + 1) % points.length];
-    if (!p1 || !p2) return '0.500';
-    let { distPx } = getClosestPointOnElementToSegment(el, p1, p2);
-    return ((distPx * cmPerPixel) / 100).toFixed(3);
 }
 
 function addQuickRectHatch() {
@@ -871,50 +922,66 @@ function startCustomBoxDrawing() {
     showToast('Ставьте точки короба по холсту', 'success');
 }
 
-function getWallOptionsHtml(selectedWallIdx) {
-    let count = getWallCount();
-    let html = '';
-    for (let i = 0; i < count; i++) {
-        let p1 = points[i];
-        let p2 = points[(i + 1) % points.length];
-        if (p1 && p2) {
-            let isSel = (parseInt(selectedWallIdx) === i) ? 'selected' : '';
-            html += `<option value="${i}" ${isSel}>Стена ${p1.label}–${p2.label}</option>`;
+// Генерация списка граней короба с указанием ближайшей стены комнаты
+function getInnerEdgeOptionsHtml(el, selectedEdgeIdx = 0) {
+    if (!el || !el.pts || el.pts.length < 3) {
+        let count = getWallCount();
+        let html = '';
+        for (let i = 0; i < count; i++) {
+            let p1 = points[i], p2 = points[(i + 1) % points.length];
+            if (p1 && p2) {
+                let isSel = (parseInt(selectedEdgeIdx) === i) ? 'selected' : '';
+                html += `<option value="${i}" ${isSel}>Стена ${p1.label}–${p2.label}</option>`;
+            }
         }
+        return html;
+    }
+
+    let html = '';
+    for (let i = 0; i < el.pts.length; i++) {
+        let nextI = (i + 1) % el.pts.length;
+        let bestW = getBestWallForEdge(el, i);
+        let pA = points[bestW];
+        let pB = points[(bestW + 1) % points.length];
+        let wallName = (pA && pB) ? `${pA.label}–${pB.label}` : `${bestW + 1}`;
+        let isSel = (parseInt(selectedEdgeIdx) === i) ? 'selected' : '';
+        html += `<option value="${i}" ${isSel}>Грань ${i + 1}–${nextI + 1} ➔ ст. ${wallName}</option>`;
     }
     return html;
 }
 
-// Автоматический выбор свободной стены и подстановка реального расстояния
-function addInnerWallBindingRow(wallIdx = null, distVal = '') {
+// Добавление привязки грани к стене
+function addInnerWallBindingRow(edgeIdx = null, distVal = '') {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
 
     let el = (selectedInnerIdx !== null) ? innerElements[selectedInnerIdx] : null;
 
-    if (wallIdx === null || wallIdx === undefined) {
-        let existingWalls = Array.from(container.querySelectorAll('.inner-bind-wall')).map(s => parseInt(s.value));
-        wallIdx = 0;
-        let count = getWallCount();
-        for (let i = 0; i < count; i++) {
-            if (!existingWalls.includes(i)) {
-                wallIdx = i;
+    if (edgeIdx === null || edgeIdx === undefined) {
+        let existingEdges = Array.from(container.querySelectorAll('.inner-bind-edge')).map(s => parseInt(s.value));
+        edgeIdx = 0;
+        let totalEdges = (el && el.pts) ? el.pts.length : getWallCount();
+        for (let i = 0; i < totalEdges; i++) {
+            if (!existingEdges.includes(i)) {
+                edgeIdx = i;
                 break;
             }
         }
     }
 
     if ((distVal === '' || distVal === undefined) && el) {
-        distVal = getDistanceToSpecificWall(el, wallIdx);
+        let targetWall = getBestWallForEdge(el, edgeIdx);
+        let calc = getEdgeToWallDistance(el, edgeIdx, targetWall);
+        distVal = calc.distM;
     }
 
     let row = document.createElement('div');
     row.className = 'inner-binding-row';
-    row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
+    row.style.cssText = 'display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 6px; align-items: center;';
 
     row.innerHTML = `
-        <select class="dir-select inner-bind-wall" onchange="onBindingWallChanged(this)">
-            ${getWallOptionsHtml(wallIdx)}
+        <select class="dir-select inner-bind-edge" onchange="onBindingEdgeChanged(this)">
+            ${getInnerEdgeOptionsHtml(el, edgeIdx)}
         </select>
         <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal || '0.500'}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
         <button class="checklist-act-btn" type="button" style="color: var(--danger); font-size: 13px; padding: 6px 8px;" onclick="this.parentElement.remove()" title="Удалить">✖</button>
@@ -922,13 +989,16 @@ function addInnerWallBindingRow(wallIdx = null, distVal = '') {
     container.appendChild(row);
 }
 
-function onBindingWallChanged(selectEl) {
-    let wIdx = parseInt(selectEl.value);
+function onBindingEdgeChanged(selectEl) {
+    let edgeIdx = parseInt(selectEl.value);
     let row = selectEl.closest('.inner-binding-row');
     if (!row) return;
     let distInput = row.querySelector('.inner-bind-dist');
     if (distInput && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
-        distInput.value = getDistanceToSpecificWall(innerElements[selectedInnerIdx], wIdx);
+        let el = innerElements[selectedInnerIdx];
+        let targetWall = getBestWallForEdge(el, edgeIdx);
+        let calc = getEdgeToWallDistance(el, edgeIdx, targetWall);
+        distInput.value = calc.distM;
     }
 }
 
@@ -989,12 +1059,13 @@ function openInnerEditSheet(idx) {
         bindingsContainer.innerHTML = '';
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                addInnerWallBindingRow(b.wallIdx, b.distM);
+                addInnerWallBindingRow(b.edgeIdx !== undefined ? b.edgeIdx : b.wallIdx, b.distM);
             });
         } else {
-            let nearest = getElementWallDistances(el);
-            if (nearest.length > 0) addInnerWallBindingRow(nearest[0].wallIdx, nearest[0].distM.toFixed(3));
-            if (nearest.length > 1) addInnerWallBindingRow(nearest[1].wallIdx, nearest[1].distM.toFixed(3));
+            addInnerWallBindingRow(0);
+            if (el.pts && el.pts.length >= 4) {
+                addInnerWallBindingRow(1);
+            }
         }
     }
 
@@ -1006,7 +1077,7 @@ function closeInnerEditSheet() {
     selectedInnerIdx = null;
 }
 
-// Применение настроек с абсолютно жесткой посадкой по X и Y
+// Применение настроек с жесткой посадкой по осям X и Y
 function applyInnerSheetSettings() {
     if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
     saveState();
@@ -1080,38 +1151,43 @@ function applyInnerSheetSettings() {
         el.y = sy / el.pts.length;
     }
 
-    // Точная установка отступов без взаимных помех
+    // Применение привязок граней
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
     bindingRows.forEach(row => {
-        let wallSelect = row.querySelector('.inner-bind-wall');
+        let edgeSelect = row.querySelector('.inner-bind-edge');
         let distInput = row.querySelector('.inner-bind-dist');
-        if (!wallSelect || !distInput) return;
+        if (!edgeSelect || !distInput) return;
 
-        let wIdx = parseInt(wallSelect.value);
+        let edgeIdx = parseInt(edgeSelect.value);
         let distM = parseFloat(distInput.value);
 
-        if (!isNaN(wIdx) && !isNaN(distM) && distM > 0) {
-            el.customBindings.push({ wallIdx: wIdx, distM: distM.toFixed(3) });
+        if (!isNaN(edgeIdx) && !isNaN(distM) && distM > 0) {
+            let targetWall = getBestWallForEdge(el, edgeIdx);
+            el.customBindings.push({
+                edgeIdx,
+                wallIdx: targetWall,
+                distM: distM.toFixed(3)
+            });
 
-            let pA = points[wIdx];
-            let pB = points[(wIdx + 1) % points.length];
+            let pA = points[targetWall];
+            let pB = points[(targetWall + 1) % points.length];
             if (!pA || !pB) return;
 
             let targetDistPx = (distM * 100) / cmPerPixel;
-            let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, pA, pB);
+            let calc = getEdgeToWallDistance(el, edgeIdx, targetWall);
 
-            let shift = distPx - targetDistPx;
+            let shift = calc.distPx - targetDistPx;
             let isHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
 
             if (isHoriz) {
-                let signY = (proj.y > edgePoint.y) ? 1 : -1;
+                let signY = (calc.proj.y > calc.edgePoint.y) ? 1 : -1;
                 let dy = signY * shift;
                 el.y += dy;
                 if (el.pts) el.pts.forEach(p => p.y += dy);
             } else {
-                let signX = (proj.x > edgePoint.x) ? 1 : -1;
+                let signX = (calc.proj.x > calc.edgePoint.x) ? 1 : -1;
                 let dx = signX * shift;
                 el.x += dx;
                 if (el.pts) el.pts.forEach(p => p.x += dx);
@@ -1162,7 +1238,8 @@ function renderInnerElementsList() {
                 let p1 = points[b.wallIdx];
                 let p2 = points[(b.wallIdx + 1) % points.length];
                 let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${b.wallIdx + 1}`;
-                return `${wName}: ${b.distM} м`;
+                let eName = (b.edgeIdx !== undefined && el.pts) ? `Гр.${b.edgeIdx + 1}➔` : '';
+                return `${eName}${wName}: ${b.distM} м`;
             }).join(' | ');
         } else {
             let nearest = getElementWallDistances(el);
@@ -1299,18 +1376,16 @@ function drawSketch() {
 
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                let p1 = points[b.wallIdx];
-                let p2 = points[(b.wallIdx + 1) % points.length];
-                if (p1 && p2) {
-                    let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
-                    activeWallDists.push({
-                        edgeX: edgePoint.x,
-                        edgeY: edgePoint.y,
-                        projX: proj.x,
-                        projY: proj.y,
-                        distM: (distPx * cmPerPixel) / 100
-                    });
-                }
+                let targetWall = b.wallIdx !== undefined ? b.wallIdx : 0;
+                let edgeIdx = b.edgeIdx !== undefined ? b.edgeIdx : 0;
+                let calc = getEdgeToWallDistance(el, edgeIdx, targetWall);
+                activeWallDists.push({
+                    edgeX: calc.edgePoint.x,
+                    edgeY: calc.edgePoint.y,
+                    projX: calc.proj.x,
+                    projY: calc.proj.y,
+                    distM: parseFloat(b.distM) || parseFloat(calc.distM)
+                });
             });
         } else {
             activeWallDists = getElementWallDistances(el);
