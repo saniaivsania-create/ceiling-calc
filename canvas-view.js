@@ -299,11 +299,10 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
-// ИСПРАВЛЕННОЕ ВЫРАВНИВАНИЕ ПОД 90 ГРАДУСОВ БЕЗ ПЕРЕСТАНОВКИ СТОРОН МЕСТАМИ
+// Выравнивание под 90 градусов (умное: для комнаты или для короба)
 function snapOrthogonal() {
     saveState();
 
-    // 1. ЕСЛИ АКТИВЕН СЛОЙ КОРОБОВ — ВЫРАВНИВАЕМ КОРОБ
     if (editMode === 'inner' && innerElements.length > 0) {
         let el = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) 
                  ? innerElements[selectedInnerIdx] 
@@ -312,7 +311,6 @@ function snapOrthogonal() {
         if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
             if (el.pts.length === 4) {
                 let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
-                // Вектор 0->1 (вертикаль) и 1->2 (горизонталь)
                 let h = Math.hypot(p1.x - p0.x, p1.y - p0.y);
                 let w = Math.hypot(p2.x - p1.x, p2.y - p1.y);
 
@@ -349,21 +347,18 @@ function snapOrthogonal() {
         }
     }
 
-    // 2. ВЫРАВНИВАНИЕ ОСНОВНОЙ КОМНАТЫ
     if (isSketchLocked || points.length < 3) return;
 
     if (points.length === 4 && isClosed) {
-        let pA = points[0]; // A (низ-лево)
-        let pB = points[1]; // B (верх-лево)
-        let pC = points[2]; // C (верх-право)
-        let pD = points[3]; // D (низ-право)
+        let pA = points[0];
+        let pB = points[1];
+        let pC = points[2];
+        let pD = points[3];
 
-        // Высота (A-B) берется строго по вертикальной стене A-B
         let inpAB = document.getElementById('wall-input-0');
         let valAB = inpAB ? parseFloat(inpAB.value) : 0;
         let hPx = valAB > 0 ? (valAB * 100) / cmPerPixel : Math.hypot(pB.x - pA.x, pB.y - pA.y);
 
-        // Ширина (B-C) берется строго по горизонтальной стене B-C
         let inpBC = document.getElementById('wall-input-1');
         let valBC = inpBC ? parseFloat(inpBC.value) : 0;
         let wPx = valBC > 0 ? (valBC * 100) / cmPerPixel : Math.hypot(pC.x - pB.x, pC.y - pB.y);
@@ -371,7 +366,6 @@ function snapOrthogonal() {
         let cx = (pA.x + pB.x + pC.x + pD.x) / 4;
         let cy = (pA.y + pB.y + pC.y + pD.y) / 4;
 
-        // Строгий прямоугольник с сохранением своих сторон
         points[0] = { x: cx - wPx/2, y: cy + hPx/2, label: 'A' };
         points[1] = { x: cx - wPx/2, y: cy - hPx/2, label: 'B' };
         points[2] = { x: cx + wPx/2, y: cy - hPx/2, label: 'C' };
@@ -388,7 +382,6 @@ function snapOrthogonal() {
         return;
     }
 
-    // Для помещений с другим количеством углов
     for (let i = 1; i < points.length; i++) {
         let prev = points[i - 1];
         let curr = points[i];
@@ -677,12 +670,12 @@ function removeCustomDiagonal(idx) {
 
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
-    let aby = b.y - a.y;
+    let handyY = b.y - a.y;
     let apx = p.x - a.x;
     let apy = p.y - a.y;
-    let lenTotal = abx * abx + aby * aby;
-    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * aby };
+    let lenTotal = abx * abx + handyY * handyY;
+    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * handyY) / lenTotal));
+    return { x: a.x + t * abx, y: a.y + t * handyY };
 }
 
 function getClosestPointOnElementToSegment(el, p1, p2) {
@@ -787,6 +780,16 @@ function getElementWallDistances(el) {
     return result;
 }
 
+// Расчет расстояния от края элемента до конкретной стены
+function getDistanceToSpecificWall(el, wIdx) {
+    if (!el || !points[wIdx]) return '0.500';
+    let p1 = points[wIdx];
+    let p2 = points[(wIdx + 1) % points.length];
+    if (!p1 || !p2) return '0.500';
+    let { distPx } = getClosestPointOnElementToSegment(el, p1, p2);
+    return ((distPx * cmPerPixel) / 100).toFixed(3);
+}
+
 function addQuickRectHatch() {
     if (!isClosed || points.length < 3) {
         showToast('Сначала замкните комнату!', 'error');
@@ -882,22 +885,37 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
+// Добавление строки привязки с реальным расстоянием и автопересчетом при смене стены
 function addInnerWallBindingRow(wallIdx = 0, distVal = '') {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
+
+    if (!distVal && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
+        distVal = getDistanceToSpecificWall(innerElements[selectedInnerIdx], wallIdx);
+    }
 
     let row = document.createElement('div');
     row.className = 'inner-binding-row';
     row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
 
     row.innerHTML = `
-        <select class="dir-select inner-bind-wall">
+        <select class="dir-select inner-bind-wall" onchange="onBindingWallChanged(this)">
             ${getWallOptionsHtml(wallIdx)}
         </select>
-        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
+        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal || '0.500'}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
         <button class="checklist-act-btn" type="button" style="color: var(--danger); font-size: 13px; padding: 6px 8px;" onclick="this.parentElement.remove()" title="Удалить">✖</button>
     `;
     container.appendChild(row);
+}
+
+function onBindingWallChanged(selectEl) {
+    let wIdx = parseInt(selectEl.value);
+    let row = selectEl.closest('.inner-binding-row');
+    if (!row) return;
+    let distInput = row.querySelector('.inner-bind-dist');
+    if (distInput && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
+        distInput.value = getDistanceToSpecificWall(innerElements[selectedInnerIdx], wIdx);
+    }
 }
 
 function openInnerEditSheet(idx) {
@@ -974,6 +992,7 @@ function closeInnerEditSheet() {
     selectedInnerIdx = null;
 }
 
+// Применение настроек с раздельным позиционированием по осям X и Y
 function applyInnerSheetSettings() {
     if (selectedInnerIdx === null || !innerElements[selectedInnerIdx]) return;
     saveState();
@@ -1001,7 +1020,6 @@ function applyInnerSheetSettings() {
         let vals = [];
         sideInputs.forEach(inp => vals.push(parseFloat(inp.value) || 0));
 
-        // Если это 4-угольный короб — строим строгий прямоугольник
         if (el.pts.length === 4) {
             let targetW = vals[0] > 0 ? vals[0] : (vals[2] > 0 ? vals[2] : 2.5);
             let targetH = vals[1] > 0 ? vals[1] : (vals[3] > 0 ? vals[3] : 2.5);
@@ -1017,7 +1035,6 @@ function applyInnerSheetSettings() {
             el.pts[2] = { x: cx + wPx/2, y: cy - hPx/2 }; // 3
             el.pts[3] = { x: cx + wPx/2, y: cy + hPx/2 }; // 4
         } else {
-            // Для многоугольников более 4 сторон
             sideInputs.forEach(inp => {
                 let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
                 let targetM = parseFloat(inp.value);
@@ -1049,13 +1066,14 @@ function applyInnerSheetSettings() {
         el.y = sy / el.pts.length;
     }
 
-    // Привязки к стенам
+    // Привязки: раздельные сдвиги по X и Y без деления надвое
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
-    let totalMoveX = 0;
-    let totalMoveY = 0;
-    let appliedCount = 0;
+    let moveX = 0;
+    let moveY = 0;
+    let hasXMove = false;
+    let hasYMove = false;
     let handledWalls = new Set();
 
     bindingRows.forEach(row => {
@@ -1081,24 +1099,26 @@ function applyInnerSheetSettings() {
                 let dy = proj.y - edgePoint.y;
                 let len = Math.hypot(dx, dy) || 1;
 
-                totalMoveX += (dx / len) * shift;
-                totalMoveY += (dy / len) * shift;
-                appliedCount++;
+                let isHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
+                if (isHoriz && !hasYMove) {
+                    moveY = (dy / len) * shift;
+                    hasYMove = true;
+                } else if (!isHoriz && !hasXMove) {
+                    moveX = (dx / len) * shift;
+                    hasXMove = true;
+                }
             }
         }
     });
 
-    if (appliedCount > 0) {
-        let finalMoveX = totalMoveX / appliedCount;
-        let finalMoveY = totalMoveY / appliedCount;
-
-        el.x += finalMoveX;
-        el.y += finalMoveY;
+    if (hasXMove || hasYMove) {
+        el.x += moveX;
+        el.y += moveY;
 
         if (el.type === 'poly' && el.pts) {
             el.pts.forEach(pt => {
-                pt.x += finalMoveX;
-                pt.y += finalMoveY;
+                pt.x += moveX;
+                pt.y += moveY;
             });
         }
     }
