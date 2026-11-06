@@ -19,7 +19,7 @@ let draggedInnerVertex = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
-// Интерактивная привязка тапом: выбранная точка короба { innerIdx, vertexIdx }
+// Интерактивная привязка тапом: { innerIdx, vertexIdx }
 let activeBindSource = null;
 let bindHitBoxes = [];
 
@@ -190,7 +190,7 @@ function toggleEditLayer() {
     activeBindSource = null;
     if (editMode === 'room') {
         editMode = 'inner';
-        showToast('Режим: Короба. Тап по углу короба ➔ тап по стене или углу комнаты для привязки', 'success');
+        showToast('📦 Режим коробов. Стены комнаты заблокированы от случайного сдвига', 'success');
     } else {
         editMode = 'room';
         activeDrawingPoly = [];
@@ -263,7 +263,7 @@ function updateHint() {
     }
 
     if (activeBindSource !== null) {
-        hint.innerText = `🎯 Точка ${activeBindSource.vertexIdx + 1} выбрана! Тапните по стене или углу комнаты`;
+        hint.innerText = `🎯 Угол короба ${activeBindSource.vertexIdx + 1} выбран! Тапните по стене или углу комнаты`;
         return;
     }
 
@@ -273,7 +273,7 @@ function updateHint() {
     }
 
     if (editMode === 'inner') {
-        hint.innerText = '📦 Тапните на угол короба, затем на стену или угол комнаты для привязки';
+        hint.innerText = '📦 Перетаскивайте короб или тапните угол для лазерной привязки';
         return;
     }
 
@@ -689,7 +689,6 @@ function getClosestPointOnSegment(p, a, b) {
     return { x: a.x + t * abx, y: a.y + t * aby };
 }
 
-// Проверка: пересекает ли отрезок луча от точки к цели геометрию самого короба
 function rayCrossesOwnElement(pStart, pEnd, el) {
     if (!el || !el.pts || el.pts.length < 3) return false;
     let n = el.pts.length;
@@ -805,7 +804,6 @@ function getElementWallDistances(el) {
     return result;
 }
 
-// Перемещение короба как жёсткого тела при изменении привязки
 function applySingleBindingShift(el, binding, targetDistM) {
     let targetDistPx = (targetDistM * 100) / cmPerPixel;
 
@@ -1218,7 +1216,7 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА (СТРОГО 0.000 М) ---
+// --- ОТРИСОВКА ХОЛСТА С АВТОМАТИЧЕСКИМ РАЗВЕДЕНИЕМ НАЛОЖЕННЫХ БЕЙДЖЕЙ ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1231,7 +1229,7 @@ function drawSketch() {
     const mainStrokeColor = isLight ? '#0f172a' : '#e2e8f0';
     const polyFillColor = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(79, 70, 229, 0.08)';
     const diagLineColor = isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
-    const badgeBgColor = isLight ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 23, 42, 0.9)';
+    const badgeBgColor = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.92)';
     const wallTextColor = isLight ? '#0f172a' : '#f8fafc';
     const diagTextColor = isLight ? '#475569' : '#94a3b8';
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
@@ -1324,6 +1322,8 @@ function drawSketch() {
     }
 
     // 4. Внутренние элементы и привязки
+    let renderedBadgeBoxes = [];
+
     innerElements.forEach((el, elIdx) => {
         let activeBindsToRender = [];
 
@@ -1341,7 +1341,7 @@ function drawSketch() {
                             edgeY: pBox.y,
                             projX: pRoom.x,
                             projY: pRoom.y,
-                            distM: parseFloat(b.distM) || ((Math.hypot(pRoom.x - pBox.x, pRoom.y - pBox.y) * cmPerPixel) / 100)
+                            distM: ((Math.hypot(pRoom.x - pBox.x, pRoom.y - pBox.y) * cmPerPixel) / 100)
                         });
                     }
                 } else {
@@ -1357,7 +1357,7 @@ function drawSketch() {
                             edgeY: pBox.y,
                             projX: proj.x,
                             projY: proj.y,
-                            distM: parseFloat(b.distM) || ((Math.hypot(proj.x - pBox.x, proj.y - pBox.y) * cmPerPixel) / 100)
+                            distM: ((Math.hypot(proj.x - pBox.x, proj.y - pBox.y) * cmPerPixel) / 100)
                         });
                     }
                 }
@@ -1390,6 +1390,14 @@ function drawSketch() {
 
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
+
+            // Защита от наложения бейджей (anti-collision)
+            for (let b of renderedBadgeBoxes) {
+                if (Math.abs(b.x - midX) < 48 && Math.abs(b.y - midY) < 18) {
+                    midY += (midY >= b.y) ? 18 : -18;
+                }
+            }
+            renderedBadgeBoxes.push({ x: midX, y: midY });
 
             if (w.bindIdx !== null) {
                 bindHitBoxes.push({
@@ -1471,6 +1479,14 @@ function drawSketch() {
                 let midX = (p1.x + p2.x) / 2;
                 let midY = (p1.y + p2.y) / 2;
 
+                // Защита от наложения сторон короба на другие бейджи
+                for (let b of renderedBadgeBoxes) {
+                    if (Math.abs(b.x - midX) < 40 && Math.abs(b.y - midY) < 16) {
+                        midY += (midY >= b.y) ? 16 : -16;
+                    }
+                }
+                renderedBadgeBoxes.push({ x: midX, y: midY });
+
                 ctx.fillStyle = badgeBgColor;
                 ctx.fillRect(midX - 22, midY - 7, 44, 14);
                 ctx.fillStyle = '#2563eb';
@@ -1550,6 +1566,13 @@ function drawSketch() {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
+        // Разведение плашек внешних стен при коллизиях
+        for (let b of renderedBadgeBoxes) {
+            if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
+                labelY += (labelY >= b.y) ? 16 : -16;
+            }
+        }
+
         labelX = Math.max(28, Math.min(canvas.width - 28, labelX));
         labelY = Math.max(16, Math.min(canvas.height - 54, labelY));
 
@@ -1587,7 +1610,6 @@ function drawSketch() {
     ctx.textAlign = 'start';
 }
 
-// Создание привязки тапом: Точка короба ➔ Стена или Угол комнаты
 function createInteractiveBinding(targetType, targetIdx) {
     if (!activeBindSource) return;
     let el = innerElements[activeBindSource.innerIdx];
@@ -1648,7 +1670,6 @@ function createInteractiveBinding(targetType, targetIdx) {
     drawSketch();
 }
 
-// Редактирование или удаление созданной привязки по тапу на бейдж
 function editCreatedBinding(hit) {
     let el = innerElements[hit.elIdx];
     if (!el || !el.customBindings || !el.customBindings[hit.bindIdx]) return;
@@ -1746,21 +1767,21 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 4. Режим короба: выбор угла для привязки или перетаскивание
+    // 4. Режим короба: взаимодействие только с коробом
     if (editMode === 'inner') {
+        // Выбор угла короба для привязки или перетаскивания вершины
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             if (el.type === 'poly' && el.pts) {
                 for (let v = 0; v < el.pts.length; v++) {
                     if (Math.hypot(el.pts[v].x - x, el.pts[v].y - y) < 24) {
-                        // Если кликнули на ту же точку — снимаем выбор
                         if (activeBindSource && activeBindSource.innerIdx === i && activeBindSource.vertexIdx === v) {
                             activeBindSource = null;
                             showToast('Выбор точки отменён');
                         } else {
                             activeBindSource = { innerIdx: i, vertexIdx: v };
                             selectedInnerIdx = i;
-                            showToast(`Точка ${v + 1} выбрана. Теперь тапайте на стену или угол комнаты!`, 'success');
+                            showToast(`🎯 Угол ${v + 1} выбран! Теперь тапайте по стене или углу комнаты`, 'success');
                         }
                         updateHint();
                         drawSketch();
@@ -1769,39 +1790,39 @@ canvas.addEventListener('pointerdown', (e) => {
                 }
             }
         }
-    }
 
-    // 5. Клик по самому телу короба (открытие шторки или перетаскивание)
-    for (let i = innerElements.length - 1; i >= 0; i--) {
-        let el = innerElements[i];
-        let hit = false;
-        let rw = el.w || (el.lenCm / cmPerPixel);
-        let rh = el.h || (el.widCm / cmPerPixel);
-        let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
+        // Клик по телу короба (перетаскивание короба)
+        for (let i = innerElements.length - 1; i >= 0; i--) {
+            let el = innerElements[i];
+            let hit = false;
+            let rw = el.w || (el.lenCm / cmPerPixel);
+            let rh = el.h || (el.widCm / cmPerPixel);
+            let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
 
-        if (el.type === 'rect') {
-            hit = (x >= el.x - rw / 2 && x <= el.x + rw / 2 && y >= el.y - rh / 2 && y <= el.y + rh / 2);
-        } else if (el.type === 'circle') {
-            hit = Math.hypot(el.x - x, el.y - y) <= rad;
-        } else if (el.type === 'poly') {
-            hit = Math.hypot(el.x - x, el.y - y) <= 45;
-        }
+            if (el.type === 'rect') {
+                hit = (x >= el.x - rw / 2 && x <= el.x + rw / 2 && y >= el.y - rh / 2 && y <= el.y + rh / 2);
+            } else if (el.type === 'circle') {
+                hit = Math.hypot(el.x - x, el.y - y) <= rad;
+            } else if (el.type === 'poly') {
+                hit = Math.hypot(el.x - x, el.y - y) <= 45;
+            }
 
-        if (hit) {
-            selectedInnerIdx = i;
-            if (editMode === 'inner') {
-                openInnerEditSheet(i);
+            if (hit) {
+                selectedInnerIdx = i;
+                saveState();
+                draggedInnerIdx = i;
+                draggedInnerVertex = null;
+                innerDragOffset = { x: x - el.x, y: y - el.y };
+                canvas.setPointerCapture(e.pointerId);
                 return;
             }
-            saveState();
-            draggedInnerIdx = i;
-            draggedInnerVertex = null;
-            innerDragOffset = { x: x - el.x, y: y - el.y };
-            canvas.setPointerCapture(e.pointerId);
-            return;
         }
+
+        // В РЕЖИМЕ КОРОБОВ ТАЧ СТЕН КОМНАТЫ ИГНОРИРУЕТСЯ
+        return;
     }
 
+    // 5. Взаимодействие со стенами комнаты (только когда editMode === 'room')
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         closePolygon();
         return;
