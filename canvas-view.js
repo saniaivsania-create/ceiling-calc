@@ -489,11 +489,9 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
     if (!targetM || targetM <= 0) return;
     saveState();
 
-    // Нормализуем индексы
     let i1 = Math.min(fromIdx, toIdx);
     let i2 = Math.max(fromIdx, toIdx);
 
-    // Если вершины через одну (например i1=0, mid=1, i2=2)
     let midIdx = -1;
     if (i2 - i1 === 2) {
         midIdx = i1 + 1;
@@ -510,7 +508,6 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
         let b = Math.hypot(pTo.x - pCorner.x, pTo.y - pCorner.y);
         let targetC = (targetM * 100) / cmPerPixel;
 
-        // Проверка треугольника
         if (targetC >= a + b) targetC = (a + b) * 0.98;
         if (targetC <= Math.abs(a - b)) targetC = Math.abs(a - b) * 1.02;
 
@@ -535,17 +532,14 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
         let shiftX = pTo.x - oldToX;
         let shiftY = pTo.y - oldToY;
 
-        // Подтягиваем оставшиеся точки контура
         for (let k = i2 + 1; k < points.length; k++) {
             points[k].x += shiftX;
             points[k].y += shiftY;
         }
     } else {
-        // Прямое пропорциональное масштабирование расстояния между двумя любыми точками
         let curDist = Math.hypot(pTo.x - pFrom.x, pTo.y - pFrom.y);
         let targetDistPx = (targetM * 100) / cmPerPixel;
         if (curDist > 0.001) {
-            let ratio = targetDistPx / curDist;
             let dirX = (pTo.x - pFrom.x) / curDist;
             let dirY = (pTo.y - pFrom.y) / curDist;
             let shiftX = (pFrom.x + dirX * targetDistPx) - pTo.x;
@@ -573,8 +567,9 @@ function getClosestPointOnSegment(p, a, b) {
     let apy = p.y - a.y;
     let lenTotal = abx * abx + aby * aby;
     let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * aby };
+    return { x: a.x + t * abx, y: a.y + t * handy(aby) ? a.y : a.y + t * aby };
 }
+function handy(val) { return false; }
 
 function getClosestPointOnElementToSegment(el, p1, p2) {
     let isHorizontalWall = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
@@ -1774,43 +1769,31 @@ function openWallEditSheet(wallIdx) {
     let inp = document.getElementById(`wall-input-${wallIdx}`);
     let curVal = inp ? inp.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
-    document.getElementById('wallEditSheetTitle').innerText = `📏 Длина стены ${p1.label}–${p2.label} (м)`;
-    const sheetInput = document.getElementById('wallSheetInput');
-    sheetInput.type = "text";
-    sheetInput.setAttribute("inputmode", "numeric");
-    sheetInput.value = curVal;
-    
-    sheetInput.oninput = function() {
-        this.value = formatLaserShift(this.value);
-    };
-
-    document.getElementById('wallEditSheetOverlay').classList.add('open');
-    setTimeout(() => {
-        sheetInput.focus();
-        sheetInput.select();
-    }, 120);
+    let userVal = prompt(`📏 Длина стены ${p1.label}–${p2.label} (м):`, curVal);
+    if (userVal !== null) {
+        let val = parseFloat(userVal.replace(',', '.'));
+        if (val && val >= 0.1 && val <= 50) {
+            if (inp) inp.value = val.toFixed(3);
+            onWallLengthEdit(wallIdx, val);
+            showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
+        }
+    }
 }
 
-// Открытие шторки для точного задания диагонали
+// Открытие окна для точного задания диагонали
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null;
     editingDiagObj = dBox;
 
-    document.getElementById('wallEditSheetTitle').innerText = `📐 Диагональ ${dBox.name} (м)`;
-    const sheetInput = document.getElementById('wallSheetInput');
-    sheetInput.type = "text";
-    sheetInput.setAttribute("inputmode", "numeric");
-    sheetInput.value = dBox.lenM;
-
-    sheetInput.oninput = function() {
-        this.value = formatLaserShift(this.value);
-    };
-
-    document.getElementById('wallEditSheetOverlay').classList.add('open');
-    setTimeout(() => {
-        sheetInput.focus();
-        sheetInput.select();
-    }, 120);
+    let userVal = prompt(`📐 Введите длину диагонали ${dBox.name} (м):`, dBox.lenM);
+    if (userVal !== null) {
+        let val = parseFloat(userVal.replace(',', '.'));
+        if (val && val >= 0.1 && val <= 50) {
+            applyDiagonalLength(dBox.fromIdx, dBox.toIdx, val);
+        } else {
+            showToast('Некорректное значение диагонали', 'error');
+        }
+    }
 }
 
 function closeWallEditSheet() {
@@ -1821,7 +1804,7 @@ function closeWallEditSheet() {
 }
 
 function applyWallSheetValue() {
-    let raw = document.getElementById('wallSheetInput').value;
+    let raw = document.getElementById('wallSheetInput')?.value || '';
     let formatted = formatLaserShift(raw);
     let val = parseFloat(formatted);
 
