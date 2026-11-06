@@ -22,6 +22,7 @@ let activeDrawingPoly = [];
 // Интерактивная привязка тапом: { innerIdx, vertexIdx }
 let activeBindSource = null;
 let bindHitBoxes = [];
+let showInnerBindings = true; // Видимость красных пунктиров привязок
 
 let customDiagonals = [];
 let editingWallIdx = null;
@@ -39,6 +40,26 @@ function getPointLabel(index) {
     let first = Math.floor(index / 26) - 1;
     let second = index % 26;
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
+}
+
+// --- ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ ПРИВЯЗОК (ГЛАЗ 👁️) ---
+function toggleBindingsVisibility() {
+    showInnerBindings = !showInnerBindings;
+    const btn = document.getElementById('toggleBindingsBtn');
+    const eyeSvg = document.getElementById('eyeSvg');
+
+    if (btn) btn.classList.toggle('fab-active', !showInnerBindings);
+
+    if (eyeSvg) {
+        if (showInnerBindings) {
+            eyeSvg.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+            showToast('Привязки коробов показаны');
+        } else {
+            eyeSvg.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+            showToast('Привязки коробов скрыты');
+        }
+    }
+    drawSketch();
 }
 
 // --- БАНКОМАТНЫЙ ВВОД РАЗМЕРОВ (СДВИГ: 0.000 -> 0.007 -> 0.075 -> 0.750) ---
@@ -686,7 +707,7 @@ function getClosestPointOnSegment(p, a, b) {
     let apy = p.y - a.y;
     let lenTotal = abx * abx + aby * aby;
     let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * aby };
+    return { x: a.x + t * abx, y: a.y + t * handyY };
 }
 
 function rayCrossesOwnElement(pStart, pEnd, el) {
@@ -1377,64 +1398,62 @@ function drawSketch() {
             });
         }
 
-        ctx.save();
-        ctx.font = '700 9px "Inter", sans-serif';
+        // Отрисовка красных линий и бейджей только если включен режим отображения (Глаз)
+        if (showInnerBindings) {
+            ctx.save();
+            ctx.font = '700 9px "Inter", sans-serif';
 
-        activeBindsToRender.forEach(w => {
-            // Линия привязки
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1.2;
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.moveTo(w.edgeX, w.edgeY);
-            ctx.lineTo(w.projX, w.projY);
-            ctx.stroke();
+            activeBindsToRender.forEach(w => {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(w.edgeX, w.edgeY);
+                ctx.lineTo(w.projX, w.projY);
+                ctx.stroke();
 
-            // Динамический расчёт ширины бейджа
-            let text = `${w.distM.toFixed(3)} м`;
-            let textW = ctx.measureText(text).width;
-            let padX = 6;
-            let boxW = textW + padX * 2;
-            let boxH = 14;
+                let text = `${w.distM.toFixed(3)} м`;
+                let textW = ctx.measureText(text).width;
+                let padX = 6;
+                let boxW = textW + padX * 2;
+                let boxH = 14;
 
-            let midX = (w.edgeX + w.projX) / 2;
-            let midY = (w.edgeY + w.projY) / 2;
+                let midX = (w.edgeX + w.projX) / 2;
+                let midY = (w.edgeY + w.projY) / 2;
 
-            // Защита от наложения бейджей (anti-collision)
-            for (let b of renderedBadgeBoxes) {
-                if (Math.abs(b.x - midX) < (boxW / 2 + 10) && Math.abs(b.y - midY) < 14) {
-                    midY += (midY >= b.y) ? 14 : -14;
+                for (let b of renderedBadgeBoxes) {
+                    if (Math.abs(b.x - midX) < (boxW / 2 + 10) && Math.abs(b.y - midY) < 14) {
+                        midY += (midY >= b.y) ? 14 : -14;
+                    }
                 }
-            }
-            renderedBadgeBoxes.push({ x: midX, y: midY });
+                renderedBadgeBoxes.push({ x: midX, y: midY });
 
-            if (w.bindIdx !== null) {
-                bindHitBoxes.push({
-                    elIdx: w.elIdx,
-                    bindIdx: w.bindIdx,
-                    distM: w.distM,
-                    x: midX,
-                    y: midY,
-                    w: boxW,
-                    h: boxH
-                });
-            }
+                if (w.bindIdx !== null) {
+                    bindHitBoxes.push({
+                        elIdx: w.elIdx,
+                        bindIdx: w.bindIdx,
+                        distM: w.distM,
+                        x: midX,
+                        y: midY,
+                        w: boxW,
+                        h: boxH
+                    });
+                }
 
-            // Компактная плашка
-            ctx.setLineDash([]);
-            ctx.fillStyle = badgeBgColor;
-            ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
+                ctx.setLineDash([]);
+                ctx.fillStyle = badgeBgColor;
+                ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
 
-            // Текст размера
-            ctx.fillStyle = '#ef4444';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, midX, midY + 0.5);
-        });
-        ctx.restore();
+                ctx.fillStyle = '#ef4444';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, midX, midY + 0.5);
+            });
+            ctx.restore();
+        }
 
         ctx.save();
         ctx.strokeStyle = '#2563eb';
@@ -1494,7 +1513,6 @@ function drawSketch() {
                 let midX = (p1.x + p2.x) / 2;
                 let midY = (p1.y + p2.y) / 2;
 
-                // Защита от наложения сторон короба на другие бейджи
                 for (let b of renderedBadgeBoxes) {
                     if (Math.abs(b.x - midX) < 40 && Math.abs(b.y - midY) < 16) {
                         midY += (midY >= b.y) ? 16 : -16;
@@ -1581,7 +1599,6 @@ function drawSketch() {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
-        // Разведение плашек внешних стен при коллизиях
         for (let b of renderedBadgeBoxes) {
             if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
                 labelY += (labelY >= b.y) ? 16 : -16;
@@ -1721,18 +1738,19 @@ canvas.addEventListener('pointerdown', (e) => {
     const y = e.clientY - rect.top;
 
     // 1. Тап по бейджу привязки (редактирование / удаление)
-    for (let bBox of bindHitBoxes) {
-        let halfW = (bBox.w || 64) / 2;
-        let halfH = (bBox.h || 16) / 2;
-        if (x >= bBox.x - halfW && x <= bBox.x + halfW && y >= bBox.y - halfH && y <= bBox.y + halfH) {
-            editCreatedBinding(bBox);
-            return;
+    if (showInnerBindings) {
+        for (let bBox of bindHitBoxes) {
+            let halfW = (bBox.w || 64) / 2;
+            let halfH = (bBox.h || 16) / 2;
+            if (x >= bBox.x - halfW && x <= bBox.x + halfW && y >= bBox.y - halfH && y <= bBox.y + halfH) {
+                editCreatedBinding(bBox);
+                return;
+            }
         }
     }
 
     // 2. Если уже выбрана точка короба (activeBindSource)
     if (activeBindSource !== null) {
-        // Тап по углу комнаты
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
                 createInteractiveBinding('corner', i);
@@ -1740,7 +1758,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Тап по стене комнаты
         let count = getWallCount();
         for (let i = 0; i < count; i++) {
             let p1 = points[i];
@@ -1786,7 +1803,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 4. Режим короба: взаимодействие только с коробом
     if (editMode === 'inner') {
-        // Выбор угла короба для привязки или перетаскивания вершины
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             if (el.type === 'poly' && el.pts) {
@@ -1808,7 +1824,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Клик по телу короба (перетаскивание короба)
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             let hit = false;
@@ -1835,7 +1850,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // В РЕЖИМЕ КОРОБОВ ТАЧ СТЕН КОМНАТЫ ИГНОРИРУЕТСЯ
         return;
     }
 
