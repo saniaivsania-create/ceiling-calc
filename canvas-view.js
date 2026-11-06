@@ -19,6 +19,7 @@ let draggedInnerVertex = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
+let customDiagonals = []; // [{ fromIdx: 0, toIdx: 2, name: 'A-C', lenM: 5.460 }]
 let editingWallIdx = null;
 let editingDiagObj = null;
 let wallHitBoxes = [];
@@ -57,7 +58,8 @@ function persistSketchToStorage() {
             pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
             closed: isClosed,
             scale: cmPerPixel,
-            inner: innerElements
+            inner: innerElements,
+            customDiags: customDiagonals
         };
         localStorage.setItem('_pz_active_sketch_backup', JSON.stringify(payload));
     } catch (e) {}
@@ -73,6 +75,7 @@ function restoreSketchFromStorage() {
             isClosed = !!data.closed;
             cmPerPixel = data.scale || 2.5;
             innerElements = data.inner || [];
+            customDiagonals = data.customDiags || [];
             return true;
         }
     } catch (e) {}
@@ -85,6 +88,7 @@ function saveState() {
         closed: isClosed,
         scale: cmPerPixel,
         inner: JSON.parse(JSON.stringify(innerElements)),
+        customDiags: JSON.parse(JSON.stringify(customDiagonals)),
         editMode
     });
     if (historyState.length > 40) historyState.shift();
@@ -109,12 +113,14 @@ function undoPoint() {
         isClosed = !!st.closed;
         cmPerPixel = st.scale || 2.5;
         innerElements = st.inner || [];
+        customDiagonals = st.customDiags || [];
         editMode = st.editMode || 'room';
     } else {
         points = [];
         isClosed = false;
         cmPerPixel = 2.5;
         innerElements = [];
+        customDiagonals = [];
         editMode = 'room';
     }
     activeDrawingPoly = [];
@@ -139,6 +145,7 @@ function resetSketch() {
     isClosed = false;
     cmPerPixel = 2.5;
     innerElements = [];
+    customDiagonals = [];
     activeDrawingPoly = [];
     editMode = 'room';
     selectedInnerIdx = null;
@@ -446,18 +453,32 @@ function segmentsStrictlyIntersect(a, b, c, d) {
     return (ccw(a, c, d) !== ccw(b, c, d)) && (ccw(a, b, c) !== ccw(a, b, d));
 }
 
+// Получение списка диагоналей (пользовательские + автоматические)
 function getCleanDiagonals() {
     let diags = [];
     if (!isClosed || points.length < 4) return diags;
 
+    // 1. Добавляем диагонали, заданные вручную
+    customDiagonals.forEach(cd => {
+        let p1 = points[cd.fromIdx];
+        let p2 = points[cd.toIdx];
+        if (p1 && p2) {
+            let len = cd.lenM ? Math.round(cd.lenM * 100) : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
+            diags.push({ from: p1, to: p2, idxFrom: cd.fromIdx, idxTo: cd.toIdx, name: `${p1.label}-${p2.label}`, len, isCustom: true });
+        }
+    });
+
     let n = points.length;
     let needed = n - 3;
 
+    // 2. Дополняем автоматическими при необходимости
     for (let i = 0; i < n; i++) {
         for (let j = i + 2; j < n; j++) {
             if (i === 0 && j === n - 1) continue;
             let p1 = points[i];
             let p2 = points[j];
+
+            if (diags.some(d => (d.idxFrom === i && d.idxTo === j) || (d.idxFrom === j && d.idxTo === i))) continue;
 
             let mx = (p1.x + p2.x) / 2;
             let my = (p1.y + p2.y) / 2;
@@ -483,8 +504,8 @@ function getCleanDiagonals() {
             if (crosses) continue;
 
             let len = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
-            diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len });
-            if (diags.length >= needed) return diags;
+            diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len, isCustom: false });
+            if (diags.length >= needed && customDiagonals.length === 0) return diags;
         }
     }
     return diags;
@@ -497,6 +518,21 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
 
     let i1 = Math.min(fromIdx, toIdx);
     let i2 = Math.max(fromIdx, toIdx);
+
+    // Сохраняем в список пользовательских диагоналей
+    let existing = customDiagonals.find(d => (d.fromIdx === i1 && d.toIdx === i2) || (d.fromIdx === i2 && d.toIdx === i1));
+    if (existing) {
+        existing.lenM = targetM;
+    } else {
+        let pA = points[i1];
+        let pB = points[i2];
+        customDiagonals.push({
+            fromIdx: i1,
+            toIdx: i2,
+            name: `${pA.label}-${pB.label}`,
+            lenM: targetM
+        });
+    }
 
     let midIdx = -1;
     if (i2 - i1 === 2) {
@@ -560,10 +596,21 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
 
     fitToScreen(false);
     syncInputsValuesOnly();
+    rebuildDiagonalInputs();
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast(`Диагональ выставлена: ${targetM.toFixed(3)} м`, 'success');
+}
+
+function removeCustomDiagonal(idx) {
+    saveState();
+    customDiagonals.splice(idx, 1);
+    rebuildDiagonalInputs();
+    drawSketch();
+    persistSketchToStorage();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Диагональ удалена');
 }
 
 function getClosestPointOnSegment(p, a, b) {
@@ -1079,11 +1126,11 @@ function drawSketch() {
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         ctx.save();
-        ctx.strokeStyle = diagLineColor;
         ctx.lineWidth = 1.2;
         ctx.setLineDash([4, 4]);
 
         diags.forEach((d, idx) => {
+            ctx.strokeStyle = d.isCustom ? '#0284c7' : diagLineColor;
             ctx.beginPath();
             ctx.moveTo(d.from.x, d.from.y);
             ctx.lineTo(d.to.x, d.to.y);
@@ -1104,10 +1151,10 @@ function drawSketch() {
 
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(mx - 24, my - 9, 48, 14);
-            ctx.strokeStyle = isLight ? '#cbd5e1' : '#334155';
+            ctx.strokeStyle = d.isCustom ? '#0284c7' : (isLight ? '#cbd5e1' : '#334155');
             ctx.strokeRect(mx - 24, my - 9, 48, 14);
 
-            ctx.fillStyle = diagTextColor;
+            ctx.fillStyle = d.isCustom ? '#0284c7' : diagTextColor;
             ctx.font = '500 10px "Inter", "Roboto", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 2);
@@ -1591,26 +1638,93 @@ function toggleDiagonalsMode() {
     }
 }
 
-// Генерация списка диагоналей
+// Генерация выпадающего списка букв комнаты для ручной диагонали
+function getCornerLetterOptionsHtml(selectedIdx = 0) {
+    let html = '';
+    points.forEach((p, idx) => {
+        let isSel = (idx === selectedIdx) ? 'selected' : '';
+        html += `<option value="${idx}" ${isSel}>Угол ${p.label}</option>`;
+    });
+    return html;
+}
+
+// Добавление новой диагонали через панель выбора букв
+function submitNewCustomDiagonal() {
+    const selFrom = document.getElementById('newDiagFrom');
+    const selTo = document.getElementById('newDiagTo');
+    const valInput = document.getElementById('newDiagVal');
+    if (!selFrom || !selTo || !valInput) return;
+
+    let fIdx = parseInt(selFrom.value);
+    let tIdx = parseInt(selTo.value);
+
+    if (fIdx === tIdx) {
+        showToast('Выберите два РАЗНЫХ угла комнаты!', 'error');
+        return;
+    }
+
+    let diff = Math.abs(fIdx - tIdx);
+    if (diff === 1 || diff === points.length - 1) {
+        showToast('Это стена, а не диагональ!', 'error');
+        return;
+    }
+
+    let raw = valInput.value;
+    let formatted = formatLaserShift(raw);
+    let m = parseFloat(formatted || raw);
+
+    if (!m || m < 0.1 || m > 50) {
+        showToast('Введите корректную длину диагонали!', 'error');
+        return;
+    }
+
+    applyDiagonalLength(fIdx, tIdx, m);
+    valInput.value = '';
+    rebuildDiagonalInputs();
+    showToast(`Диагональ ${points[fIdx].label}–${points[tIdx].label} добавлена!`, 'success');
+}
+
+// Генерация списка диагоналей и блока добавления своей диагонали
 function rebuildDiagonalInputs() {
     const container = document.getElementById('diagonalsInputsContainer');
     if (!container) return;
     container.innerHTML = '';
 
-    let diags = getCleanDiagonals();
-    if (diags.length === 0) {
-        container.innerHTML = `<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 10px 0;">Для 3-угольных комнат диагонали не требуются</div>`;
+    if (!isClosed || points.length < 4) {
+        container.innerHTML = `<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 10px 0;">Для диагоналей требуется замкнутая комната от 4 углов</div>`;
         return;
     }
 
+    // Блок добавления своей диагонали
+    let addBox = document.createElement('div');
+    addBox.style.cssText = 'background: var(--sub-block-bg); border: 1px dashed var(--accent); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;';
+    addBox.innerHTML = `
+        <div style="font-size: 11px; font-weight: 700; color: var(--accent);">➕ СВОЯ ДИАГОНАЛЬ (МЕЖДУ УГЛАМИ):</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1.2fr auto; gap: 6px; align-items: center;">
+            <select class="dir-select" id="newDiagFrom">
+                ${getCornerLetterOptionsHtml(0)}
+            </select>
+            <select class="dir-select" id="newDiagTo">
+                ${getCornerLetterOptionsHtml(2)}
+            </select>
+            <input type="text" inputmode="numeric" class="input-field" id="newDiagVal" placeholder="0.000" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
+            <button class="btn btn-primary" onclick="submitNewCustomDiagonal()" style="padding: 9px 12px; font-size: 11px; white-space: nowrap;">➕</button>
+        </div>
+    `;
+    container.appendChild(addBox);
+
+    let diags = getCleanDiagonals();
     diags.forEach((d, i) => {
         let mVal = (d.len / 100).toFixed(3);
+        let delBtn = d.isCustom ? `<button class="checklist-act-btn" style="color:var(--danger); padding:4px 6px;" onclick="removeCustomDiagonal(${i})" title="Удалить">✖</button>` : '';
+
         let row = document.createElement('div');
         row.className = 'wall-row-input';
         row.innerHTML = `
-            <span class="wall-row-label" style="color: var(--accent);"><b>Диагональ ${d.name}</b></span>
+            <span class="wall-row-label" style="color: ${d.isCustom ? '#0284c7' : 'var(--text-main)'};"><b>Диагональ ${d.name}</b></span>
             <input type="text" inputmode="numeric" class="input-field diag-len" id="diag-input-${i}" value="${mVal}" oninput="handleDiagSmartInput(${d.idxFrom}, ${d.idxTo}, this)" onkeydown="if(event.key==='Enter') this.blur()" style="font-weight: 700; text-align: center;">
-            <div style="font-size: 11px; color: var(--text-muted); padding-right: 4px;">м</div>
+            <div style="font-size: 11px; color: var(--text-muted); padding-right: 2px;">м</div>
+            ${delBtn}
         `;
         container.appendChild(row);
     });
@@ -1826,6 +1940,7 @@ function createFromTablePreset() {
     }
 
     isClosed = true;
+    customDiagonals = [];
     fitToScreen(true);
     rebuildWallInputs();
     rebuildDiagonalInputs();
