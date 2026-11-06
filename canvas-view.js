@@ -299,7 +299,7 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
-// Выравнивание строго под 90 градусов (умное: для комнаты или для короба)
+// ИСПРАВЛЕННОЕ ВЫРАВНИВАНИЕ ПОД 90 ГРАДУСОВ БЕЗ ПЕРЕСТАНОВКИ СТОРОН МЕСТАМИ
 function snapOrthogonal() {
     saveState();
 
@@ -312,8 +312,9 @@ function snapOrthogonal() {
         if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
             if (el.pts.length === 4) {
                 let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
-                let w = (Math.hypot(p1.x - p0.x, p1.y - p0.y) + Math.hypot(p2.x - p3.x, p2.y - p3.y)) / 2;
-                let h = (Math.hypot(p3.x - p0.x, p3.y - p0.y) + Math.hypot(p2.x - p1.x, p2.y - p1.y)) / 2;
+                // Вектор 0->1 (вертикаль) и 1->2 (горизонталь)
+                let h = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+                let w = Math.hypot(p2.x - p1.x, p2.y - p1.y);
 
                 let cx = (p0.x + p1.x + p2.x + p3.x) / 4;
                 let cy = (p0.y + p1.y + p2.y + p3.y) / 4;
@@ -348,34 +349,53 @@ function snapOrthogonal() {
         }
     }
 
-    // 2. ИНАЧЕ ВЫРАВНИВАЕМ ОСНОВНУЮ КОМНАТУ
+    // 2. ВЫРАВНИВАНИЕ ОСНОВНОЙ КОМНАТЫ
     if (isSketchLocked || points.length < 3) return;
 
     if (points.length === 4 && isClosed) {
-        let p0 = points[0];
-        let p1 = points[1];
-        let p2 = points[2];
-        let p3 = points[3];
+        let pA = points[0]; // A (низ-лево)
+        let pB = points[1]; // B (верх-лево)
+        let pC = points[2]; // C (верх-право)
+        let pD = points[3]; // D (низ-право)
 
-        let w = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-        let h = Math.hypot(p3.x - p0.x, p3.y - p0.y);
+        // Высота (A-B) берется строго по вертикальной стене A-B
+        let inpAB = document.getElementById('wall-input-0');
+        let valAB = inpAB ? parseFloat(inpAB.value) : 0;
+        let hPx = valAB > 0 ? (valAB * 100) / cmPerPixel : Math.hypot(pB.x - pA.x, pB.y - pA.y);
 
-        let cx = (p0.x + p1.x + p2.x + p3.x) / 4;
-        let cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+        // Ширина (B-C) берется строго по горизонтальной стене B-C
+        let inpBC = document.getElementById('wall-input-1');
+        let valBC = inpBC ? parseFloat(inpBC.value) : 0;
+        let wPx = valBC > 0 ? (valBC * 100) / cmPerPixel : Math.hypot(pC.x - pB.x, pC.y - pB.y);
 
-        points[0] = { x: cx - w/2, y: cy + h/2, label: 'A' };
-        points[1] = { x: cx - w/2, y: cy - h/2, label: 'B' };
-        points[2] = { x: cx + w/2, y: cy - h/2, label: 'C' };
-        points[3] = { x: cx + w/2, y: cy + h/2, label: 'D' };
-    } else {
-        for (let i = 1; i < points.length; i++) {
-            let prev = points[i - 1];
-            let curr = points[i];
-            if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
-                curr.y = prev.y;
-            } else {
-                curr.x = prev.x;
-            }
+        let cx = (pA.x + pB.x + pC.x + pD.x) / 4;
+        let cy = (pA.y + pB.y + pC.y + pD.y) / 4;
+
+        // Строгий прямоугольник с сохранением своих сторон
+        points[0] = { x: cx - wPx/2, y: cy + hPx/2, label: 'A' };
+        points[1] = { x: cx - wPx/2, y: cy - hPx/2, label: 'B' };
+        points[2] = { x: cx + wPx/2, y: cy - hPx/2, label: 'C' };
+        points[3] = { x: cx + wPx/2, y: cy + hPx/2, label: 'D' };
+
+        fitToScreen(false);
+        syncInputsValuesOnly();
+        rebuildWallInputs();
+        rebuildDiagonalInputs();
+        drawSketch();
+        persistSketchToStorage();
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        showToast('Прямоугольник построен строго по стенам A-B и B-C', 'success');
+        return;
+    }
+
+    // Для помещений с другим количеством углов
+    for (let i = 1; i < points.length; i++) {
+        let prev = points[i - 1];
+        let curr = points[i];
+        if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
+            curr.y = prev.y;
+        } else {
+            curr.x = prev.x;
         }
     }
 
@@ -384,7 +404,7 @@ function snapOrthogonal() {
     drawSketch();
     persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Углы комнаты выровнены под 90°', 'success');
+    showToast('Углы выровнены под 90°', 'success');
 }
 
 function rotateSketch() {
@@ -657,12 +677,12 @@ function removeCustomDiagonal(idx) {
 
 function getClosestPointOnSegment(p, a, b) {
     let abx = b.x - a.x;
-    let handyY = b.y - a.y;
+    let aby = b.y - a.y;
     let apx = p.x - a.x;
     let apy = p.y - a.y;
-    let lenTotal = abx * abx + handyY * handyY;
-    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * handyY) / lenTotal));
-    return { x: a.x + t * abx, y: a.y + t * handyY };
+    let lenTotal = abx * abx + aby * aby;
+    let t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
+    return { x: a.x + t * abx, y: a.y + t * aby };
 }
 
 function getClosestPointOnElementToSegment(el, p1, p2) {
@@ -1257,7 +1277,7 @@ function drawSketch() {
         }
     }
 
-    // 4. Отрисовка внутренних элементов и линий отступов
+    // 4. Внутренние элементы и привязки
     innerElements.forEach((el) => {
         let activeWallDists = [];
 
@@ -1382,7 +1402,7 @@ function drawSketch() {
         ctx.restore();
     });
 
-    // 5. Отрисовка активных точек создаваемого произвольного короба
+    // 5. Отрисовка активных точек произвольного короба
     if (activeDrawingPoly.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#f59e0b';
