@@ -325,6 +325,9 @@ function createDefaultRoom(title = 'Комната 1') {
         walls: [],
         innerElements: [],
         hatchSubtractArea: true,
+        useHatchAngles: false,
+        countHatchAngles: 0,
+        priceHatchAngle: 150,
         countInsert: 0,
         useInsert: false,
         countLights: 4,
@@ -346,6 +349,21 @@ function createDefaultRoom(title = 'Комната 1') {
 let rooms = [createDefaultRoom('Зал / Комната 1')];
 let activeRoomIdx = 0;
 
+// Подсчёт суммарного количества углов всех коробов в текущей комнате
+function calculateHatchAngles(elementsList) {
+    let total = 0;
+    if (elementsList && Array.isArray(elementsList)) {
+        elementsList.forEach(el => {
+            if (el.type === 'rect') {
+                total += 4;
+            } else if (el.type === 'poly' && el.pts) {
+                total += el.pts.length;
+            }
+        });
+    }
+    return total;
+}
+
 function syncCurrentRoomState() {
     let r = rooms[activeRoomIdx];
     if (!r) return;
@@ -364,6 +382,21 @@ function syncCurrentRoomState() {
     if (subCheckbox) {
         r.hatchSubtractArea = subCheckbox.checked;
     }
+
+    // Синхронизация углов коробов
+    const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
+    if (hatchAnglesCheckbox) {
+        r.useHatchAngles = hatchAnglesCheckbox.checked;
+    }
+    
+    let autoHatchAngles = calculateHatchAngles(r.innerElements);
+    r.countHatchAngles = autoHatchAngles;
+    const hatchAnglesCountEl = document.getElementById('countHatchAngles');
+    if (hatchAnglesCountEl) {
+        hatchAnglesCountEl.value = autoHatchAngles;
+    }
+
+    r.priceHatchAngle = parseFloat(document.getElementById('priceHatchAngle')?.value) || 150;
     
     r.countInsert = parseFloat(document.getElementById('countInsert')?.value) || 0;
     r.useInsert = document.getElementById('useInsertCheckbox')?.checked || false;
@@ -402,6 +435,20 @@ function loadRoomIntoUI(idx) {
     const subCheckbox = document.getElementById('hatchSubtractArea');
     if (subCheckbox) {
         subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
+    }
+
+    // Загрузка состояния углов коробов
+    const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
+    if (hatchAnglesCheckbox) {
+        hatchAnglesCheckbox.checked = !!r.useHatchAngles;
+    }
+    const hatchAnglesCountEl = document.getElementById('countHatchAngles');
+    if (hatchAnglesCountEl) {
+        hatchAnglesCountEl.value = calculateHatchAngles(r.innerElements);
+    }
+    const priceHatchAngleEl = document.getElementById('priceHatchAngle');
+    if (priceHatchAngleEl) {
+        priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
     }
 
     if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
@@ -492,7 +539,6 @@ function deleteCurrentRoom() {
     }
 }
 
-// Переменная для отслеживания текущего открытого проекта (предотвращает создание дубликатов)
 let currentLoadedProjectId = null;
 
 function startNewProject() {
