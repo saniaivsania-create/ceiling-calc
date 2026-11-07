@@ -182,26 +182,34 @@ function calculate() {
         totalInnerAreaM2 += m.areaM2;
         totalInnerCorners += m.cornersCount;
 
-        // Корректная обработка привязок: к углам И к стенам (без NaN)
-        let offsetStr = '';
+        // Корректная обработка привязок: к углам И к стенам без NaN
+        let offsetParts = [];
         if (el.customBindings && el.customBindings.length > 0) {
-            offsetStr = el.customBindings.map(b => {
+            el.customBindings.forEach(b => {
                 let vLabel = (b.vertexIdx !== undefined) ? `Уг.${b.vertexIdx + 1}➔` : '';
                 if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
                     let pC = points[b.targetCornerIdx];
                     let cLabel = pC ? pC.label : (b.targetCornerIdx + 1);
-                    return `${vLabel}Угол ${cLabel}: ${b.distM} м`;
+                    offsetParts.push(`${vLabel}Угол ${cLabel}: ${b.distM} м`);
                 } else {
                     let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
                     let p1 = points[wIdx];
                     let p2 = points[(wIdx + 1) % points.length];
                     let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${wIdx + 1}`;
-                    return `${vLabel}Стена ${wName}: ${b.distM} м`;
+                    offsetParts.push(`${vLabel}Стена ${wName}: ${b.distM} м`);
                 }
-            }).join(' | ');
+            });
         } else if (typeof getElementWallDistances === 'function') {
             let offsets = getElementWallDistances(el);
-            offsetStr = offsets.map(o => `${o.distM.toFixed(3)} м до ${o.wallName}`).join(' | ');
+            offsets.forEach(o => {
+                offsetParts.push(`${o.distM.toFixed(3)} м до ${o.wallName}`);
+            });
+        }
+
+        // Чистое имя элемента без дублей "(6 угл.) (6 угл.)"
+        let baseName = el.title || `Короб ${idx + 1}`;
+        if (baseName.includes('(')) {
+            baseName = baseName.split('(')[0].trim();
         }
 
         let desc = '';
@@ -210,10 +218,10 @@ function calculate() {
         else desc = `${el.pts ? el.pts.length : 0} угл.`;
 
         innerSummaryList.push({
-            name: `${el.title || 'Короб ' + (idx + 1)} (${desc})`,
+            name: `${baseName} (${desc})`,
             perimM: m.perimM.toFixed(3),
             areaM2: m.areaM2.toFixed(3),
-            offsetStr: offsetStr || 'по центру'
+            offsetStr: offsetParts.length > 0 ? offsetParts.join(' | ') : 'по центру'
         });
     });
 
@@ -253,7 +261,7 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
-    // Углы комнаты (отдельно от коробов)
+    // Углы комнаты отдельно
     let roomAngles = points.length;
     let extraAngles = roomAngles > 4 ? roomAngles - 4 : 0;
     if (document.getElementById('countAngles')) {
@@ -443,7 +451,7 @@ function calculate() {
     let innerFactoryText = '';
     if (innerSummaryList.length > 0) {
         innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:\n` +
-            innerSummaryList.map(item => `  • ${item.name}: перим. ${item.perimM} м.п. [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
+            innerSummaryList.map(item => `  • ${item.name}: ${item.perimM} м.п.\n    [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
     }
 
     lastFactoryText =
@@ -551,7 +559,7 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
-// ПОЛНАЯ ОТРИСОВКА ЧЕРТЕЖА СО ВСЕМИ РАЗМЕРАМИ И ПРИВЯЗКАМИ ДЛЯ ЦЕХА И СМЕТЫ
+// ПОЛНАЯ ОТРИСОВКА ЧЕРТЕЖА СО ВСЕМИ ДИАГОНАЛЯМИ И ЗАЩИТОЙ ОТ НАЛОЖЕНИЯ
 function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     if (points.length < 2) return;
     targetCtx.save();
@@ -559,6 +567,19 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
 
     const badgeBg = isWhite ? '#ffffff' : '#0f172a';
     const badgeBorder = isWhite ? '#cbd5e1' : '#334155';
+    let renderedBadges = [];
+
+    // Защита от наложения плашек (раздвигает бейджи, если они ближе 14px по высоте и 42px по ширине)
+    function avoidCollision(x, y, w = 46, h = 16) {
+        let curY = y;
+        for (let b of renderedBadges) {
+            if (Math.abs(b.x - x) < (b.w / 2 + w / 2 + 2) && Math.abs(b.y - curY) < (b.h / 2 + h / 2 + 2)) {
+                curY += (curY >= b.y) ? 16 : -16;
+            }
+        }
+        renderedBadges.push({ x, y: curY, w, h });
+        return { x, y: curY };
+    }
 
     // 1. Сетка
     targetCtx.strokeStyle = isWhite ? '#e2e8f0' : '#1e293b';
@@ -570,7 +591,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.beginPath(); targetCtx.moveTo(0, y); targetCtx.lineTo(canvas.width, y); targetCtx.stroke();
     }
 
-    // 2. Диагонали раскроя
+    // 2. Диагонали раскроя — отображаются абсолютно ВСЕ диагонали из расчета
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         targetCtx.save();
@@ -584,19 +605,21 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             targetCtx.lineTo(d.to.x, d.to.y); 
             targetCtx.stroke();
 
-            let ratio = 0.4 + (idx % 3) * 0.12;
+            let ratio = 0.38 + ((idx % 3) * 0.14);
             let mx = d.from.x + (d.to.x - d.from.x) * ratio;
             let my = d.from.y + (d.to.y - d.from.y) * ratio;
 
+            let safePos = avoidCollision(mx, my, 50, 16);
+
             targetCtx.fillStyle = badgeBg;
-            targetCtx.fillRect(mx - 24, my - 9, 48, 14);
+            targetCtx.fillRect(safePos.x - 25, safePos.y - 8, 50, 15);
             targetCtx.strokeStyle = d.isCustom ? '#0284c7' : badgeBorder;
-            targetCtx.strokeRect(mx - 24, my - 9, 48, 14);
+            targetCtx.strokeRect(safePos.x - 25, safePos.y - 8, 50, 15);
 
             targetCtx.fillStyle = d.isCustom ? '#0284c7' : (isWhite ? '#475569' : '#94a3b8');
             targetCtx.font = '500 10px sans-serif';
             targetCtx.textAlign = 'center';
-            targetCtx.fillText(`${(d.len / 100).toFixed(3)} м`, mx, my + 2);
+            targetCtx.fillText(`${(d.len / 100).toFixed(2)} м`, safePos.x, safePos.y + 3);
         });
         targetCtx.restore();
     }
@@ -662,7 +685,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             });
         }
 
-        // Красные пунктирные привязки (к стенам и углам)
+        // Красные пунктирные привязки (к стенам и углам) с защитой от наслоения
         targetCtx.save();
         targetCtx.strokeStyle = '#ef4444';
         targetCtx.lineWidth = 1.3;
@@ -676,18 +699,19 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
 
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
+            let safePos = avoidCollision(midX, midY, 56, 16);
 
             targetCtx.setLineDash([]);
             targetCtx.fillStyle = badgeBg;
-            targetCtx.fillRect(midX - 32, midY - 8, 64, 16);
+            targetCtx.fillRect(safePos.x - 28, safePos.y - 8, 56, 15);
             targetCtx.strokeStyle = '#ef4444';
             targetCtx.lineWidth = 1;
-            targetCtx.strokeRect(midX - 32, midY - 8, 64, 16);
+            targetCtx.strokeRect(safePos.x - 28, safePos.y - 8, 56, 15);
 
             targetCtx.fillStyle = '#ef4444';
-            targetCtx.font = '700 10px sans-serif';
+            targetCtx.font = '700 9.5px sans-serif';
             targetCtx.textAlign = 'center';
-            targetCtx.fillText(`${w.distM.toFixed(3)} м`, midX, midY + 4);
+            targetCtx.fillText(`${w.distM.toFixed(3)} м`, safePos.x, safePos.y + 3.5);
             targetCtx.setLineDash([3, 3]);
         });
         targetCtx.restore();
@@ -707,16 +731,18 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
 
             targetCtx.setLineDash([]);
             targetCtx.fillStyle = badgeBg;
-            targetCtx.fillRect(el.x - 30, el.y - rh / 2 - 8, 60, 15);
+            let topBadge = avoidCollision(el.x, el.y - rh / 2 - 8, 50, 15);
+            targetCtx.fillRect(topBadge.x - 25, topBadge.y - 7, 50, 14);
             targetCtx.fillStyle = '#2563eb';
             targetCtx.font = '600 10px sans-serif';
             targetCtx.textAlign = 'center';
-            targetCtx.fillText(`${(el.lenCm / 100).toFixed(3)}`, el.x, el.y - rh / 2 + 3);
+            targetCtx.fillText(`${(el.lenCm / 100).toFixed(3)}`, topBadge.x, topBadge.y + 3.5);
 
+            let rightBadge = avoidCollision(el.x + rw / 2, el.y + 12, 50, 15);
             targetCtx.fillStyle = badgeBg;
-            targetCtx.fillRect(el.x + rw / 2 - 25, el.y + 12, 50, 15);
+            targetCtx.fillRect(rightBadge.x - 25, rightBadge.y - 7, 50, 14);
             targetCtx.fillStyle = '#2563eb';
-            targetCtx.fillText(`${(el.widCm / 100).toFixed(3)}`, el.x + rw / 2, el.y + 23);
+            targetCtx.fillText(`${(el.widCm / 100).toFixed(3)}`, rightBadge.x, rightBadge.y + 3.5);
 
         } else if (el.type === 'circle') {
             let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
@@ -728,11 +754,12 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
 
             targetCtx.setLineDash([]);
             targetCtx.fillStyle = badgeBg;
-            targetCtx.fillRect(el.x - 32, el.y - 9, 64, 18);
+            let cBadge = avoidCollision(el.x, el.y, 56, 16);
+            targetCtx.fillRect(cBadge.x - 28, cBadge.y - 8, 56, 16);
             targetCtx.fillStyle = '#2563eb';
             targetCtx.font = '700 10px sans-serif';
             targetCtx.textAlign = 'center';
-            targetCtx.fillText(`⌀${(el.diamCm / 100).toFixed(3)}`, el.x, el.y + 4);
+            targetCtx.fillText(`⌀${(el.diamCm / 100).toFixed(3)}`, cBadge.x, cBadge.y + 4);
 
         } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
             targetCtx.setLineDash([5, 3]);
@@ -743,9 +770,9 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             targetCtx.stroke();
             targetCtx.fill();
 
-            // Длины сторон короба
+            // Длины сторон короба с защитой от наслоения
             targetCtx.setLineDash([]);
-            targetCtx.font = '600 10px sans-serif';
+            targetCtx.font = '600 9.5px sans-serif';
             targetCtx.textAlign = 'center';
             for (let i = 0; i < el.pts.length; i++) {
                 let p1 = el.pts[i];
@@ -754,12 +781,14 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
                 let midX = (p1.x + p2.x) / 2;
                 let midY = (p1.y + p2.y) / 2;
 
+                let safePos = avoidCollision(midX, midY, 44, 14);
+
                 targetCtx.fillStyle = badgeBg;
-                targetCtx.fillRect(midX - 22, midY - 7, 44, 14);
+                targetCtx.fillRect(safePos.x - 22, safePos.y - 7, 44, 14);
                 targetCtx.strokeStyle = badgeBorder;
-                targetCtx.strokeRect(midX - 22, midY - 7, 44, 14);
+                targetCtx.strokeRect(safePos.x - 22, safePos.y - 7, 44, 14);
                 targetCtx.fillStyle = '#2563eb';
-                targetCtx.fillText(`${sideM}`, midX, midY + 4);
+                targetCtx.fillText(`${sideM}`, safePos.x, safePos.y + 3.5);
             }
 
             // Номера углов короба (1, 2, 3...)
@@ -799,13 +828,15 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
+        let safePos = avoidCollision(labelX, labelY, 56, 16);
+
         targetCtx.fillStyle = badgeBg;
-        targetCtx.fillRect(labelX - 28, labelY - 11, 56, 16);
+        targetCtx.fillRect(safePos.x - 28, safePos.y - 8, 56, 15);
         targetCtx.strokeStyle = badgeBorder;
-        targetCtx.strokeRect(labelX - 28, labelY - 11, 56, 16);
+        targetCtx.strokeRect(safePos.x - 28, safePos.y - 8, 56, 15);
         targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         targetCtx.font = '600 11px sans-serif';
-        targetCtx.fillText(`${lenVal} м`, labelX, labelY);
+        targetCtx.fillText(`${lenVal} м`, safePos.x, safePos.y + 3.5);
     }
 
     // 6. Углы комнаты (буквы A, B, C...)
@@ -897,7 +928,7 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Карточка раскроя в цех
+// Карточка раскроя в цех с динамической высотой под многострочные привязки
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -910,7 +941,17 @@ function exportFactoryImage() {
     const inCount = lastCalcData.innerElements ? lastCalcData.innerElements.length : 0;
     const wallsRows = Math.ceil(lastCalcData.wallsData.length / 2);
     const diagsRows = Math.ceil(lastCalcData.diags.length / 2);
-    const footerH = (wallsRows + diagsRows) * 22 + (inCount > 0 ? inCount * 18 + 26 : 0) + 60;
+    
+    // Запас высоты под перенос привязок
+    let innerExtraH = 0;
+    if (inCount > 0) {
+        lastCalcData.innerElements.forEach(item => {
+            innerExtraH += item.offsetStr && item.offsetStr.length > 55 ? 36 : 22;
+        });
+        innerExtraH += 26;
+    }
+
+    const footerH = (wallsRows + diagsRows) * 22 + innerExtraH + 60;
 
     tempCanvas.width = Math.max(canvas.width, 540);
     tempCanvas.height = headerH + canvas.height + footerH;
@@ -962,16 +1003,20 @@ function exportFactoryImage() {
         tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
         y += 18;
 
-        tCtx.fillStyle = isWhite ? '#475569' : '#cbd5e1';
         tCtx.font = '11px Inter, Roboto, monospace';
         lastCalcData.innerElements.forEach(item => {
-            tCtx.fillText(`• ${item.name}: ${item.perimM} м.п. [${item.offsetStr}]`, pad, y);
-            y += 16;
+            tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
+            tCtx.fillText(`• ${item.name}: ${item.perimM} м.п.`, pad, y);
+            y += 15;
+
+            tCtx.fillStyle = isWhite ? '#475569' : '#94a3b8';
+            tCtx.fillText(`  Привязки: ${item.offsetStr}`, pad, y);
+            y += 18;
         });
     }
 
     if (lastCalcData.diags.length > 0) {
-        y += 8;
+        y += 6;
         tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
         tCtx.fillText('📐 ДИАГОНАЛИ РАСКРОЯ:', pad, y);
