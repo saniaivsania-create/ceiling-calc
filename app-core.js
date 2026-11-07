@@ -250,7 +250,6 @@ function grantAccess(days, message) {
     const modal = document.getElementById('paywallModal');
     if (modal) modal.style.display = 'none';
     showToast(message, 'success');
-    if (typeof calculate === 'function') calculate();
     if (typeof performCalculation === 'function') performCalculation();
 }
 
@@ -324,6 +323,7 @@ function createDefaultRoom(title = 'Комната 1') {
         scale: 2.5,
         walls: [],
         innerElements: [],
+        customDiagonals: [],
         hatchSubtractArea: true,
         useHatchAngles: false,
         countHatchAngles: 0,
@@ -349,7 +349,6 @@ function createDefaultRoom(title = 'Комната 1') {
 let rooms = [createDefaultRoom('Зал / Комната 1')];
 let activeRoomIdx = 0;
 
-// Подсчёт суммарного количества углов всех коробов в текущей комнате
 function calculateHatchAngles(elementsList) {
     let total = 0;
     if (elementsList && Array.isArray(elementsList)) {
@@ -367,15 +366,22 @@ function calculateHatchAngles(elementsList) {
 function syncCurrentRoomState() {
     let r = rooms[activeRoomIdx];
     if (!r) return;
+    
     if (typeof points !== 'undefined') {
         r.points = points.map(p => ({ x: p.x, y: p.y, label: p.label }));
     }
+    
     if (typeof isClosed !== 'undefined') r.isClosed = isClosed;
     if (typeof cmPerPixel !== 'undefined') r.scale = cmPerPixel;
+    
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
 
     if (typeof innerElements !== 'undefined') {
         r.innerElements = JSON.parse(JSON.stringify(innerElements));
+    }
+    
+    if (typeof customDiagonals !== 'undefined') {
+        r.customDiagonals = JSON.parse(JSON.stringify(customDiagonals));
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
@@ -383,7 +389,6 @@ function syncCurrentRoomState() {
         r.hatchSubtractArea = subCheckbox.checked;
     }
 
-    // Синхронизация углов коробов
     const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
     if (hatchAnglesCheckbox) {
         r.useHatchAngles = hatchAnglesCheckbox.checked;
@@ -426,10 +431,17 @@ function loadRoomIntoUI(idx) {
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
     if (typeof historyState !== 'undefined') historyState = [];
+    
+    if (typeof zoomLevel !== 'undefined') zoomLevel = 1.0;
+    if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
 
     if (typeof innerElements !== 'undefined') {
         innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
+    }
+    
+    if (typeof customDiagonals !== 'undefined') {
+        customDiagonals = r.customDiagonals ? JSON.parse(JSON.stringify(r.customDiagonals)) : [];
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
@@ -437,7 +449,6 @@ function loadRoomIntoUI(idx) {
         subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
     }
 
-    // Загрузка состояния углов коробов
     const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
     if (hatchAnglesCheckbox) {
         hatchAnglesCheckbox.checked = !!r.useHatchAngles;
@@ -473,6 +484,8 @@ function loadRoomIntoUI(idx) {
     }
 
     if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
+    if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
+    
     if (r.walls && r.walls.length > 0) {
         let wallInputs = document.querySelectorAll('.wall-len');
         r.walls.forEach((val, i) => {
@@ -711,6 +724,7 @@ function loadSavedProject(projId) {
         rooms[0].scale = proj.scale || 2.5;
         rooms[0].walls = proj.walls || [];
         rooms[0].innerElements = proj.innerElements || [];
+        rooms[0].customDiagonals = proj.customDiagonals || [];
         loadRoomIntoUI(0);
     }
 
