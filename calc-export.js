@@ -182,31 +182,29 @@ function calculate() {
         totalInnerAreaM2 += m.areaM2;
         totalInnerCorners += m.cornersCount;
 
-        // Корректная обработка привязок: к углам И к стенам без NaN
-        let offsetParts = [];
+        let bindingsList = [];
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                let vLabel = (b.vertexIdx !== undefined) ? `Уг.${b.vertexIdx + 1}➔` : '';
+                let vLabel = (b.vertexIdx !== undefined) ? `Уг.${b.vertexIdx + 1}` : 'Край';
                 if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
                     let pC = points[b.targetCornerIdx];
                     let cLabel = pC ? pC.label : (b.targetCornerIdx + 1);
-                    offsetParts.push(`${vLabel}Угол ${cLabel}: ${b.distM} м`);
+                    bindingsList.push(`${vLabel} ➔ Угол ${cLabel}: ${b.distM} м`);
                 } else {
                     let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
                     let p1 = points[wIdx];
                     let p2 = points[(wIdx + 1) % points.length];
                     let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${wIdx + 1}`;
-                    offsetParts.push(`${vLabel}Стена ${wName}: ${b.distM} м`);
+                    bindingsList.push(`${vLabel} ➔ Стена ${wName}: ${b.distM} м`);
                 }
             });
         } else if (typeof getElementWallDistances === 'function') {
             let offsets = getElementWallDistances(el);
             offsets.forEach(o => {
-                offsetParts.push(`${o.distM.toFixed(3)} м до ${o.wallName}`);
+                bindingsList.push(`Край ➔ ${o.wallName}: ${o.distM.toFixed(3)} м`);
             });
         }
 
-        // Чистое имя элемента без дублей "(6 угл.) (6 угл.)"
         let baseName = el.title || `Короб ${idx + 1}`;
         if (baseName.includes('(')) {
             baseName = baseName.split('(')[0].trim();
@@ -221,7 +219,7 @@ function calculate() {
             name: `${baseName} (${desc})`,
             perimM: m.perimM.toFixed(3),
             areaM2: m.areaM2.toFixed(3),
-            offsetStr: offsetParts.length > 0 ? offsetParts.join(' | ') : 'по центру'
+            bindingsList: bindingsList
         });
     });
 
@@ -261,7 +259,6 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
-    // Углы комнаты отдельно
     let roomAngles = points.length;
     let extraAngles = roomAngles > 4 ? roomAngles - 4 : 0;
     if (document.getElementById('countAngles')) {
@@ -269,7 +266,6 @@ function calculate() {
     }
     let pAngle = parseFloat(document.getElementById('priceAngle')?.value) || 0;
 
-    // Углы внутренних коробов
     let useHatchAngles = document.getElementById('useHatchAnglesCheckbox')?.checked ?? false;
     let countHatchAngles = totalInnerCorners;
     if (document.getElementById('countHatchAngles')) {
@@ -451,7 +447,12 @@ function calculate() {
     let innerFactoryText = '';
     if (innerSummaryList.length > 0) {
         innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:\n` +
-            innerSummaryList.map(item => `  • ${item.name}: ${item.perimM} м.п.\n    [привязка: ${item.offsetStr}]`).join('\n') + `\n`;
+            innerSummaryList.map(item => {
+                let bindsStr = item.bindingsList.length > 0 
+                    ? item.bindingsList.map(b => `    • ${b}`).join('\n') 
+                    : '    • по центру';
+                return `  • ${item.name}: ${item.perimM} м.п.\n${bindsStr}`;
+            }).join('\n') + `\n`;
     }
 
     lastFactoryText =
@@ -569,7 +570,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     const badgeBorder = isWhite ? '#cbd5e1' : '#334155';
     let renderedBadges = [];
 
-    // Защита от наложения плашек (раздвигает бейджи, если они ближе 14px по высоте и 42px по ширине)
     function avoidCollision(x, y, w = 46, h = 16) {
         let curY = y;
         for (let b of renderedBadges) {
@@ -928,7 +928,7 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Карточка раскроя в цех с динамической высотой под многострочные привязки
+// Карточка раскроя в цех со столбиками для привязок (как у основных стен)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -942,13 +942,14 @@ function exportFactoryImage() {
     const wallsRows = Math.ceil(lastCalcData.wallsData.length / 2);
     const diagsRows = Math.ceil(lastCalcData.diags.length / 2);
     
-    // Запас высоты под перенос привязок
+    // Подсчет высоты под двухколоночный список привязок
     let innerExtraH = 0;
     if (inCount > 0) {
         lastCalcData.innerElements.forEach(item => {
-            innerExtraH += item.offsetStr && item.offsetStr.length > 55 ? 36 : 22;
+            let bindRows = Math.ceil(item.bindingsList.length / 2);
+            innerExtraH += 22 + (bindRows * 20) + 10;
         });
-        innerExtraH += 26;
+        innerExtraH += 20;
     }
 
     const footerH = (wallsRows + diagsRows) * 22 + innerExtraH + 60;
@@ -996,22 +997,35 @@ function exportFactoryImage() {
         if (!isLeft || i === lastCalcData.wallsData.length - 1) y += 20;
     });
 
+    // Отрисовка привязок в 2 столбика
     if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
         y += 8;
         tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-        tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:', pad, y);
+        tCtx.fillText('🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И ПРИВЯЗКИ:', pad, y);
         y += 18;
 
-        tCtx.font = '11px Inter, Roboto, monospace';
         lastCalcData.innerElements.forEach(item => {
             tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
-            tCtx.fillText(`• ${item.name}: ${item.perimM} м.п.`, pad, y);
-            y += 15;
-
-            tCtx.fillStyle = isWhite ? '#475569' : '#94a3b8';
-            tCtx.fillText(`  Привязки: ${item.offsetStr}`, pad, y);
+            tCtx.font = 'bold 12px Inter, Roboto, monospace';
+            tCtx.fillText(`• ${item.name} — ${item.perimM} м.п.`, pad, y);
             y += 18;
+
+            tCtx.font = '11.5px Inter, Roboto, monospace';
+            tCtx.fillStyle = isWhite ? '#475569' : '#cbd5e1';
+
+            if (item.bindingsList.length === 0) {
+                tCtx.fillText(`Привязка: по центру`, pad, y);
+                y += 18;
+            } else {
+                item.bindingsList.forEach((bStr, bIdx) => {
+                    let isLeft = (bIdx % 2 === 0);
+                    let curX = isLeft ? pad : col2X;
+                    tCtx.fillText(`📍 ${bStr}`, curX, y);
+                    if (!isLeft || bIdx === item.bindingsList.length - 1) y += 18;
+                });
+            }
+            y += 6;
         });
     }
 
@@ -1110,8 +1124,8 @@ function exportWordDoc(target = 'client') {
             ${lastCalcData.innerElements && lastCalcData.innerElements.length > 0 ? `
             <h3>Внутренние вырезы, короба и колонны:</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
-                <tr style="background:#f1f5f9;"><th>Элемент</th><th>Периметр (м.п.)</th><th>Привязка к стенам / углам</th></tr>
-                ${lastCalcData.innerElements.map(it => `<tr><td><b>${it.name}</b></td><td>${it.perimM} м.п.</td><td>${it.offsetStr}</td></tr>`).join('')}
+                <tr style="background:#f1f5f9;"><th>Элемент</th><th>Периметр (м.п.)</th><th>Привязки</th></tr>
+                ${lastCalcData.innerElements.map(it => `<tr><td><b>${it.name}</b></td><td>${it.perimM} м.п.</td><td>${it.bindingsList.join('<br>')}</td></tr>`).join('')}
             </table>` : ''}
             ${lastCalcData.diags.length > 0 ? `
             <h3>Таблица чистых диагоналей для раскроя:</h3>
