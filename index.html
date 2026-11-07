@@ -237,7 +237,7 @@
                         <input type="number" id="pricePipe" class="input-field price-persist" value="350" oninput="saveUserPrices()">
                     </div>
                     <div class="item-row">
-                        <label>Доп. углы (&gt;4 шт)</label>
+                        <label>Доп. углы комнаты (&gt;4 шт)</label>
                         <input type="number" id="countAngles" class="input-field" value="0" readonly style="font-weight: 600; text-align: center; opacity: 0.8;">
                         <input type="number" id="priceAngle" class="input-field price-persist" value="150" oninput="saveUserPrices()">
                     </div>
@@ -261,6 +261,15 @@
                             <span>Вычитать площадь коробов</span>
                         </label>
                     </div>
+                </div>
+
+                <div class="item-row" style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="checkbox" id="useHatchAnglesCheckbox" onchange="syncCurrentRoomState()" style="width: 17px; height: 17px; accent-color: var(--indigo-main); cursor: pointer;">
+                        <span>Углы коробов (шт)</span>
+                    </label>
+                    <input type="number" id="countHatchAngles" class="input-field" value="0" readonly style="font-weight: 600; text-align: center; opacity: 0.85; width: 80px;">
+                    <input type="number" id="priceHatchAngle" class="input-field price-persist" value="150" oninput="saveUserPrices(); syncCurrentRoomState();" style="width: 80px;">
                 </div>
             </div>
 
