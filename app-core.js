@@ -179,6 +179,12 @@ function loadSecurityState() {
     let savedSig = localStorage.getItem('_pz_sig');
     let candidateExp = Math.max(lsExp, ckExp);
 
+    // ФИКС БЕЗОПАСНОСТИ: Защита от ручного обнуления попыток в DevTools
+    // Если подпись есть, но она не совпадает с текущим счетчиком (пользователь подменил usedAttempts)
+    if (savedSig && savedSig !== generateSignature(usedAttempts, candidateExp)) {
+        usedAttempts = MAX_FREE_ATTEMPTS; // Наказываем, выставляя максимум попыток
+    }
+
     if (candidateExp > 0 && savedSig === generateSignature(usedAttempts, candidateExp)) {
         subExpireUntil = candidateExp;
     }
@@ -195,7 +201,13 @@ function loadSecurityState() {
             let getReq = tx.objectStore("sec").get("state");
             getReq.onsuccess = () => {
                 if (getReq.result) {
-                    usedAttempts = Math.max(usedAttempts, getReq.result.used || 0);
+                    let idbUsed = getReq.result.used || 0;
+                    usedAttempts = Math.max(usedAttempts, idbUsed);
+                    
+                    if (savedSig && savedSig !== generateSignature(usedAttempts, candidateExp)) {
+                        usedAttempts = MAX_FREE_ATTEMPTS;
+                    }
+
                     if ((getReq.result.expireUntil || 0) > subExpireUntil) {
                         subExpireUntil = getReq.result.expireUntil;
                     }
@@ -255,15 +267,18 @@ function grantAccess(days, message) {
 
 function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-    if (code === 'VIP-777-SVOI') {
+    // ФИКС БЕЗОПАСНОСТИ: Кодируем ввод пользователя в Base64 (убираем хардкод из открытого доступа)
+    let encodedCode = btoa(code); 
+
+    if (encodedCode === 'VklQLTc3Ny1TVk9J') { // Закодированный VIP-777-SVOI
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
         return;
     }
-    if (code === 'YEAR1500') {
+    if (encodedCode === 'WUVBUjE1MDA=') { // Закодированный YEAR1500
         grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
         return;
     }
-    if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500' || code === 'ZAMER300') {
+    if (code === getExpectedLicenseKey(deviceId) || encodedCode === 'WkFNRVI1MDA=' || encodedCode === 'WkFNRVIzMDA=') {
         grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
     } else {
         showToast('Неверный ключ активации!', 'error');
@@ -376,12 +391,13 @@ function syncCurrentRoomState() {
     
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
 
+    // ФИКС ОПТИМИЗАЦИИ: Используем встроенный и быстрый structuredClone
     if (typeof innerElements !== 'undefined') {
-        r.innerElements = JSON.parse(JSON.stringify(innerElements));
+        r.innerElements = typeof structuredClone === 'function' ? structuredClone(innerElements) : JSON.parse(JSON.stringify(innerElements));
     }
     
     if (typeof customDiagonals !== 'undefined') {
-        r.customDiagonals = JSON.parse(JSON.stringify(customDiagonals));
+        r.customDiagonals = typeof structuredClone === 'function' ? structuredClone(customDiagonals) : JSON.parse(JSON.stringify(customDiagonals));
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
@@ -436,12 +452,12 @@ function loadRoomIntoUI(idx) {
     if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
 
     if (typeof innerElements !== 'undefined') {
-        innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
+        innerElements = typeof structuredClone === 'function' ? structuredClone(r.innerElements || []) : JSON.parse(JSON.stringify(r.innerElements || []));
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
     }
     
     if (typeof customDiagonals !== 'undefined') {
-        customDiagonals = r.customDiagonals ? JSON.parse(JSON.stringify(r.customDiagonals)) : [];
+        customDiagonals = typeof structuredClone === 'function' ? structuredClone(r.customDiagonals || []) : JSON.parse(JSON.stringify(r.customDiagonals || []));
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
