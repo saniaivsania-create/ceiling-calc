@@ -10,6 +10,29 @@ let draggedPointIndex = null;
 let isDragging = false;
 let cmPerPixel = 2.5;
 
+// --- МАСШТАБИРОВАНИЕ И ПАНОРАМИРОВАНИЕ (PINCH-TO-ZOOM) ---
+let zoomLevel = 1.0;
+let panOffset = { x: 0, y: 0 };
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 3.0;
+let activePointers = new Map();
+let pinchStartDistance = null;
+let pinchStartZoom = 1.0;
+let pinchStartPan = { x: 0, y: 0 };
+let pinchCenter = { x: 0, y: 0 };
+
+function getCanvasPointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    return {
+        screenX: rawX,
+        screenY: rawY,
+        x: (rawX - panOffset.x) / zoomLevel,
+        y: (rawY - panOffset.y) / zoomLevel
+    };
+}
+
 // --- РЕЖИМЫ РЕДАКТИРОВАНИЯ И ВНУТРЕННИЕ ЭЛЕМЕНТЫ ---
 let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
 let innerElements = [];
@@ -156,6 +179,8 @@ function resetSketch() {
     selectedInnerIdx = null;
     draggedInnerVertex = null;
     activeBindSource = null;
+    zoomLevel = 1.0;
+    panOffset = { x: 0, y: 0 };
     localStorage.removeItem('_pz_active_sketch_backup');
     rebuildWallInputs();
     rebuildDiagonalInputs();
@@ -212,6 +237,13 @@ function toggleFullscreen() {
     document.getElementById('bottomFullscreenBtn')?.classList.toggle('fab-active', isFull);
     const topClose = document.getElementById('fsCloseTopBtn');
     if (topClose) topClose.style.display = isFull ? 'block' : 'none';
+
+    // При выходе с полноэкранного сбрасываем зум и панораму
+    if (!isFull) {
+        zoomLevel = 1.0;
+        panOffset = { x: 0, y: 0 };
+    }
+
     setTimeout(() => {
         canvas.width = canvas.clientWidth || window.innerWidth;
         canvas.height = canvas.clientHeight || (window.innerHeight - 80);
@@ -337,19 +369,16 @@ function snapOrthogonal() {
                 el.pts[2] = { x: cx + w/2, y: cy - h/2 };
                 el.pts[3] = { x: cx + w/2, y: cy + h/2 };
             } else {
-                // Последовательное выравнивание осей с коррекцией замыкания
                 for (let iter = 0; iter < 2; iter++) {
                     for (let i = 0; i < n; i++) {
                         let curr = el.pts[i];
                         let next = el.pts[(i + 1) % n];
 
                         if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) {
-                            // Горизонтальный сегмент
                             let avgY = (curr.y + next.y) / 2;
                             curr.y = avgY;
                             next.y = avgY;
                         } else {
-                            // Вертикальный сегмент
                             let avgX = (curr.x + next.x) / 2;
                             curr.x = avgX;
                             next.x = avgX;
@@ -1238,13 +1267,18 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА С КОМПАКТНЫМИ ДИНАМИЧЕСКИМИ БЕЙДЖАМИ ---
+// --- ОТРИСОВКА ХОЛСТА С КОМПАКТНЫМИ ДИНАМИЧЕСКИМИ БЕЙДЖАМИ И ЗУМОМ ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     wallHitBoxes = [];
     diagHitBoxes = [];
     bindHitBoxes = [];
+
+    // Применение трансформации панорамы и зума
+    ctx.save();
+    ctx.translate(panOffset.x, panOffset.y);
+    ctx.scale(zoomLevel, zoomLevel);
 
     const isLight = document.body.classList.contains('light-theme');
     const gridColor = isLight ? '#f1f5f9' : '#1e293b';
@@ -1260,14 +1294,19 @@ function drawSketch() {
     // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    for (let x = 0; x < canvas.width; x += 20) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    let gridLimitX = Math.max(canvas.width, 2000);
+    let gridLimitY = Math.max(canvas.height, 2000);
+    for (let x = -1000; x < gridLimitX; x += 20) {
+        ctx.beginPath(); ctx.moveTo(x, -1000); ctx.lineTo(x, gridLimitY); ctx.stroke();
     }
-    for (let y = 0; y < canvas.height; y += 20) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    for (let y = -1000; y < gridLimitY; y += 20) {
+        ctx.beginPath(); ctx.moveTo(-1000, y); ctx.lineTo(gridLimitX, y); ctx.stroke();
     }
 
-    if (points.length === 0) return;
+    if (points.length === 0) {
+        ctx.restore();
+        return;
+    }
 
     let centerX = 0, centerY = 0;
     points.forEach(p => { centerX += p.x; centerY += p.y; });
@@ -1603,9 +1642,6 @@ function drawSketch() {
             }
         }
 
-        labelX = Math.max(28, Math.min(canvas.width - 28, labelX));
-        labelY = Math.max(16, Math.min(canvas.height - 54, labelY));
-
         wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
 
         ctx.fillStyle = badgeBgColor;
@@ -1630,14 +1666,12 @@ function drawSketch() {
         let lx = p.x + (vx / vLen) * 16;
         let ly = p.y + (vy / vLen) * 16 + 4;
 
-        lx = Math.min(canvas.width - 14, Math.max(14, lx));
-        ly = Math.min(canvas.height - 52, Math.max(14, ly));
-
         ctx.fillStyle = pointLabelColor;
         ctx.font = '700 12px "Inter", "Roboto", sans-serif';
         ctx.fillText(p.label, lx, ly);
     });
     ctx.textAlign = 'start';
+    ctx.restore();
 }
 
 function createInteractiveBinding(targetType, targetIdx) {
@@ -1724,18 +1758,45 @@ function editCreatedBinding(hit) {
     }
 }
 
-// --- ТАЧ-СОБЫТИЯ ---
+// --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
 
     if (document.activeElement) document.activeElement.blur();
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const isFullscreen = document.getElementById('canvasCard')?.classList.contains('fullscreen');
 
-    // 1. Тап по бейджу привязки (редактирование / удаление)
+    // Регистрация активного указателя
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    // Обработка двух пальцев (pinch) только в полноэкранном режиме
+    if (isFullscreen && activePointers.size === 2) {
+        isDragging = false;
+        draggedPointIndex = null;
+        draggedInnerIdx = null;
+        draggedInnerVertex = null;
+
+        const pts = Array.from(activePointers.values());
+        pinchStartDistance = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+        pinchStartZoom = zoomLevel;
+        pinchStartPan = { x: panOffset.x, y: panOffset.y };
+
+        const rect = canvas.getBoundingClientRect();
+        pinchCenter = {
+            x: (pts[0].clientX + pts[1].clientX) / 2 - rect.left,
+            y: (pts[0].clientY + pts[1].clientY) / 2 - rect.top
+        };
+        return;
+    }
+
+    if (activePointers.size > 1) return;
+
+    const pos = getCanvasPointerPos(e);
+    const x = pos.x;
+    const y = pos.y;
+
+    // 1. Тап по бейджу привязки
     for (let bBox of bindHitBoxes) {
         let halfW = (bBox.w || 64) / 2;
         let halfH = (bBox.h || 16) / 2;
@@ -1905,15 +1966,45 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
     if (isSketchLocked) return;
-    const rect = canvas.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
+
+    if (activePointers.has(e.pointerId)) {
+        activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    }
+
+    const isFullscreen = document.getElementById('canvasCard')?.classList.contains('fullscreen');
+
+    // Масштабирование двумя пальцами
+    if (isFullscreen && activePointers.size === 2 && pinchStartDistance) {
+        e.preventDefault();
+        const pts = Array.from(activePointers.values());
+        const currentDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+        if (currentDist > 0 && pinchStartDistance > 0) {
+            const scaleFactor = currentDist / pinchStartDistance;
+            let targetZoom = pinchStartZoom * scaleFactor;
+            targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, targetZoom));
+
+            // Сохранение фокуса масштабирования под центром жеста
+            const zoomRatio = targetZoom / zoomLevel;
+            panOffset.x = pinchCenter.x - (pinchCenter.x - panOffset.x) * zoomRatio;
+            panOffset.y = pinchCenter.y - (pinchCenter.y - panOffset.y) * zoomRatio;
+            zoomLevel = targetZoom;
+
+            drawSketch();
+        }
+        return;
+    }
+
+    if (activePointers.size > 1) return;
+
+    const pos = getCanvasPointerPos(e);
+    const curX = pos.x;
+    const curY = pos.y;
 
     if (isDragging && draggedPointIndex !== null) {
         e.preventDefault();
         let p = points[draggedPointIndex];
-        p.x = Math.max(20, Math.min(canvas.width - 20, curX));
-        p.y = Math.max(20, Math.min(canvas.height - 20, curY));
+        p.x = curX;
+        p.y = curY;
 
         syncInputsValuesOnly();
         drawSketch();
@@ -1924,8 +2015,8 @@ canvas.addEventListener('pointermove', (e) => {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
         if (el.pts && el.pts[draggedInnerVertex]) {
-            el.pts[draggedInnerVertex].x = Math.max(20, Math.min(canvas.width - 20, curX));
-            el.pts[draggedInnerVertex].y = Math.max(20, Math.min(canvas.height - 20, curY));
+            el.pts[draggedInnerVertex].x = curX;
+            el.pts[draggedInnerVertex].y = curY;
 
             let sx = 0, sy = 0;
             el.pts.forEach(p => { sx += p.x; sy += p.y; });
@@ -1941,8 +2032,8 @@ canvas.addEventListener('pointermove', (e) => {
     if (draggedInnerIdx !== null && innerElements[draggedInnerIdx]) {
         e.preventDefault();
         let el = innerElements[draggedInnerIdx];
-        let newX = Math.max(20, Math.min(canvas.width - 20, curX - innerDragOffset.x));
-        let newY = Math.max(20, Math.min(canvas.height - 20, curY - innerDragOffset.y));
+        let newX = curX - innerDragOffset.x;
+        let newY = curY - innerDragOffset.y;
         let dx = newX - el.x;
         let dy = newY - el.y;
         el.x = newX;
@@ -1958,7 +2049,13 @@ canvas.addEventListener('pointermove', (e) => {
     }
 });
 
-canvas.addEventListener('pointerup', () => {
+function handlePointerEnd(e) {
+    if (activePointers.has(e.pointerId)) {
+        activePointers.delete(e.pointerId);
+    }
+    if (activePointers.size < 2) {
+        pinchStartDistance = null;
+    }
     if (isDragging) {
         persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
@@ -1973,7 +2070,10 @@ canvas.addEventListener('pointerup', () => {
     draggedPointIndex = null;
     draggedInnerIdx = null;
     draggedInnerVertex = null;
-});
+}
+
+canvas.addEventListener('pointerup', handlePointerEnd);
+canvas.addEventListener('pointercancel', handlePointerEnd);
 
 // --- ПЕРЕКЛЮЧЕНИЕ СПИСКА ДИАГОНАЛЕЙ ---
 function toggleDiagonalsMode() {
