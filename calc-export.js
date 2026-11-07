@@ -231,11 +231,15 @@ function calculate() {
     let pCanvas = parseFloat(document.getElementById('priceCanvas')?.value) || 0;
     let pProfile = parseFloat(document.getElementById('priceProfile')?.value) || 0;
     
+    // ФИКС: Автообновление вставки при изменении геометрии
     let insertCheckbox = document.getElementById('useInsertCheckbox');
     let insertEl = document.getElementById('countInsert');
     let cInsert = 0;
-    if (insertCheckbox) {
-        cInsert = insertCheckbox.checked ? (parseFloat(insertEl?.value) || 0) : 0;
+    if (insertCheckbox && insertCheckbox.checked) {
+        cInsert = Math.round(roomPerimeterM * 10) / 10;
+        if (insertEl && document.activeElement !== insertEl) {
+            insertEl.value = cInsert;
+        }
     } else {
         cInsert = parseFloat(insertEl?.value) || 0;
     }
@@ -1097,7 +1101,20 @@ function exportWordDoc(target = 'client') {
         return;
     }
 
-    let sketchDataUrl = canvas.toDataURL('image/png');
+    // ФИКС: Рендерим чистый белый холст без интерфейса и зума для Word
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = Math.max(canvas.width, 540);
+    tempCanvas.height = canvas.height + 40;
+    const tCtx = tempCanvas.getContext('2d');
+    
+    tCtx.fillStyle = '#ffffff';
+    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    let offsetX = (tempCanvas.width - canvas.width) / 2;
+    renderCleanSketchForExport(tCtx, offsetX, 20, true);
+    
+    let sketchDataUrl = tempCanvas.toDataURL('image/png');
+
     let isClient = target === 'client';
     let docTitle = isClient
         ? `СМЕТА НА МОНТАЖ НАТЯЖНОГО ПОТОЛКА`
@@ -1147,7 +1164,7 @@ function exportWordDoc(target = 'client') {
             <p><b>Площадь:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов комнаты:</b> ${lastCalcData.roomAngles} шт. ${lastCalcData.countHatchAngles > 0 ? `| <b>Углов коробов:</b> ${lastCalcData.countHatchAngles} шт.` : ''}</p>
             <hr>
             <h3>Чертёж помещения:</h3>
-            <p><img src="${sketchDataUrl}" width="420"></p>
+            <p><img src="${sketchDataUrl}" width="420" style="border:1px solid #ccc;"></p>
             ${tableHtml}
         </body>
         </html>
