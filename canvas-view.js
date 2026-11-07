@@ -84,8 +84,9 @@ function saveState() {
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
         closed: isClosed,
         scale: cmPerPixel,
-        inner: JSON.parse(JSON.stringify(innerElements)),
-        customDiags: JSON.parse(JSON.stringify(customDiagonals)),
+        // ФИКС ОПТИМИЗАЦИИ: Используем встроенный и быстрый structuredClone
+        inner: typeof structuredClone === 'function' ? structuredClone(innerElements) : JSON.parse(JSON.stringify(innerElements)),
+        customDiags: typeof structuredClone === 'function' ? structuredClone(customDiagonals) : JSON.parse(JSON.stringify(customDiagonals)),
         editMode
     });
     if (historyState.length > 40) historyState.shift();
@@ -582,7 +583,6 @@ function getCleanDiagonals() {
             let len = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
             diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len, isCustom: false });
             
-            // Фикс бага паутины: останавливаемся, когда нужное число диагоналей найдено
             if (diags.length >= needed) return diags;
         }
     }
@@ -812,7 +812,6 @@ function getElementWallDistances(el) {
     return result;
 }
 
-// ФИКС: Сдвиг короба от косой стены по её нормали
 function applySingleBindingShift(el, binding, targetDistM) {
     let targetDistPx = (targetDistM * 100) / cmPerPixel;
 
@@ -959,7 +958,6 @@ function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     row.className = 'inner-binding-row';
     row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
     
-    // ФИКС: Сохраняем скрытые параметры привязки в дата-атрибутах строки
     let vIdx = bindData && bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
     let tCorner = bindData && bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
     row.setAttribute('data-vertex-idx', vIdx);
@@ -1129,7 +1127,6 @@ function applyInnerSheetSettings() {
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
-    // ФИКС: Чтение привязок без потери углов
     bindingRows.forEach(row => {
         let wallSelect = row.querySelector('.inner-bind-wall');
         let distInput = row.querySelector('.inner-bind-dist');
