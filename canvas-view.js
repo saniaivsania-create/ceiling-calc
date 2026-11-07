@@ -190,7 +190,7 @@ function toggleEditLayer() {
     activeBindSource = null;
     if (editMode === 'room') {
         editMode = 'inner';
-        showToast('📦 Режим коробов. Стены комнаты заблокированы от случайного сдвига', 'success');
+        showToast('📦 Режим коробов', 'success');
     } else {
         editMode = 'room';
         activeDrawingPoly = [];
@@ -207,15 +207,16 @@ function toggleEditLayer() {
 
 function toggleFullscreen() {
     const card = document.getElementById('canvasCard');
+    if (!card) return;
     const isFull = card.classList.toggle('fullscreen');
     document.getElementById('bottomFullscreenBtn')?.classList.toggle('fab-active', isFull);
     const topClose = document.getElementById('fsCloseTopBtn');
     if (topClose) topClose.style.display = isFull ? 'block' : 'none';
     setTimeout(() => {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+        canvas.width = canvas.clientWidth || window.innerWidth;
+        canvas.height = canvas.clientHeight || (window.innerHeight - 80);
         fitToScreen(false);
-    }, 60);
+    }, 80);
 }
 
 function resizeCanvas() {
@@ -263,12 +264,12 @@ function updateHint() {
     }
 
     if (activeBindSource !== null) {
-        hint.innerText = `🎯 Угол короба ${activeBindSource.vertexIdx + 1} выбран! Тапните по стене или углу комнаты`;
+        hint.innerText = `🎯 Угол ${activeBindSource.vertexIdx + 1} выбран! Тапните по стене или углу комнаты`;
         return;
     }
 
     if (editMode === 'drawing_poly') {
-        hint.innerText = `✏️ Ставьте точки короба (${activeDrawingPoly.length}). Тапните на 1-ю точку для завершения`;
+        hint.innerText = `✏️ Ставьте точки (${activeDrawingPoly.length}). Тап на 1-ю точку замкнёт короб`;
         return;
     }
 
@@ -311,6 +312,7 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
+// ВЫРАВНИВАНИЕ ПОД 90° С ЗАМКНУТЫМ УСТРАНЕНИЕМ ПЕРЕКОСА
 function snapOrthogonal() {
     saveState();
 
@@ -320,7 +322,9 @@ function snapOrthogonal() {
                  : innerElements[innerElements.length - 1];
 
         if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
-            if (el.pts.length === 4) {
+            let n = el.pts.length;
+
+            if (n === 4) {
                 let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
                 let h = Math.hypot(p1.x - p0.x, p1.y - p0.y);
                 let w = Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -333,13 +337,23 @@ function snapOrthogonal() {
                 el.pts[2] = { x: cx + w/2, y: cy - h/2 };
                 el.pts[3] = { x: cx + w/2, y: cy + h/2 };
             } else {
-                for (let i = 1; i < el.pts.length; i++) {
-                    let prev = el.pts[i - 1];
-                    let curr = el.pts[i];
-                    if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
-                        curr.y = prev.y;
-                    } else {
-                        curr.x = prev.x;
+                // Последовательное выравнивание осей с коррекцией замыкания
+                for (let iter = 0; iter < 2; iter++) {
+                    for (let i = 0; i < n; i++) {
+                        let curr = el.pts[i];
+                        let next = el.pts[(i + 1) % n];
+
+                        if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) {
+                            // Горизонтальный сегмент
+                            let avgY = (curr.y + next.y) / 2;
+                            curr.y = avgY;
+                            next.y = avgY;
+                        } else {
+                            // Вертикальный сегмент
+                            let avgX = (curr.x + next.x) / 2;
+                            curr.x = avgX;
+                            next.x = avgX;
+                        }
                     }
                 }
             }
@@ -360,7 +374,8 @@ function snapOrthogonal() {
 
     if (isSketchLocked || points.length < 3) return;
 
-    if (points.length === 4 && isClosed) {
+    let nPts = points.length;
+    if (nPts === 4 && isClosed) {
         let pA = points[0];
         let pB = points[1];
         let pC = points[2];
@@ -393,13 +408,20 @@ function snapOrthogonal() {
         return;
     }
 
-    for (let i = 1; i < points.length; i++) {
-        let prev = points[i - 1];
-        let curr = points[i];
-        if (Math.abs(curr.x - prev.x) > Math.abs(curr.y - prev.y)) {
-            curr.y = prev.y;
-        } else {
-            curr.x = prev.x;
+    for (let iter = 0; iter < 2; iter++) {
+        for (let i = 0; i < nPts; i++) {
+            if (!isClosed && i === nPts - 1) continue;
+            let curr = points[i];
+            let next = points[(i + 1) % nPts];
+            if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) {
+                let avgY = (curr.y + next.y) / 2;
+                curr.y = avgY;
+                next.y = avgY;
+            } else {
+                let avgX = (curr.x + next.x) / 2;
+                curr.x = avgX;
+                next.x = avgX;
+            }
         }
     }
 
@@ -1381,7 +1403,6 @@ function drawSketch() {
         ctx.font = '700 9px "Inter", sans-serif';
 
         activeBindsToRender.forEach(w => {
-            // Линия привязки
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 1.2;
             ctx.setLineDash([3, 3]);
@@ -1390,7 +1411,6 @@ function drawSketch() {
             ctx.lineTo(w.projX, w.projY);
             ctx.stroke();
 
-            // Динамический расчёт ширины бейджа
             let text = `${w.distM.toFixed(3)} м`;
             let textW = ctx.measureText(text).width;
             let padX = 6;
@@ -1400,7 +1420,6 @@ function drawSketch() {
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
 
-            // Защита от наложения бейджей (anti-collision)
             for (let b of renderedBadgeBoxes) {
                 if (Math.abs(b.x - midX) < (boxW / 2 + 10) && Math.abs(b.y - midY) < 14) {
                     midY += (midY >= b.y) ? 14 : -14;
@@ -1420,7 +1439,6 @@ function drawSketch() {
                 });
             }
 
-            // Компактная плашка
             ctx.setLineDash([]);
             ctx.fillStyle = badgeBgColor;
             ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
@@ -1428,7 +1446,6 @@ function drawSketch() {
             ctx.lineWidth = 1;
             ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
 
-            // Текст размера
             ctx.fillStyle = '#ef4444';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1494,7 +1511,6 @@ function drawSketch() {
                 let midX = (p1.x + p2.x) / 2;
                 let midY = (p1.y + p2.y) / 2;
 
-                // Защита от наложения сторон короба на другие бейджи
                 for (let b of renderedBadgeBoxes) {
                     if (Math.abs(b.x - midX) < 40 && Math.abs(b.y - midY) < 16) {
                         midY += (midY >= b.y) ? 16 : -16;
@@ -1581,7 +1597,6 @@ function drawSketch() {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
-        // Разведение плашек внешних стен при коллизиях
         for (let b of renderedBadgeBoxes) {
             if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
                 labelY += (labelY >= b.y) ? 16 : -16;
@@ -1732,7 +1747,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 2. Если уже выбрана точка короба (activeBindSource)
     if (activeBindSource !== null) {
-        // Тап по углу комнаты
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
                 createInteractiveBinding('corner', i);
@@ -1740,7 +1754,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Тап по стене комнаты
         let count = getWallCount();
         for (let i = 0; i < count; i++) {
             let p1 = points[i];
@@ -1786,7 +1799,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
     // 4. Режим короба: взаимодействие только с коробом
     if (editMode === 'inner') {
-        // Выбор угла короба для привязки или перетаскивания вершины
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             if (el.type === 'poly' && el.pts) {
@@ -1808,7 +1820,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // Клик по телу короба (перетаскивание короба)
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
             let hit = false;
@@ -1835,7 +1846,6 @@ canvas.addEventListener('pointerdown', (e) => {
             }
         }
 
-        // В РЕЖИМЕ КОРОБОВ ТАЧ СТЕН КОМНАТЫ ИГНОРИРУЕТСЯ
         return;
     }
 
