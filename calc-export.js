@@ -11,7 +11,7 @@ let selectedExportTheme = 'dark'; // 'dark' | 'light'
 
 const PRICE_FIELDS = [
     'priceCanvas', 'priceProfile', 'priceInsert', 'priceLight', 'priceChandelier',
-    'priceCornice', 'pricePipe', 'priceAngle', 'priceHatch',
+    'priceCornice', 'pricePipe', 'priceAngle', 'priceHatch', 'priceHatchAngle',
     'priceLightLines', 'priceTrack', 'priceNiche', 'priceShadow'
 ];
 
@@ -244,13 +244,21 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
+    // Углы комнаты
     let roomAngles = points.length;
-    let totalAngles = roomAngles + totalInnerCorners;
-    let extraAngles = totalAngles > 4 ? totalAngles - 4 : 0;
+    let extraAngles = roomAngles > 4 ? roomAngles - 4 : 0;
     if (document.getElementById('countAngles')) {
         document.getElementById('countAngles').value = extraAngles;
     }
     let pAngle = parseFloat(document.getElementById('priceAngle')?.value) || 0;
+
+    // Углы внутренних коробов
+    let useHatchAngles = document.getElementById('useHatchAnglesCheckbox')?.checked ?? false;
+    let countHatchAngles = totalInnerCorners;
+    if (document.getElementById('countHatchAngles')) {
+        document.getElementById('countHatchAngles').value = countHatchAngles;
+    }
+    let pHatchAngle = parseFloat(document.getElementById('priceHatchAngle')?.value) || 150;
 
     let name1 = document.getElementById('customName1')?.value.trim() || 'Доп. работа 1';
     let custom1 = parseFloat(document.getElementById('customPrice1')?.value) || 0;
@@ -261,6 +269,7 @@ function calculate() {
     let costProfile = Math.round(roomPerimeterM * pProfile);
     let costInsert = Math.round(cInsert * pInsert);
     let costAngles = Math.round(extraAngles * pAngle);
+    let costHatchAngles = useHatchAngles ? Math.round(countHatchAngles * pHatchAngle) : 0;
     let costLights = Math.round(cLights * pLight);
     let costChandelier = Math.round(cChandeliers * pChandelier);
     let costCornice = Math.round(cCornice * pCornice);
@@ -272,9 +281,9 @@ function calculate() {
     let costNiche = Math.round(cNiche * pNiche);
     let costShadow = Math.round(cShadow * pShadow);
 
-    let total = costCanvas + costProfile + costInsert + costAngles + costLights + costChandelier + 
-                costCornice + costPipes + costInnerProfile + costLightLines + costTrack + costNiche + 
-                costShadow + custom1 + custom2;
+    let total = costCanvas + costProfile + costInsert + costAngles + costHatchAngles + costLights + 
+                costChandelier + costCornice + costPipes + costInnerProfile + costLightLines + 
+                costTrack + costNiche + costShadow + custom1 + custom2;
 
     rooms[activeRoomIdx].lastTotal = total;
     let currentRoomTitle = rooms[activeRoomIdx].title;
@@ -311,11 +320,21 @@ function calculate() {
         });
     }
 
-    lastBreakdownItems.push({ 
-        title: `Углы (всего: ${totalAngles} шт.` + (totalInnerCorners > 0 ? `, в т.ч. короба: ${totalInnerCorners}` : '') + `)`, 
-        sub: `Доп. углы (>4): ${extraAngles} шт. × ${pAngle} ₽`, 
-        val: `${costAngles.toLocaleString()} ₽` 
-    });
+    if (extraAngles > 0 || roomAngles > 0) {
+        lastBreakdownItems.push({ 
+            title: `Углы комнаты (всего ${roomAngles} шт.)`, 
+            sub: `Доп. углы (>4): ${extraAngles} шт. × ${pAngle} ₽`, 
+            val: `${costAngles.toLocaleString()} ₽` 
+        });
+    }
+
+    if (useHatchAngles && countHatchAngles > 0) {
+        lastBreakdownItems.push({ 
+            title: `Углы коробов и люков (${countHatchAngles} шт.)`, 
+            sub: `${countHatchAngles} шт. × ${pHatchAngle} ₽`, 
+            val: `${costHatchAngles.toLocaleString()} ₽` 
+        });
+    }
 
     if (cLights > 0) lastBreakdownItems.push({ title: 'Светильники', sub: `${cLights} шт. × ${pLight} ₽`, val: `${costLights.toLocaleString()} ₽` });
     if (cChandeliers > 0) lastBreakdownItems.push({ title: 'Люстра', sub: `${cChandeliers} шт. × ${pChandelier} ₽`, val: `${costChandelier.toLocaleString()} ₽` });
@@ -364,7 +383,10 @@ function calculate() {
         area: netArea.toFixed(2),
         grossArea: grossArea.toFixed(2),
         perimeter: roomPerimeterM.toFixed(2),
-        totalAngles,
+        roomAngles,
+        countHatchAngles,
+        useHatchAngles,
+        totalAngles: roomAngles + totalInnerCorners,
         innerCount: inElements.length,
         innerElements: innerSummaryList,
         totalInnerPerimM: totalInnerPerimM.toFixed(2),
@@ -378,6 +400,11 @@ function calculate() {
         innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
+    let hatchAnglesText = '';
+    if (useHatchAngles && countHatchAngles > 0) {
+        hatchAnglesText = `🔹 Углы коробов (${countHatchAngles} шт): ${costHatchAngles} ₽\n`;
+    }
+
     lastEstimateText =
         `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
         `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
@@ -388,7 +415,8 @@ function calculate() {
         `🔹 Профиль: ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)\n` +
         (cInsert > 0 ? `🔹 Вставка: ${cInsert} м.п. (${costInsert} ₽)\n` : '') +
         innerEstimateText +
-        `🔹 Углы (${totalAngles} шт): ${costAngles} ₽\n` +
+        `🔹 Углы комнаты (${roomAngles} шт, доп: ${extraAngles}): ${costAngles} ₽\n` +
+        hatchAnglesText +
         (cLights > 0 ? `🔹 Светильники (${cLights} шт): ${costLights} ₽\n` : '') +
         (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽\n` : '') +
         (cCornice > 0 ? `🔹 Карниз (${cCornice} м.п.): ${costCornice} ₽\n` : '') +
@@ -414,7 +442,7 @@ function calculate() {
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
         `⚠️ ВНИМАНИЕ: Размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!\n` +
         `──────────────────\n` +
-        `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${totalAngles} шт.\n` +
+        `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${roomAngles} шт. (коробов: ${totalInnerCorners} шт.)\n` +
         innerFactoryText +
         `📏 СТЕНЫ (чистые):\n` +
         wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('\n') + `\n` +
@@ -513,7 +541,6 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
-// Чистая перерисовка контура чертежа под выбранный цвет (белый или темный)
 function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     if (points.length < 2) return;
     targetCtx.save();
@@ -589,7 +616,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             activeWallDists = getElementWallDistances(el);
         }
 
-        // Красные пунктирные привязки
         targetCtx.save();
         targetCtx.strokeStyle = '#ef4444';
         targetCtx.lineWidth = 1.3;
@@ -609,7 +635,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         });
         targetCtx.restore();
 
-        // Тело короба
         targetCtx.save();
         targetCtx.strokeStyle = '#2563eb';
         targetCtx.lineWidth = 2;
@@ -632,7 +657,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.restore();
     });
 
-    // Размеры стен
     let centerX = 0, centerY = 0;
     points.forEach(p => { centerX += p.x; centerY += p.y; });
     centerX /= points.length; centerY /= points.length;
@@ -662,7 +686,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
-    // Углы (буквы A, B, C...)
     points.forEach(p => {
         targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         targetCtx.beginPath(); targetCtx.arc(p.x, p.y, 6, 0, Math.PI * 2); targetCtx.fill();
@@ -677,7 +700,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     targetCtx.restore();
 }
 
-// Карточка сметы клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -708,7 +730,7 @@ function exportClientImage() {
 
     tCtx.fillStyle = isWhite ? '#059669' : '#10b981';
     tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}`, pad, 70);
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.roomAngles}`, pad, 70);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
@@ -747,7 +769,6 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Карточка раскроя в цех (Ширина 540px, отступ колонок 270px — текст не слипается)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -782,8 +803,8 @@ function exportFactoryImage() {
     tCtx.font = '12px Inter, Roboto, sans-serif';
     tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
 
-    let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт` : '';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.totalAngles}${inInfo}`, pad, 86);
+    let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт (углов коробов: ${lastCalcData.countHatchAngles})` : '';
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.roomAngles}${inInfo}`, pad, 86);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
@@ -882,7 +903,6 @@ function downloadBlobFile(blob, fileName) {
     showToast('Файл сохранён в Загрузки!', 'success');
 }
 
-// Экспорт Word
 function exportWordDoc(target = 'client') {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -936,7 +956,7 @@ function exportWordDoc(target = 'client') {
             <p><b>Клиент / Объект:</b> ${lastCalcData.clientName}<br>
             <b>Адрес:</b> ${lastCalcData.clientAddr}<br>
             <b>Дата замера:</b> ${new Date().toLocaleDateString()}</p>
-            <p><b>Площадь:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов:</b> ${lastCalcData.totalAngles} шт.</p>
+            <p><b>Площадь:</b> ${lastCalcData.area} м² &nbsp;|&nbsp; <b>Периметр:</b> ${lastCalcData.perimeter} м.п. &nbsp;|&nbsp; <b>Углов комнаты:</b> ${lastCalcData.roomAngles} шт. ${lastCalcData.countHatchAngles > 0 ? `| <b>Углов коробов:</b> ${lastCalcData.countHatchAngles} шт.` : ''}</p>
             <hr>
             <h3>Чертёж помещения:</h3>
             <p><img src="${sketchDataUrl}" width="420"></p>
