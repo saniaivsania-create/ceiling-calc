@@ -78,37 +78,7 @@ function formatLaserShift(rawVal) {
     return (num / 1000).toFixed(3);
 }
 
-// --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ В ПАМЯТЬ ПРИ СВОРАЧИВАНИИ ---
-function persistSketchToStorage() {
-    try {
-        const payload = {
-            pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
-            closed: isClosed,
-            scale: cmPerPixel,
-            inner: innerElements,
-            customDiags: customDiagonals
-        };
-        localStorage.setItem('_pz_active_sketch_backup', JSON.stringify(payload));
-    } catch (e) {}
-}
-
-function restoreSketchFromStorage() {
-    try {
-        const raw = localStorage.getItem('_pz_active_sketch_backup');
-        if (!raw) return false;
-        const data = JSON.parse(raw);
-        if (data && data.pts && data.pts.length > 0) {
-            points = data.pts;
-            isClosed = !!data.closed;
-            cmPerPixel = data.scale || 2.5;
-            innerElements = data.inner || [];
-            customDiagonals = data.customDiags || [];
-            return true;
-        }
-    } catch (e) {}
-    return false;
-}
-
+// --- УПРАВЛЕНИЕ ИСТОРИЕЙ И СБРОСОМ ---
 function saveState() {
     historyState.push({
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
@@ -119,7 +89,7 @@ function saveState() {
         editMode
     });
     if (historyState.length > 40) historyState.shift();
-    persistSketchToStorage();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
 function undoPoint() {
@@ -162,7 +132,6 @@ function undoPoint() {
     renderInnerElementsList();
     updateHint();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -181,7 +150,6 @@ function resetSketch() {
     activeBindSource = null;
     zoomLevel = 1.0;
     panOffset = { x: 0, y: 0 };
-    localStorage.removeItem('_pz_active_sketch_backup');
     rebuildWallInputs();
     rebuildDiagonalInputs();
     renderInnerElementsList();
@@ -238,7 +206,6 @@ function toggleFullscreen() {
     const topClose = document.getElementById('fsCloseTopBtn');
     if (topClose) topClose.style.display = isFull ? 'block' : 'none';
 
-    // При выходе с полноэкранного сбрасываем зум и панораму
     if (!isFull) {
         zoomLevel = 1.0;
         panOffset = { x: 0, y: 0 };
@@ -260,11 +227,6 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 setTimeout(() => {
     resizeCanvas();
-    if (restoreSketchFromStorage()) {
-        rebuildWallInputs();
-        rebuildDiagonalInputs();
-        renderInnerElementsList();
-    }
     updateHint();
     drawSketch();
 }, 120);
@@ -339,7 +301,6 @@ function closePolygon() {
     rebuildDiagonalInputs();
     updateHint();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
@@ -394,7 +355,6 @@ function snapOrthogonal() {
 
             renderInnerElementsList();
             drawSketch();
-            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast('Углы короба выровнены под 90°', 'success');
             return;
@@ -431,7 +391,6 @@ function snapOrthogonal() {
         rebuildWallInputs();
         rebuildDiagonalInputs();
         drawSketch();
-        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         showToast('Прямоугольник построен строго по стенам A-B и B-C', 'success');
         return;
@@ -457,7 +416,6 @@ function snapOrthogonal() {
     fitToScreen(false);
     syncInputsValuesOnly();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Углы выровнены под 90°', 'success');
 }
@@ -501,7 +459,6 @@ function rotateSketch() {
     rebuildDiagonalInputs();
     renderInnerElementsList();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -624,7 +581,9 @@ function getCleanDiagonals() {
 
             let len = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
             diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len, isCustom: false });
-            if (diags.length >= needed && customDiagonals.length === 0) return diags;
+            
+            // Фикс бага паутины: останавливаемся, когда нужное число диагоналей найдено
+            if (diags.length >= needed) return diags;
         }
     }
     return diags;
@@ -715,7 +674,6 @@ function applyDiagonalLength(fromIdx, toIdx, targetM) {
     syncInputsValuesOnly();
     rebuildDiagonalInputs();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast(`Диагональ выставлена: ${targetM.toFixed(3)} м`, 'success');
 }
@@ -725,7 +683,6 @@ function removeCustomDiagonal(idx) {
     customDiagonals.splice(idx, 1);
     rebuildDiagonalInputs();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Диагональ удалена');
 }
@@ -855,6 +812,7 @@ function getElementWallDistances(el) {
     return result;
 }
 
+// ФИКС: Сдвиг короба от косой стены по её нормали
 function applySingleBindingShift(el, binding, targetDistM) {
     let targetDistPx = (targetDistM * 100) / cmPerPixel;
 
@@ -885,20 +843,18 @@ function applySingleBindingShift(el, binding, targetDistM) {
 
         let proj = getClosestPointOnSegment(pBox, pA, pB);
         let curDist = Math.hypot(proj.x - pBox.x, proj.y - pBox.y);
+        
         let shift = curDist - targetDistPx;
+        let dx = proj.x - pBox.x;
+        let dy = proj.y - pBox.y;
+        let len = Math.hypot(dx, dy) || 1;
 
-        let isHoriz = Math.abs(pB.x - pA.x) >= Math.abs(pB.y - pA.y);
-        if (isHoriz) {
-            let signY = (proj.y > pBox.y) ? 1 : -1;
-            let moveY = signY * shift;
-            el.y += moveY;
-            if (el.pts) el.pts.forEach(p => p.y += moveY);
-        } else {
-            let signX = (proj.x > pBox.x) ? 1 : -1;
-            let moveX = signX * shift;
-            el.x += moveX;
-            if (el.pts) el.pts.forEach(p => p.x += moveX);
-        }
+        let moveX = (dx / len) * shift;
+        let moveY = (dy / len) * shift;
+
+        el.x += moveX;
+        el.y += moveY;
+        if (el.pts) el.pts.forEach(p => { p.x += moveX; p.y += moveY; });
     }
 }
 
@@ -931,7 +887,6 @@ function addQuickRectHatch() {
     document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
     renderInnerElementsList();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Добавлен прямоугольный короб');
 }
@@ -965,7 +920,6 @@ function addQuickCircleColumn() {
     document.getElementById('layerSwitchBtn')?.classList.add('fab-active');
     renderInnerElementsList();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Добавлена круглая колонна');
 }
@@ -997,13 +951,19 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
-function addInnerWallBindingRow(wallIdx = 0, distVal = '') {
+function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
 
     let row = document.createElement('div');
     row.className = 'inner-binding-row';
     row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
+    
+    // ФИКС: Сохраняем скрытые параметры привязки в дата-атрибутах строки
+    let vIdx = bindData && bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
+    let tCorner = bindData && bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
+    row.setAttribute('data-vertex-idx', vIdx);
+    row.setAttribute('data-target-corner', tCorner);
 
     row.innerHTML = `
         <select class="dir-select inner-bind-wall">
@@ -1074,7 +1034,7 @@ function openInnerEditSheet(idx) {
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
                 let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
-                addInnerWallBindingRow(wIdx, b.distM);
+                addInnerWallBindingRow(wIdx, b.distM, b);
             });
         } else {
             let nearest = getElementWallDistances(el);
@@ -1169,6 +1129,7 @@ function applyInnerSheetSettings() {
     const bindingRows = document.querySelectorAll('.inner-binding-row');
     el.customBindings = [];
 
+    // ФИКС: Чтение привязок без потери углов
     bindingRows.forEach(row => {
         let wallSelect = row.querySelector('.inner-bind-wall');
         let distInput = row.querySelector('.inner-bind-dist');
@@ -1176,14 +1137,20 @@ function applyInnerSheetSettings() {
 
         let wIdx = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
+        let vIdx = parseInt(row.getAttribute('data-vertex-idx')) || 0;
+        let tCornerStr = row.getAttribute('data-target-corner');
 
-        if (!isNaN(wIdx) && !isNaN(distM) && distM > 0) {
+        if (!isNaN(distM) && distM > 0) {
             let bindObj = {
-                type: 'wall',
-                vertexIdx: 0,
-                targetWallIdx: wIdx,
+                type: tCornerStr ? 'corner' : 'wall',
+                vertexIdx: vIdx,
                 distM: distM.toFixed(3)
             };
+            if (tCornerStr) {
+                bindObj.targetCornerIdx = parseInt(tCornerStr);
+            } else if (!isNaN(wIdx)) {
+                bindObj.targetWallIdx = wIdx;
+            }
             el.customBindings.push(bindObj);
             applySingleBindingShift(el, bindObj, distM);
         }
@@ -1192,7 +1159,6 @@ function applyInnerSheetSettings() {
     closeInnerEditSheet();
     renderInnerElementsList();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Параметры и привязки применены!', 'success');
 }
@@ -1210,7 +1176,6 @@ function deleteInnerElement(idx) {
     activeBindSource = null;
     renderInnerElementsList();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Элемент удалён');
 }
@@ -1231,9 +1196,9 @@ function renderInnerElementsList() {
         if (el.customBindings && el.customBindings.length > 0) {
             distText = el.customBindings.map(b => {
                 let vLabel = (b.vertexIdx !== undefined) ? `Уг.${b.vertexIdx + 1}➔` : '';
-                if (b.targetCornerIdx !== undefined) {
+                if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
                     let pC = points[b.targetCornerIdx];
-                    return `${vLabel}Угол ${pC ? pC.label : b.targetCornerIdx}: ${b.distM} м`;
+                    return `${vLabel}Угол ${pC ? pC.label : (b.targetCornerIdx + 1)}: ${b.distM} м`;
                 } else {
                     let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
                     let p1 = points[wIdx];
@@ -1252,10 +1217,15 @@ function renderInnerElementsList() {
         else if (el.type === 'circle') sizeText = `⌀${(el.diamCm / 100).toFixed(3)} м`;
         else if (el.type === 'poly') sizeText = `${el.pts.length} угл.`;
 
+        let baseName = el.title || `Короб ${idx + 1}`;
+        if (baseName.includes('(')) {
+            baseName = baseName.split('(')[0].trim();
+        }
+
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:var(--sub-block-bg); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px;">
                 <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden; cursor:pointer;" onclick="openInnerEditSheet(${idx})">
-                    <span style="font-weight:600; color:var(--text-main);">${idx + 1}. ${el.title || 'Короб'} (${sizeText})</span>
+                    <span style="font-weight:600; color:var(--text-main);">${idx + 1}. ${baseName} (${sizeText})</span>
                     <span style="color:var(--text-muted); font-size:10px;">📍 От края: ${distText || '—'}</span>
                 </div>
                 <div style="display:flex; gap:4px; align-items:center;">
@@ -1275,7 +1245,6 @@ function drawSketch() {
     diagHitBoxes = [];
     bindHitBoxes = [];
 
-    // Применение трансформации панорамы и зума
     ctx.save();
     ctx.translate(panOffset.x, panOffset.y);
     ctx.scale(zoomLevel, zoomLevel);
@@ -1721,7 +1690,6 @@ function createInteractiveBinding(targetType, targetIdx) {
 
             renderInnerElementsList();
             drawSketch();
-            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast(`Привязка зафиксирована: ${targetM.toFixed(3)} м`, 'success');
         } else {
@@ -1753,7 +1721,6 @@ function editCreatedBinding(hit) {
         }
         renderInnerElementsList();
         drawSketch();
-        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
 }
@@ -1767,10 +1734,8 @@ canvas.addEventListener('pointerdown', (e) => {
 
     const isFullscreen = document.getElementById('canvasCard')?.classList.contains('fullscreen');
 
-    // Регистрация активного указателя
     activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
-    // Обработка двух пальцев (pinch) только в полноэкранном режиме
     if (isFullscreen && activePointers.size === 2) {
         isDragging = false;
         draggedPointIndex = null;
@@ -1796,7 +1761,6 @@ canvas.addEventListener('pointerdown', (e) => {
     const x = pos.x;
     const y = pos.y;
 
-    // 1. Тап по бейджу привязки
     for (let bBox of bindHitBoxes) {
         let halfW = (bBox.w || 64) / 2;
         let halfH = (bBox.h || 16) / 2;
@@ -1806,7 +1770,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // 2. Если уже выбрана точка короба (activeBindSource)
     if (activeBindSource !== null) {
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 26) {
@@ -1827,7 +1790,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // 3. Создание произвольного короба
     if (editMode === 'drawing_poly') {
         if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45) {
             saveState();
@@ -1847,7 +1809,6 @@ canvas.addEventListener('pointerdown', (e) => {
             renderInnerElementsList();
             updateHint();
             drawSketch();
-            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast('Произвольный короб создан!', 'success');
             return;
@@ -1858,7 +1819,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 4. Режим короба: взаимодействие только с коробом
     if (editMode === 'inner') {
         for (let i = innerElements.length - 1; i >= 0; i--) {
             let el = innerElements[i];
@@ -1910,7 +1870,6 @@ canvas.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 5. Взаимодействие со стенами комнаты (только когда editMode === 'room')
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
         closePolygon();
         return;
@@ -1958,7 +1917,6 @@ canvas.addEventListener('pointerdown', (e) => {
             rebuildDiagonalInputs();
             updateHint();
             drawSketch();
-            persistSketchToStorage();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         }
     }
@@ -1973,7 +1931,6 @@ canvas.addEventListener('pointermove', (e) => {
 
     const isFullscreen = document.getElementById('canvasCard')?.classList.contains('fullscreen');
 
-    // Масштабирование двумя пальцами
     if (isFullscreen && activePointers.size === 2 && pinchStartDistance) {
         e.preventDefault();
         const pts = Array.from(activePointers.values());
@@ -1983,7 +1940,6 @@ canvas.addEventListener('pointermove', (e) => {
             let targetZoom = pinchStartZoom * scaleFactor;
             targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, targetZoom));
 
-            // Сохранение фокуса масштабирования под центром жеста
             const zoomRatio = targetZoom / zoomLevel;
             panOffset.x = pinchCenter.x - (pinchCenter.x - panOffset.x) * zoomRatio;
             panOffset.y = pinchCenter.y - (pinchCenter.y - panOffset.y) * zoomRatio;
@@ -2057,13 +2013,11 @@ function handlePointerEnd(e) {
         pinchStartDistance = null;
     }
     if (isDragging) {
-        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         rebuildWallInputs();
         rebuildDiagonalInputs();
     }
     if (draggedInnerIdx !== null) {
-        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     isDragging = false;
@@ -2286,7 +2240,6 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     if (wallIndex >= points.length - 1 && isClosed) {
         drawSketch();
-        persistSketchToStorage();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         return;
     }
@@ -2317,7 +2270,6 @@ function onWallLengthEdit(wallIndex, valStr) {
 
     fitToScreen(false);
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -2359,7 +2311,6 @@ function buildSketchFromTable() {
     rebuildDiagonalInputs();
     updateHint();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Чертёж перестроен по размерам', 'success');
 }
@@ -2402,7 +2353,6 @@ function createFromTablePreset() {
     rebuildDiagonalInputs();
     updateHint();
     drawSketch();
-    persistSketchToStorage();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
