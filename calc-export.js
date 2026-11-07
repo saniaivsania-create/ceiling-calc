@@ -182,26 +182,35 @@ function calculate() {
         totalInnerAreaM2 += m.areaM2;
         totalInnerCorners += m.cornersCount;
 
+        // Корректная обработка привязок: к углам И к стенам (без NaN)
         let offsetStr = '';
         if (el.customBindings && el.customBindings.length > 0) {
             offsetStr = el.customBindings.map(b => {
-                let p1 = points[b.wallIdx];
-                let p2 = points[(b.wallIdx + 1) % points.length];
-                let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${b.wallIdx + 1}`;
-                return `${b.distM} м до ст. ${wName}`;
-            }).join(', ');
+                let vLabel = (b.vertexIdx !== undefined) ? `Уг.${b.vertexIdx + 1}➔` : '';
+                if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
+                    let pC = points[b.targetCornerIdx];
+                    let cLabel = pC ? pC.label : (b.targetCornerIdx + 1);
+                    return `${vLabel}Угол ${cLabel}: ${b.distM} м`;
+                } else {
+                    let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
+                    let p1 = points[wIdx];
+                    let p2 = points[(wIdx + 1) % points.length];
+                    let wName = (p1 && p2) ? `${p1.label}–${p2.label}` : `Стена ${wIdx + 1}`;
+                    return `${vLabel}Стена ${wName}: ${b.distM} м`;
+                }
+            }).join(' | ');
         } else if (typeof getElementWallDistances === 'function') {
             let offsets = getElementWallDistances(el);
-            offsetStr = offsets.map(o => `${o.distM.toFixed(3)} м до ст. ${o.wallName}`).join(', ');
+            offsetStr = offsets.map(o => `${o.distM.toFixed(3)} м до ${o.wallName}`).join(' | ');
         }
 
         let desc = '';
         if (el.type === 'rect') desc = `Люк ${(el.lenCm/100).toFixed(3)}×${(el.widCm/100).toFixed(3)} м`;
         else if (el.type === 'circle') desc = `Колонна ⌀${(el.diamCm/100).toFixed(3)} м`;
-        else desc = `Короб (${el.pts ? el.pts.length : 0} угл.)`;
+        else desc = `${el.pts ? el.pts.length : 0} угл.`;
 
         innerSummaryList.push({
-            name: `${el.title || 'Элемент ' + (idx + 1)} (${desc})`,
+            name: `${el.title || 'Короб ' + (idx + 1)} (${desc})`,
             perimM: m.perimM.toFixed(3),
             areaM2: m.areaM2.toFixed(3),
             offsetStr: offsetStr || 'по центру'
@@ -244,7 +253,7 @@ function calculate() {
     let cShadow = parseFloat(document.getElementById('countShadow')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
-    // Углы комнаты
+    // Углы комнаты (отдельно от коробов)
     let roomAngles = points.length;
     let extraAngles = roomAngles > 4 ? roomAngles - 4 : 0;
     if (document.getElementById('countAngles')) {
@@ -386,7 +395,7 @@ function calculate() {
         roomAngles,
         countHatchAngles,
         useHatchAngles,
-        totalAngles: roomAngles + totalInnerCorners,
+        totalAngles: roomAngles,
         innerCount: inElements.length,
         innerElements: innerSummaryList,
         totalInnerPerimM: totalInnerPerimM.toFixed(2),
@@ -442,7 +451,8 @@ function calculate() {
         `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
         `⚠️ ВНИМАНИЕ: Размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!\n` +
         `──────────────────\n` +
-        `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов: ${roomAngles} шт. (коробов: ${totalInnerCorners} шт.)\n` +
+        `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов комнаты: ${roomAngles} шт.` +
+        (totalInnerCorners > 0 ? ` (углов коробов: ${totalInnerCorners} шт.)` : '') + `\n` +
         innerFactoryText +
         `📏 СТЕНЫ (чистые):\n` +
         wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('\n') + `\n` +
@@ -541,12 +551,16 @@ function shareDirectMax(target) {
     window.open(url, '_blank');
 }
 
+// ПОЛНАЯ ОТРИСОВКА ЧЕРТЕЖА СО ВСЕМИ РАЗМЕРАМИ И ПРИВЯЗКАМИ ДЛЯ ЦЕХА И СМЕТЫ
 function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     if (points.length < 2) return;
     targetCtx.save();
     targetCtx.translate(destX, destY);
 
-    // Сетка
+    const badgeBg = isWhite ? '#ffffff' : '#0f172a';
+    const badgeBorder = isWhite ? '#cbd5e1' : '#334155';
+
+    // 1. Сетка
     targetCtx.strokeStyle = isWhite ? '#e2e8f0' : '#1e293b';
     targetCtx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 20) {
@@ -556,7 +570,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.beginPath(); targetCtx.moveTo(0, y); targetCtx.lineTo(canvas.width, y); targetCtx.stroke();
     }
 
-    // Диагонали
+    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         targetCtx.save();
@@ -574,9 +588,9 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             let mx = d.from.x + (d.to.x - d.from.x) * ratio;
             let my = d.from.y + (d.to.y - d.from.y) * ratio;
 
-            targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+            targetCtx.fillStyle = badgeBg;
             targetCtx.fillRect(mx - 24, my - 9, 48, 14);
-            targetCtx.strokeStyle = d.isCustom ? '#0284c7' : (isWhite ? '#cbd5e1' : '#334155');
+            targetCtx.strokeStyle = d.isCustom ? '#0284c7' : badgeBorder;
             targetCtx.strokeRect(mx - 24, my - 9, 48, 14);
 
             targetCtx.fillStyle = d.isCustom ? '#0284c7' : (isWhite ? '#475569' : '#94a3b8');
@@ -587,7 +601,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.restore();
     }
 
-    // Контур стен
+    // 3. Контур стен помещения
     targetCtx.beginPath();
     targetCtx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) targetCtx.lineTo(points[i].x, points[i].y);
@@ -600,41 +614,85 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     targetCtx.lineWidth = 2.5;
     targetCtx.stroke();
 
-    // Короба и привязки
+    // 4. Внутренние элементы, их размеры, номера углов и привязки
     innerElements.forEach(el => {
-        let activeWallDists = [];
+        let activeBinds = [];
+
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                let p1 = points[b.wallIdx];
-                let p2 = points[(b.wallIdx + 1) % points.length];
-                if (p1 && p2) {
-                    let { edgePoint, proj, distPx } = getClosestPointOnElementToSegment(el, p1, p2);
-                    activeWallDists.push({ edgeX: edgePoint.x, edgeY: edgePoint.y, projX: proj.x, projY: proj.y, distM: (distPx * cmPerPixel) / 100 });
+                let pBox = (el.pts && el.pts[b.vertexIdx]) ? el.pts[b.vertexIdx] : { x: el.x, y: el.y };
+
+                if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
+                    let pRoom = points[b.targetCornerIdx];
+                    if (pRoom) {
+                        activeBinds.push({
+                            edgeX: pBox.x,
+                            edgeY: pBox.y,
+                            projX: pRoom.x,
+                            projY: pRoom.y,
+                            distM: ((Math.hypot(pRoom.x - pBox.x, pRoom.y - pBox.y) * cmPerPixel) / 100)
+                        });
+                    }
+                } else {
+                    let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
+                    let pA = points[wIdx];
+                    let pB = points[(wIdx + 1) % points.length];
+                    if (pA && pB) {
+                        let proj = getClosestPointOnSegment(pBox, pA, pB);
+                        activeBinds.push({
+                            edgeX: pBox.x,
+                            edgeY: pBox.y,
+                            projX: proj.x,
+                            projY: proj.y,
+                            distM: ((Math.hypot(proj.x - pBox.x, proj.y - pBox.y) * cmPerPixel) / 100)
+                        });
+                    }
                 }
             });
-        } else {
-            activeWallDists = getElementWallDistances(el);
+        } else if (typeof getElementWallDistances === 'function') {
+            let defDists = getElementWallDistances(el);
+            defDists.forEach(w => {
+                activeBinds.push({
+                    edgeX: w.edgeX,
+                    edgeY: w.edgeY,
+                    projX: w.projX,
+                    projY: w.projY,
+                    distM: w.distM
+                });
+            });
         }
 
+        // Красные пунктирные привязки (к стенам и углам)
         targetCtx.save();
         targetCtx.strokeStyle = '#ef4444';
         targetCtx.lineWidth = 1.3;
         targetCtx.setLineDash([3, 3]);
-        activeWallDists.forEach(w => {
-            targetCtx.beginPath(); targetCtx.moveTo(w.edgeX, w.edgeY); targetCtx.lineTo(w.projX, w.projY); targetCtx.stroke();
+
+        activeBinds.forEach(w => {
+            targetCtx.beginPath();
+            targetCtx.moveTo(w.edgeX, w.edgeY);
+            targetCtx.lineTo(w.projX, w.projY);
+            targetCtx.stroke();
+
             let midX = (w.edgeX + w.projX) / 2;
             let midY = (w.edgeY + w.projY) / 2;
-            targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+
+            targetCtx.setLineDash([]);
+            targetCtx.fillStyle = badgeBg;
             targetCtx.fillRect(midX - 32, midY - 8, 64, 16);
-            targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+            targetCtx.strokeStyle = '#ef4444';
+            targetCtx.lineWidth = 1;
             targetCtx.strokeRect(midX - 32, midY - 8, 64, 16);
+
             targetCtx.fillStyle = '#ef4444';
             targetCtx.font = '700 10px sans-serif';
             targetCtx.textAlign = 'center';
             targetCtx.fillText(`${w.distM.toFixed(3)} м`, midX, midY + 4);
+            targetCtx.setLineDash([3, 3]);
         });
         targetCtx.restore();
 
+        // Тело короба, размеры сторон и номера углов
         targetCtx.save();
         targetCtx.strokeStyle = '#2563eb';
         targetCtx.lineWidth = 2;
@@ -643,23 +701,87 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         if (el.type === 'rect') {
             let rw = el.w || (el.lenCm / cmPerPixel);
             let rh = el.h || (el.widCm / cmPerPixel);
+            targetCtx.setLineDash([5, 3]);
             targetCtx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
             targetCtx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
+
+            targetCtx.setLineDash([]);
+            targetCtx.fillStyle = badgeBg;
+            targetCtx.fillRect(el.x - 30, el.y - rh / 2 - 8, 60, 15);
+            targetCtx.fillStyle = '#2563eb';
+            targetCtx.font = '600 10px sans-serif';
+            targetCtx.textAlign = 'center';
+            targetCtx.fillText(`${(el.lenCm / 100).toFixed(3)}`, el.x, el.y - rh / 2 + 3);
+
+            targetCtx.fillStyle = badgeBg;
+            targetCtx.fillRect(el.x + rw / 2 - 25, el.y + 12, 50, 15);
+            targetCtx.fillStyle = '#2563eb';
+            targetCtx.fillText(`${(el.widCm / 100).toFixed(3)}`, el.x + rw / 2, el.y + 23);
+
         } else if (el.type === 'circle') {
             let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
-            targetCtx.beginPath(); targetCtx.arc(el.x, el.y, rad, 0, Math.PI * 2);
-            targetCtx.stroke(); targetCtx.fill();
-        } else if (el.type === 'poly' && el.pts) {
-            targetCtx.beginPath(); targetCtx.moveTo(el.pts[0].x, el.pts[0].y);
+            targetCtx.setLineDash([4, 3]);
+            targetCtx.beginPath();
+            targetCtx.arc(el.x, el.y, rad, 0, Math.PI * 2);
+            targetCtx.stroke();
+            targetCtx.fill();
+
+            targetCtx.setLineDash([]);
+            targetCtx.fillStyle = badgeBg;
+            targetCtx.fillRect(el.x - 32, el.y - 9, 64, 18);
+            targetCtx.fillStyle = '#2563eb';
+            targetCtx.font = '700 10px sans-serif';
+            targetCtx.textAlign = 'center';
+            targetCtx.fillText(`⌀${(el.diamCm / 100).toFixed(3)}`, el.x, el.y + 4);
+
+        } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
+            targetCtx.setLineDash([5, 3]);
+            targetCtx.beginPath();
+            targetCtx.moveTo(el.pts[0].x, el.pts[0].y);
             for (let i = 1; i < el.pts.length; i++) targetCtx.lineTo(el.pts[i].x, el.pts[i].y);
-            targetCtx.closePath(); targetCtx.stroke(); targetCtx.fill();
+            targetCtx.closePath();
+            targetCtx.stroke();
+            targetCtx.fill();
+
+            // Длины сторон короба
+            targetCtx.setLineDash([]);
+            targetCtx.font = '600 10px sans-serif';
+            targetCtx.textAlign = 'center';
+            for (let i = 0; i < el.pts.length; i++) {
+                let p1 = el.pts[i];
+                let p2 = el.pts[(i + 1) % el.pts.length];
+                let sideM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
+                let midX = (p1.x + p2.x) / 2;
+                let midY = (p1.y + p2.y) / 2;
+
+                targetCtx.fillStyle = badgeBg;
+                targetCtx.fillRect(midX - 22, midY - 7, 44, 14);
+                targetCtx.strokeStyle = badgeBorder;
+                targetCtx.strokeRect(midX - 22, midY - 7, 44, 14);
+                targetCtx.fillStyle = '#2563eb';
+                targetCtx.fillText(`${sideM}`, midX, midY + 4);
+            }
+
+            // Номера углов короба (1, 2, 3...)
+            el.pts.forEach((pt, vIdx) => {
+                targetCtx.fillStyle = '#2563eb';
+                targetCtx.beginPath();
+                targetCtx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
+                targetCtx.fill();
+
+                targetCtx.fillStyle = '#ffffff';
+                targetCtx.font = '700 9px sans-serif';
+                targetCtx.fillText(`${vIdx + 1}`, pt.x, pt.y + 3);
+            });
         }
         targetCtx.restore();
     });
 
+    // 5. Размеры внешних стен помещения
     let centerX = 0, centerY = 0;
     points.forEach(p => { centerX += p.x; centerY += p.y; });
-    centerX /= points.length; centerY /= points.length;
+    centerX /= points.length;
+    centerY /= points.length;
 
     let wallCount = getWallCount();
     targetCtx.textAlign = 'center';
@@ -677,19 +799,24 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         let labelX = midX + (outX / outLen) * 18;
         let labelY = midY + (outY / outLen) * 18;
 
-        targetCtx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+        targetCtx.fillStyle = badgeBg;
         targetCtx.fillRect(labelX - 28, labelY - 11, 56, 16);
-        targetCtx.strokeStyle = isWhite ? '#cbd5e1' : '#334155';
+        targetCtx.strokeStyle = badgeBorder;
         targetCtx.strokeRect(labelX - 28, labelY - 11, 56, 16);
         targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         targetCtx.font = '600 11px sans-serif';
         targetCtx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
+    // 6. Углы комнаты (буквы A, B, C...)
     points.forEach(p => {
         targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
-        targetCtx.beginPath(); targetCtx.arc(p.x, p.y, 6, 0, Math.PI * 2); targetCtx.fill();
-        let vx = p.x - centerX; let vy = p.y - centerY;
+        targetCtx.beginPath();
+        targetCtx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        targetCtx.fill();
+
+        let vx = p.x - centerX;
+        let vy = p.y - centerY;
         let vLen = Math.hypot(vx, vy) || 1;
         let lx = p.x + (vx / vLen) * 16;
         let ly = p.y + (vy / vLen) * 16 + 4;
@@ -700,6 +827,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     targetCtx.restore();
 }
 
+// Карточка сметы клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -730,7 +858,7 @@ function exportClientImage() {
 
     tCtx.fillStyle = isWhite ? '#059669' : '#10b981';
     tCtx.font = 'bold 13px Inter, Roboto, sans-serif';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.roomAngles}`, pad, 70);
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов комнаты: ${lastCalcData.roomAngles}`, pad, 70);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
@@ -769,6 +897,7 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
+// Карточка раскроя в цех
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -804,7 +933,7 @@ function exportFactoryImage() {
     tCtx.fillText(`Объект: ${lastCalcData.clientName} | ${lastCalcData.clientAddr}`, pad, 68);
 
     let inInfo = inCount > 0 ? `  |  Вырезов: ${inCount} шт (углов коробов: ${lastCalcData.countHatchAngles})` : '';
-    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов: ${lastCalcData.roomAngles}${inInfo}`, pad, 86);
+    tCtx.fillText(`S = ${lastCalcData.area} м²  |  P = ${lastCalcData.perimeter} м.п.  |  Углов комнаты: ${lastCalcData.roomAngles}${inInfo}`, pad, 86);
 
     let offsetX = (tempCanvas.width - canvas.width) / 2;
     renderCleanSketchForExport(tCtx, offsetX, headerH, isWhite);
@@ -936,7 +1065,7 @@ function exportWordDoc(target = 'client') {
             ${lastCalcData.innerElements && lastCalcData.innerElements.length > 0 ? `
             <h3>Внутренние вырезы, короба и колонны:</h3>
             <table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-family:Arial;">
-                <tr style="background:#f1f5f9;"><th>Элемент</th><th>Периметр (м.п.)</th><th>Привязка к стенам</th></tr>
+                <tr style="background:#f1f5f9;"><th>Элемент</th><th>Периметр (м.п.)</th><th>Привязка к стенам / углам</th></tr>
                 ${lastCalcData.innerElements.map(it => `<tr><td><b>${it.name}</b></td><td>${it.perimM} м.п.</td><td>${it.offsetStr}</td></tr>`).join('')}
             </table>` : ''}
             ${lastCalcData.diags.length > 0 ? `
