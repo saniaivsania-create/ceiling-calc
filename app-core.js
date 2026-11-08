@@ -1,16 +1,4 @@
 // ==========================================================================
-// ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js) [ИСПРАВЛЕНО]
-// ==========================================================================
-
-// --- РЕГИСТРАЦИЯ ОФФЛАЙН РЕЖИМА (SERVICE WORKER) ---
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .then(() => console.log('Оффлайн-режим активен'))
-            .catch((err) => console.log('Ошибка SW:', err));
-    });
-}
-// ==========================================================================
 // ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
 // ==========================================================================
 
@@ -191,12 +179,6 @@ function loadSecurityState() {
     let savedSig = localStorage.getItem('_pz_sig');
     let candidateExp = Math.max(lsExp, ckExp);
 
-    // ФИКС БЕЗОПАСНОСТИ: Защита от ручного обнуления попыток в DevTools
-    // Если подпись есть, но она не совпадает с текущим счетчиком (пользователь подменил usedAttempts)
-    if (savedSig && savedSig !== generateSignature(usedAttempts, candidateExp)) {
-        usedAttempts = MAX_FREE_ATTEMPTS; // Наказываем, выставляя максимум попыток
-    }
-
     if (candidateExp > 0 && savedSig === generateSignature(usedAttempts, candidateExp)) {
         subExpireUntil = candidateExp;
     }
@@ -213,13 +195,7 @@ function loadSecurityState() {
             let getReq = tx.objectStore("sec").get("state");
             getReq.onsuccess = () => {
                 if (getReq.result) {
-                    let idbUsed = getReq.result.used || 0;
-                    usedAttempts = Math.max(usedAttempts, idbUsed);
-                    
-                    if (savedSig && savedSig !== generateSignature(usedAttempts, candidateExp)) {
-                        usedAttempts = MAX_FREE_ATTEMPTS;
-                    }
-
+                    usedAttempts = Math.max(usedAttempts, getReq.result.used || 0);
                     if ((getReq.result.expireUntil || 0) > subExpireUntil) {
                         subExpireUntil = getReq.result.expireUntil;
                     }
@@ -274,23 +250,21 @@ function grantAccess(days, message) {
     const modal = document.getElementById('paywallModal');
     if (modal) modal.style.display = 'none';
     showToast(message, 'success');
+    if (typeof calculate === 'function') calculate();
     if (typeof performCalculation === 'function') performCalculation();
 }
 
 function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-    // ФИКС БЕЗОПАСНОСТИ: Кодируем ввод пользователя в Base64 (убираем хардкод из открытого доступа)
-    let encodedCode = btoa(code); 
-
-    if (encodedCode === 'VklQLTc3Ny1TVk9J') { // Закодированный VIP-777-SVOI
+    if (code === 'VIP-777-SVOI') {
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
         return;
     }
-    if (encodedCode === 'WUVBUjE1MDA=') { // Закодированный YEAR1500
+    if (code === 'YEAR1500') {
         grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
         return;
     }
-    if (code === getExpectedLicenseKey(deviceId) || encodedCode === 'WkFNRVI1MDA=' || encodedCode === 'WkFNRVIzMDA=') {
+    if (code === getExpectedLicenseKey(deviceId) || code === 'ZAMER500' || code === 'ZAMER300') {
         grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
     } else {
         showToast('Неверный ключ активации!', 'error');
@@ -350,7 +324,6 @@ function createDefaultRoom(title = 'Комната 1') {
         scale: 2.5,
         walls: [],
         innerElements: [],
-        customDiagonals: [],
         hatchSubtractArea: true,
         useHatchAngles: false,
         countHatchAngles: 0,
@@ -376,6 +349,7 @@ function createDefaultRoom(title = 'Комната 1') {
 let rooms = [createDefaultRoom('Зал / Комната 1')];
 let activeRoomIdx = 0;
 
+// Подсчёт суммарного количества углов всех коробов в текущей комнате
 function calculateHatchAngles(elementsList) {
     let total = 0;
     if (elementsList && Array.isArray(elementsList)) {
@@ -393,23 +367,15 @@ function calculateHatchAngles(elementsList) {
 function syncCurrentRoomState() {
     let r = rooms[activeRoomIdx];
     if (!r) return;
-    
     if (typeof points !== 'undefined') {
         r.points = points.map(p => ({ x: p.x, y: p.y, label: p.label }));
     }
-    
     if (typeof isClosed !== 'undefined') r.isClosed = isClosed;
     if (typeof cmPerPixel !== 'undefined') r.scale = cmPerPixel;
-    
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
 
-    // ФИКС ОПТИМИЗАЦИИ: Используем встроенный и быстрый structuredClone
     if (typeof innerElements !== 'undefined') {
-        r.innerElements = typeof structuredClone === 'function' ? structuredClone(innerElements) : JSON.parse(JSON.stringify(innerElements));
-    }
-    
-    if (typeof customDiagonals !== 'undefined') {
-        r.customDiagonals = typeof structuredClone === 'function' ? structuredClone(customDiagonals) : JSON.parse(JSON.stringify(customDiagonals));
+        r.innerElements = JSON.parse(JSON.stringify(innerElements));
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
@@ -417,6 +383,7 @@ function syncCurrentRoomState() {
         r.hatchSubtractArea = subCheckbox.checked;
     }
 
+    // Синхронизация углов коробов
     const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
     if (hatchAnglesCheckbox) {
         r.useHatchAngles = hatchAnglesCheckbox.checked;
@@ -459,17 +426,10 @@ function loadRoomIntoUI(idx) {
     if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
     if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
     if (typeof historyState !== 'undefined') historyState = [];
-    
-    if (typeof zoomLevel !== 'undefined') zoomLevel = 1.0;
-    if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
 
     if (typeof innerElements !== 'undefined') {
-        innerElements = typeof structuredClone === 'function' ? structuredClone(r.innerElements || []) : JSON.parse(JSON.stringify(r.innerElements || []));
+        innerElements = r.innerElements ? JSON.parse(JSON.stringify(r.innerElements)) : [];
         if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
-    }
-    
-    if (typeof customDiagonals !== 'undefined') {
-        customDiagonals = typeof structuredClone === 'function' ? structuredClone(r.customDiagonals || []) : JSON.parse(JSON.stringify(r.customDiagonals || []));
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
@@ -477,6 +437,7 @@ function loadRoomIntoUI(idx) {
         subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
     }
 
+    // Загрузка состояния углов коробов
     const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
     if (hatchAnglesCheckbox) {
         hatchAnglesCheckbox.checked = !!r.useHatchAngles;
@@ -512,8 +473,6 @@ function loadRoomIntoUI(idx) {
     }
 
     if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
-    if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
-    
     if (r.walls && r.walls.length > 0) {
         let wallInputs = document.querySelectorAll('.wall-len');
         r.walls.forEach((val, i) => {
@@ -752,7 +711,6 @@ function loadSavedProject(projId) {
         rooms[0].scale = proj.scale || 2.5;
         rooms[0].walls = proj.walls || [];
         rooms[0].innerElements = proj.innerElements || [];
-        rooms[0].customDiagonals = proj.customDiagonals || [];
         loadRoomIntoUI(0);
     }
 
