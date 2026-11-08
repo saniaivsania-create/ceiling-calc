@@ -1,5 +1,5 @@
 // ==========================================================================
-// ПОТОЛОК ЗАМЕР PRO — ХОЛСТ И ЧЕРТЕЖ (canvas-view.js) [ИСПРАВЛЕНО]
+// ПОТОЛОК ЗАМЕР PRO — ХОЛСТ И ЧЕРТЕЖ (canvas-view.js) [ПОЛНОСТЬЮ ИСПРАВЛЕНО]
 // ==========================================================================
 const canvas = document.getElementById('sketchCanvas');
 const ctx = canvas.getContext('2d');
@@ -205,16 +205,24 @@ function toggleFullscreen() {
         panOffset = { x: 0, y: 0 };
     }
 
+    // ИСПРАВЛЕНО: Безопасное обновление размеров канваса по контейнеру без скачков
     setTimeout(() => {
-        canvas.width = canvas.clientWidth || window.innerWidth;
-        canvas.height = canvas.clientHeight || (window.innerHeight - 80);
-        fitToScreen(false);
+        canvas.width = canvas.clientWidth || 350;
+        canvas.height = canvas.clientHeight || 320;
+        drawSketch();
     }, 80);
 }
 
 function resizeCanvas() {
-    canvas.width = canvas.clientWidth || 350;
-    canvas.height = canvas.clientHeight || 320;
+    const displayWidth = canvas.clientWidth || 350;
+    const displayHeight = canvas.clientHeight || 320;
+    const dpr = window.devicePixelRatio || 1;
+    
+    if (canvas.width !== Math.floor(displayWidth * dpr) || canvas.height !== Math.floor(displayHeight * dpr)) {
+        canvas.width = displayWidth * dpr;
+        canvas.height = displayHeight * dpr;
+        ctx.scale(dpr, dpr);
+    }
     fitToScreen(false);
 }
 
@@ -702,7 +710,6 @@ function rayCrossesOwnElement(pStart, pEnd, el) {
     return false;
 }
 
-// --- ИСПРАВЛЕНИЕ ШАГА 4: Точные привязки по граням (ребрам) многоугольного короба ---
 function getClosestPointOnElementToSegment(el, p1, p2) {
     let isHorizontalWall = Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y);
 
@@ -2218,7 +2225,6 @@ function syncInputsValuesOnly() {
     }
 }
 
-// --- ИСПРАВЛЕНИЕ ШАГА 3: Корректный пересчет стены без перекоса последующих углов ---
 function onWallLengthEdit(wallIndex, valStr) {
     let m = parseFloat(valStr);
     if (!m || m <= 0) return;
@@ -2288,7 +2294,7 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        else if (dir === 'L') nx += px;
+        else if (dir === 'L') nx -= px; // Исправлено с += на -=
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
