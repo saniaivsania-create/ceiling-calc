@@ -82,6 +82,52 @@ function formatLaserShift(rawVal) {
     return (num / 1000).toFixed(3);
 }
 
+// --- АВТОСОХРАНЕНИЕ ДАННЫХ В ПАМЯТЬ ТЕЛЕФОНА (ЗАЩИТА ОТ СБРОСА КЭША) ---
+function saveProjectToLocalStorage() {
+    const projectData = {
+        points: points,
+        isClosed: isClosed,
+        innerElements: innerElements,
+        customDiagonals: customDiagonals,
+        cmPerPixel: cmPerPixel,
+        // Если у тебя есть массив комнат, сохраняем и его:
+        rooms: typeof rooms !== 'undefined' ? rooms : []
+    };
+    try {
+        localStorage.setItem('ceiling_calc_active_project', JSON.stringify(projectData));
+    } catch (e) {
+        console.error('Ошибка сохранения в localStorage:', e);
+    }
+}
+
+function loadProjectFromLocalStorage() {
+    const saved = localStorage.getItem('ceiling_calc_active_project');
+    if (!saved) return false;
+    
+    try {
+        const data = JSON.parse(saved);
+        points = data.points || [];
+        isClosed = !!data.isClosed;
+        innerElements = data.innerElements || [];
+        customDiagonals = data.customDiagonals || [];
+        cmPerPixel = data.scale || data.cmPerPixel || 2.5;
+        
+        if (data.rooms && typeof rooms !== 'undefined') {
+            rooms = data.rooms;
+        }
+
+        rebuildWallInputs();
+        rebuildDiagonalInputs();
+        renderInnerElementsList();
+        drawSketch();
+        return true;
+    } catch (e) {
+        console.error('Ошибка восстановления проекта:', e);
+        return false;
+    }
+}
+
+
 // --- УПРАВЛЕНИЕ ИСТОРИЕЙ И СБРОСОМ ---
 function saveState() {
     historyState.push({
@@ -93,6 +139,10 @@ function saveState() {
         editMode
     });
     if (historyState.length > 40) historyState.shift();
+    
+    // ДОБАВЛЕНО СОХРАНЕНИЕ В ПАМЯТЬ ТЕЛЕФОНА
+    saveProjectToLocalStorage();
+
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -117,6 +167,7 @@ function undoPoint() {
         innerElements = st.inner || [];
         customDiagonals = st.customDiags || [];
         editMode = st.editMode || 'room';
+        saveProjectToLocalStorage(); // Обновляем localStorage после отмены
     } else {
         points = [];
         isClosed = false;
@@ -124,6 +175,7 @@ function undoPoint() {
         innerElements = [];
         customDiagonals = [];
         editMode = 'room';
+        saveProjectToLocalStorage();
     }
     activeDrawingPoly = [];
     draggedInnerVertex = null;
@@ -159,6 +211,7 @@ function resetSketch() {
     renderInnerElementsList();
     updateHint();
     drawSketch();
+    saveProjectToLocalStorage(); // Сохраняем пустой проект
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Чертёж очищен');
 }
@@ -1009,7 +1062,6 @@ function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     row.setAttribute('data-vertex-idx', vIdx);
     row.setAttribute('data-target-corner', tCorner);
 
-    // ИСПРАВЛЕНИЕ: если привязка к углу комнаты, показываем селект углов, иначе — стен
     let selectHtml = '';
     if (tCorner !== '' && tCorner !== null && !isNaN(tCorner)) {
         selectHtml = `<select class="dir-select inner-bind-wall">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
