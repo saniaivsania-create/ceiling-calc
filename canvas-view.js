@@ -90,7 +90,7 @@ function saveProjectToLocalStorage() {
         innerElements: innerElements,
         customDiagonals: customDiagonals,
         cmPerPixel: cmPerPixel,
-        // Если у тебя есть массив комнат, сохраняем и его:
+        // Сохраняем массив всех комнат
         rooms: typeof rooms !== 'undefined' ? rooms : []
     };
     try {
@@ -106,27 +106,43 @@ function loadProjectFromLocalStorage() {
     
     try {
         const data = JSON.parse(saved);
-        points = data.points || [];
-        isClosed = !!data.isClosed;
-        innerElements = data.innerElements || [];
-        customDiagonals = data.customDiagonals || [];
-        cmPerPixel = data.scale || data.cmPerPixel || 2.5;
         
+        // Восстанавливаем список комнат, если он был сохранен
         if (data.rooms && typeof rooms !== 'undefined') {
             rooms = data.rooms;
         }
 
-        rebuildWallInputs();
-        rebuildDiagonalInputs();
-        renderInnerElementsList();
-        drawSketch();
+        // Перерисовываем кнопки комнат в интерфейсе
+        if (typeof renderRoomsBar === 'function') {
+            renderRoomsBar();
+        }
+
+        // Загружаем на экран активную (или первую) комнату
+        if (typeof activeRoomIdx !== 'undefined' && typeof loadRoomIntoUI === 'function') {
+             let idxToLoad = (rooms && rooms[activeRoomIdx]) ? activeRoomIdx : 0;
+             if (rooms && rooms.length > 0) {
+                 loadRoomIntoUI(idxToLoad);
+             }
+        } else {
+            // Запасной вариант, если мульти-комнатность не сработала
+            points = data.points || [];
+            isClosed = !!data.isClosed;
+            innerElements = data.innerElements || [];
+            customDiagonals = data.customDiagonals || [];
+            cmPerPixel = data.scale || data.cmPerPixel || 2.5;
+            
+            rebuildWallInputs();
+            rebuildDiagonalInputs();
+            renderInnerElementsList();
+            drawSketch();
+        }
+
         return true;
     } catch (e) {
         console.error('Ошибка восстановления проекта:', e);
         return false;
     }
 }
-
 
 // --- УПРАВЛЕНИЕ ИСТОРИЕЙ И СБРОСОМ ---
 function saveState() {
@@ -140,7 +156,7 @@ function saveState() {
     });
     if (historyState.length > 40) historyState.shift();
     
-    // ДОБАВЛЕНО СОХРАНЕНИЕ В ПАМЯТЬ ТЕЛЕФОНА
+    // Сохранение в память телефона
     saveProjectToLocalStorage();
 
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
