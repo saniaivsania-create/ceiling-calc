@@ -1,4 +1,3 @@
-
 // ==========================================================================
 // ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
 // ==========================================================================
@@ -180,10 +179,8 @@ function loadSecurityState() {
     let savedSig = localStorage.getItem('_pz_sig');
     let candidateExp = Math.max(lsExp, ckExp);
 
-    // ФИКС БЕЗОПАСНОСТИ: Защита от ручного обнуления попыток в DevTools
-    // Если подпись есть, но она не совпадает с текущим счетчиком (пользователь подменил usedAttempts)
     if (savedSig && savedSig !== generateSignature(usedAttempts, candidateExp)) {
-        usedAttempts = MAX_FREE_ATTEMPTS; // Наказываем, выставляя максимум попыток
+        usedAttempts = MAX_FREE_ATTEMPTS;
     }
 
     if (candidateExp > 0 && savedSig === generateSignature(usedAttempts, candidateExp)) {
@@ -268,14 +265,13 @@ function grantAccess(days, message) {
 
 function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-    // ФИКС БЕЗОПАСНОСТИ: Кодируем ввод пользователя в Base64 (убираем хардкод из открытого доступа)
     let encodedCode = btoa(code); 
 
-    if (encodedCode === 'VklQLTc3Ny1TVk9J') { // Закодированный VIP-777-SVOI
+    if (encodedCode === 'VklQLTc3Ny1TVk9J') {
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
         return;
     }
-    if (encodedCode === 'WUVBUjE1MDA=') { // Закодированный YEAR1500
+    if (encodedCode === 'WUVBUjE1MDA=') {
         grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
         return;
     }
@@ -392,7 +388,6 @@ function syncCurrentRoomState() {
     
     r.walls = Array.from(document.querySelectorAll('.wall-len')).map(i => i.value);
 
-    // ФИКС ОПТИМИЗАЦИИ: Используем встроенный и быстрый structuredClone
     if (typeof innerElements !== 'undefined') {
         r.innerElements = typeof structuredClone === 'function' ? structuredClone(innerElements) : JSON.parse(JSON.stringify(innerElements));
     }
