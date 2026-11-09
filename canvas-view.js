@@ -427,7 +427,6 @@ function snapOrthogonal() {
 function rotateSketch() {
     if (isSketchLocked) return;
 
-    // ЕСЛИ ВЫБРАН ВНУТРЕННИЙ ЭЛЕМЕНТ (КОРОБ / ЛЮК / КОЛОННА) — КРУТИМ ТОЛЬКО ЕГО ВОКРУГ ЕГО ЦЕНТРА
     if (editMode === 'inner' && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
         saveState();
         let el = innerElements[selectedInnerIdx];
@@ -453,11 +452,10 @@ function rotateSketch() {
         renderInnerElementsList();
         drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast('Короб повернут на 90°', 'success');
+        showToast('Короб / люк повернут на 90°', 'success');
         return;
     }
 
-    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ВЕСЬ ЧЕРТЕЖ ЦЕЛИКОМ
     if (points.length < 2) return;
     saveState();
     let canvasCX = canvas.width / 2;
@@ -498,7 +496,7 @@ function rotateSketch() {
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертеж повернут', 'success');
+    showToast('Чертеж комнаты повернут', 'success');
 }
 
 function fitToScreen(forceFit = false) {
@@ -984,6 +982,7 @@ function startCustomBoxDrawing() {
     showToast('Ставьте точки короба по холсту', 'success');
 }
 
+// ИСПРАВЛЕНИЕ №1: Правильный генератор списка стен для привязок (без дублирования А-В)
 function getWallOptionsHtml(selectedWallIdx) {
     let count = getWallCount();
     let html = '';
@@ -991,7 +990,7 @@ function getWallOptionsHtml(selectedWallIdx) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
         if (p1 && p2) {
-            let isSel = (parseInt(selectedWallIdx) === i) ? 'selected' : '';
+            let isSel = (Number(selectedWallIdx) === i) ? 'selected' : '';
             html += `<option value="${i}" ${isSel}>Стена ${p1.label}–${p2.label}</option>`;
         }
     }
@@ -1122,50 +1121,8 @@ function applyInnerSheetSettings() {
             el.title = `Люк ${lM.toFixed(3)}×${wM.toFixed(3)} м`;
         }
     } else if (el.type === 'poly' && el.pts) {
-        const sideInputs = document.querySelectorAll('.poly-side-input');
-        let vals = [];
-        sideInputs.forEach(inp => vals.push(parseFloat(inp.value) || 0));
-
-        if (el.pts.length === 4) {
-            let targetW = vals[0] > 0 ? vals[0] : (vals[2] > 0 ? vals[2] : 2.5);
-            let targetH = vals[1] > 0 ? vals[1] : (vals[3] > 0 ? vals[3] : 2.5);
-
-            let wPx = (targetW * 100) / cmPerPixel;
-            let hPx = (targetH * 100) / cmPerPixel;
-
-            let cx = el.x;
-            let cy = el.y;
-
-            el.pts[0] = { x: cx - wPx/2, y: cy + hPx/2 };
-            el.pts[1] = { x: cx - wPx/2, y: cy - hPx/2 };
-            el.pts[2] = { x: cx + wPx/2, y: cy - hPx/2 };
-            el.pts[3] = { x: cx + wPx/2, y: cy + hPx/2 };
-        } else {
-            sideInputs.forEach(inp => {
-                let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
-                let targetM = parseFloat(inp.value);
-                if (!isNaN(sideIdx) && targetM && targetM > 0 && el.pts[sideIdx]) {
-                    let p1 = el.pts[sideIdx];
-                    let nextI = (sideIdx + 1) % el.pts.length;
-                    let p2 = el.pts[nextI];
-                    let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                    let targetLenPx = (targetM * 100) / cmPerPixel;
-
-                    if (curLenPx > 0.001) {
-                        let dirX = (p2.x - p1.x) / curLenPx;
-                        let dirY = (p2.y - p1.y) / curLenPx;
-                        let diffX = (p1.x + dirX * targetLenPx) - p2.x;
-                        let diffY = (p1.y + dirY * targetLenPx) - p2.y;
-
-                        for (let k = nextI; k < el.pts.length; k++) {
-                            el.pts[k].x += diffX;
-                            el.pts[k].y += diffY;
-                        }
-                    }
-                }
-            });
-        }
-
+        // ИСПРАВЛЕНИЕ №2: Для произвольного многоугольника НЕ ломаем форму и не сдвигаем точки наверх,
+        // а обновляем только центральную точку el.x / el.y по их текущим координатам.
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
         el.x = sx / el.pts.length;
