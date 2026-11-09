@@ -982,7 +982,6 @@ function startCustomBoxDrawing() {
     showToast('Ставьте точки короба по холсту', 'success');
 }
 
-// ИСПРАВЛЕНИЕ №1: Правильный генератор списка стен для привязок (без дублирования А-В)
 function getWallOptionsHtml(selectedWallIdx) {
     let count = getWallCount();
     let html = '';
@@ -1010,10 +1009,16 @@ function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     row.setAttribute('data-vertex-idx', vIdx);
     row.setAttribute('data-target-corner', tCorner);
 
+    // ИСПРАВЛЕНИЕ: если привязка к углу комнаты, показываем селект углов, иначе — стен
+    let selectHtml = '';
+    if (tCorner !== '' && tCorner !== null && !isNaN(tCorner)) {
+        selectHtml = `<select class="dir-select inner-bind-wall">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
+    } else {
+        selectHtml = `<select class="dir-select inner-bind-wall">${getWallOptionsHtml(wallIdx)}</select>`;
+    }
+
     row.innerHTML = `
-        <select class="dir-select inner-bind-wall">
-            ${getWallOptionsHtml(wallIdx)}
-        </select>
+        ${selectHtml}
         <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
         <button class="checklist-act-btn" type="button" style="color: var(--danger); font-size: 13px; padding: 6px 8px;" onclick="this.parentElement.remove()" title="Удалить">✖</button>
     `;
@@ -1078,8 +1083,12 @@ function openInnerEditSheet(idx) {
         bindingsContainer.innerHTML = '';
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
-                addInnerWallBindingRow(wIdx, b.distM, b);
+                if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
+                    addInnerWallBindingRow(b.targetCornerIdx, b.distM, b);
+                } else {
+                    let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
+                    addInnerWallBindingRow(wIdx, b.distM, b);
+                }
             });
         } else {
             let nearest = getElementWallDistances(el);
@@ -1121,8 +1130,6 @@ function applyInnerSheetSettings() {
             el.title = `Люк ${lM.toFixed(3)}×${wM.toFixed(3)} м`;
         }
     } else if (el.type === 'poly' && el.pts) {
-        // ИСПРАВЛЕНИЕ №2: Для произвольного многоугольника НЕ ломаем форму и не сдвигаем точки наверх,
-        // а обновляем только центральную точку el.x / el.y по их текущим координатам.
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
         el.x = sx / el.pts.length;
@@ -1137,21 +1144,20 @@ function applyInnerSheetSettings() {
         let distInput = row.querySelector('.inner-bind-dist');
         if (!wallSelect || !distInput) return;
 
-        let wIdx = parseInt(wallSelect.value);
+        let selectedVal = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
         let vIdx = parseInt(row.getAttribute('data-vertex-idx')) || 0;
         let tCornerStr = row.getAttribute('data-target-corner');
 
         if (!isNaN(distM) && distM > 0) {
             let bindObj = {
-                type: tCornerStr !== '' && tCornerStr !== null ? 'corner' : 'wall',
                 vertexIdx: vIdx,
                 distM: distM.toFixed(3)
             };
             if (tCornerStr !== '' && tCornerStr !== null) {
-                bindObj.targetCornerIdx = parseInt(tCornerStr);
-            } else if (!isNaN(wIdx)) {
-                bindObj.targetWallIdx = wIdx;
+                bindObj.targetCornerIdx = selectedVal;
+            } else {
+                bindObj.targetWallIdx = selectedVal;
             }
             el.customBindings.push(bindObj);
             applySingleBindingShift(el, bindObj, distM);
@@ -1355,7 +1361,6 @@ function drawSketch() {
 
     let renderedBadgeBoxes = [];
 
-    // Защита от наезда размеров стен на точки углов (A, B, C...)
     points.forEach(p => {
         if (!p) return;
         renderedBadgeBoxes.push({ x: p.x, y: p.y, w: 20, h: 20 });
@@ -1947,7 +1952,6 @@ canvas.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // Добавленная панорама одним пальцем в пустой зоне
     isPanningCanvas = true;
     panStartPoint = { x: e.clientX, y: e.clientY };
     canvas.setPointerCapture(e.pointerId);
@@ -1983,7 +1987,6 @@ canvas.addEventListener('pointermove', (e) => {
 
     if (activePointers.size > 1) return;
 
-    // Смещение холста панорамой одним пальцем
     if (isPanningCanvas) {
         e.preventDefault();
         panOffset.x += (e.clientX - panStartPoint.x);
