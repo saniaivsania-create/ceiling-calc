@@ -423,37 +423,41 @@ function snapOrthogonal() {
 function rotateSketch() {
     if (isSketchLocked) return;
 
-    // ЕСЛИ ВЫБРАН ВНУТРЕННИЙ ЭЛЕМЕНТ (КОРОБ / ЛЮК / КОЛОННА) — КРУТИМ ТОЛЬКО ЕГО ВОКРУГ ЕГО ЦЕНТРА
-    if (editMode === 'inner' && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
+    // СТРОГОЕ УСЛОВИЕ: Если включен режим коробов (editMode === 'inner') или есть созданные короба
+    if (editMode === 'inner' && innerElements.length > 0) {
         saveState();
-        let el = innerElements[selectedInnerIdx];
-        let cx = el.x;
-        let cy = el.y;
+        let targetIdx = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) ? selectedInnerIdx : innerElements.length - 1;
+        let el = innerElements[targetIdx];
+        
+        if (el) {
+            let cx = el.x;
+            let cy = el.y;
 
-        if (el.type === 'rect') {
-            let tmpW = el.w;
-            el.w = el.h;
-            el.h = tmpW;
-            let tmpCm = el.lenCm;
-            el.lenCm = el.widCm;
-            el.widCm = tmpCm;
-        } else if (el.type === 'poly' && el.pts) {
-            el.pts.forEach(pt => {
-                let pdx = pt.x - cx;
-                let pdy = pt.y - cy;
-                pt.x = cx - pdy;
-                pt.y = cy + pdx;
-            });
+            if (el.type === 'rect') {
+                let tmpW = el.w;
+                el.w = el.h;
+                el.h = tmpW;
+                let tmpCm = el.lenCm;
+                el.lenCm = el.widCm;
+                el.widCm = tmpCm;
+            } else if (el.type === 'poly' && el.pts) {
+                el.pts.forEach(pt => {
+                    let pdx = pt.x - cx;
+                    let pdy = pt.y - cy;
+                    pt.x = cx - pdy;
+                    pt.y = cy + pdx;
+                });
+            }
+
+            renderInnerElementsList();
+            drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast('Короб / люк повернут на 90°', 'success');
+            return;
         }
-
-        renderInnerElementsList();
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast('Короб повернут на 90°', 'success');
-        return;
     }
 
-    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ВЕСЬ ЧЕРТЕЖ ЦЕЛИКОМ
+    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ТОЛЬКО СТЕНЫ КОМНАТЫ
     if (points.length < 2) return;
     saveState();
     let canvasCX = canvas.width / 2;
@@ -466,35 +470,13 @@ function rotateSketch() {
         p.y = canvasCY + dx;
     });
 
-    innerElements.forEach(el => {
-        let edx = el.x - canvasCX;
-        let edy = el.y - canvasCY;
-        el.x = canvasCX - edy;
-        el.y = canvasCY + edx;
-        if (el.type === 'rect') {
-            let tmpW = el.w;
-            el.w = el.h;
-            el.h = tmpW;
-            let tmpCm = el.lenCm;
-            el.lenCm = el.widCm;
-            el.widCm = tmpCm;
-        } else if (el.type === 'poly' && el.pts) {
-            el.pts.forEach(pt => {
-                let pdx = pt.x - canvasCX;
-                let pdy = pt.y - canvasCY;
-                pt.x = canvasCX - pdy;
-                pt.y = canvasCY + pdx;
-            });
-        }
-    });
-
     fitToScreen(true);
     rebuildWallInputs();
     rebuildDiagonalInputs();
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертеж повернут', 'success');
+    showToast('Чертеж комнаты повернут', 'success');
 }
 
 function fitToScreen(forceFit = false) {
