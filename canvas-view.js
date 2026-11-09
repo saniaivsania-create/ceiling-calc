@@ -421,22 +421,15 @@ function snapOrthogonal() {
 }
 
 function rotateSketch() {
-    if (isSketchLocked || points.length < 2) return;
-    saveState();
-    let cx = canvas.width / 2;
-    let cy = canvas.height / 2;
-    points.forEach(p => {
-        let dx = p.x - cx;
-        let dy = p.y - cy;
-        p.x = cx - dy;
-        p.y = cy + dx;
-    });
+    if (isSketchLocked) return;
 
-    innerElements.forEach(el => {
-        let edx = el.x - cx;
-        let edy = el.y - cy;
-        el.x = cx - edy;
-        el.y = cy + edx;
+    // ЕСЛИ ВЫБРАН ВНУТРЕННИЙ ЭЛЕМЕНТ (КОРОБ / ЛЮК / КОЛОННА) — КРУТИМ ТОЛЬКО ЕГО ВОКРУГ ЕГО ЦЕНТРА
+    if (editMode === 'inner' && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
+        saveState();
+        let el = innerElements[selectedInnerIdx];
+        let cx = el.x;
+        let cy = el.y;
+
         if (el.type === 'rect') {
             let tmpW = el.w;
             el.w = el.h;
@@ -452,6 +445,47 @@ function rotateSketch() {
                 pt.y = cy + pdx;
             });
         }
+
+        renderInnerElementsList();
+        drawSketch();
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        showToast('Короб повернут на 90°', 'success');
+        return;
+    }
+
+    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ВЕСЬ ЧЕРТЕЖ ЦЕЛИКОМ
+    if (points.length < 2) return;
+    saveState();
+    let canvasCX = canvas.width / 2;
+    let canvasCY = canvas.height / 2;
+
+    points.forEach(p => {
+        let dx = p.x - canvasCX;
+        let dy = p.y - canvasCY;
+        p.x = canvasCX - dy;
+        p.y = canvasCY + dx;
+    });
+
+    innerElements.forEach(el => {
+        let edx = el.x - canvasCX;
+        let edy = el.y - canvasCY;
+        el.x = canvasCX - edy;
+        el.y = canvasCY + edx;
+        if (el.type === 'rect') {
+            let tmpW = el.w;
+            el.w = el.h;
+            el.h = tmpW;
+            let tmpCm = el.lenCm;
+            el.lenCm = el.widCm;
+            el.widCm = tmpCm;
+        } else if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                let pdx = pt.x - canvasCX;
+                let pdy = pt.y - canvasCY;
+                pt.x = canvasCX - pdy;
+                pt.y = canvasCY + pdx;
+            });
+        }
     });
 
     fitToScreen(true);
@@ -460,6 +494,7 @@ function rotateSketch() {
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Чертеж повернут', 'success');
 }
 
 function fitToScreen(forceFit = false) {
@@ -477,17 +512,19 @@ function fitToScreen(forceFit = false) {
 
     let polyW = Math.max(maxX - minX, 20);
     let polyH = Math.max(maxY - minY, 20);
-    let pad = 52;
+    let padX = 52;
+    let padTop = 38;
+    let padBottom = 76; // Запас снизу под плавающие кнопки
 
-    let availW = Math.max(canvas.width - pad * 2, 60);
-    let availH = Math.max(canvas.height - pad * 2, 60);
+    let availW = Math.max(canvas.width - padX * 2, 60);
+    let availH = Math.max(canvas.height - padTop - padBottom, 60);
     let factor = Math.min(availW / polyW, availH / polyH);
 
     if (factor < 1 || factor > 1.35 || forceFit) {
         let centerX = (minX + maxX) / 2;
         let centerY = (minY + maxY) / 2;
         let canvasCX = canvas.width / 2;
-        let canvasCY = (canvas.height - 16) / 2;
+        let canvasCY = padTop + availH / 2;
 
         points.forEach(p => {
             p.x = canvasCX + (p.x - centerX) * factor;
@@ -1355,9 +1392,19 @@ function drawSketch() {
         }
     }
 
-    // 4. Внутренние элементы и привязки
     let renderedBadgeBoxes = [];
 
+    // Защита от наезда размеров стен на точки углов (A, B, C...)
+    points.forEach(p => {
+        if (!p) return;
+        renderedBadgeBoxes.push({ x: p.x, y: p.y, w: 20, h: 20 });
+        let vx = p.x - centerX;
+        let vy = p.y - centerY;
+        let vLen = Math.hypot(vx, vy) || 1;
+        renderedBadgeBoxes.push({ x: p.x + (vx / vLen) * 16, y: p.y + (vy / vLen) * 16, w: 24, h: 16 });
+    });
+
+    // 4. Внутренние элементы и привязки
     innerElements.forEach((el, elIdx) => {
         let activeBindsToRender = [];
 
@@ -1450,7 +1497,7 @@ function drawSketch() {
                     midY += (midY >= b.y) ? 14 : -14;
                 }
             }
-            renderedBadgeBoxes.push({ x: midX, y: midY });
+            renderedBadgeBoxes.push({ x: midX, y: midY, w: boxW, h: boxH });
 
             if (w.bindIdx !== null) {
                 bindHitBoxes.push({
@@ -1541,7 +1588,7 @@ function drawSketch() {
                         midY += (midY >= b.y) ? 16 : -16;
                     }
                 }
-                renderedBadgeBoxes.push({ x: midX, y: midY });
+                renderedBadgeBoxes.push({ x: midX, y: midY, w: 44, h: 14 });
 
                 ctx.fillStyle = badgeBgColor;
                 ctx.fillRect(midX - 22, midY - 7, 44, 14);
@@ -1628,6 +1675,7 @@ function drawSketch() {
             }
         }
 
+        renderedBadgeBoxes.push({ x: labelX, y: labelY, w: 56, h: 16 });
         wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
 
         ctx.fillStyle = badgeBgColor;
@@ -2254,23 +2302,8 @@ function onWallLengthEdit(wallIndex, valStr) {
     let m = parseFloat(valStr);
     if (!m || m <= 0) return;
     let cm = m * 100;
-    let targetPx = cm / cmPerPixel;
 
-    // Если редактируется замыкающая стена (от последней точки к точке A),
-    // двигаем последнюю точку относительно A, чтобы реальная геометрия и площадь совпадали с вводом
     if (wallIndex >= points.length - 1 && isClosed) {
-        let pLast = points[points.length - 1];
-        let pFirst = points[0];
-        if (pLast && pFirst) {
-            let dx = pLast.x - pFirst.x;
-            let dy = pLast.y - pFirst.y;
-            let curPx = Math.hypot(dx, dy);
-            if (curPx > 0.001) {
-                pLast.x = pFirst.x + (dx / curPx) * targetPx;
-                pLast.y = pFirst.y + (dy / curPx) * targetPx;
-            }
-        }
-        fitToScreen(false);
         drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
         return;
@@ -2283,6 +2316,7 @@ function onWallLengthEdit(wallIndex, valStr) {
     let dx = p2.x - p1.x;
     let dy = p2.y - p1.y;
     let curPx = Math.hypot(dx, dy);
+    let targetPx = cm / cmPerPixel;
 
     let shiftX = 0, shiftY = 0;
     if (curPx > 0.001) {
@@ -2305,7 +2339,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 }
 
 function onWallDirEdit(wallIndex) {
-    buildSketchFromTable();
+    showToast('Направление выбрано. Нажмите «🔨 Построить по направлениям»');
 }
 
 function buildSketchFromTable() {
@@ -2330,7 +2364,7 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        else if (dir === 'L') nx -= px; // ИСПРАВЛЕНО: Влево уменьшает координату X
+        else if (dir === 'L') nx -= px;
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
@@ -2363,6 +2397,18 @@ function createFromTablePreset() {
             { x: cx - w/2, y: cy - h/2, label: 'B' },
             { x: cx + w/2, y: cy - h/2, label: 'C' },
             { x: cx + w/2, y: cy + h/2, label: 'D' }
+        ];
+    } else if (count === 6) {
+        let wFull = 400 / cmPerPixel, hFull = 350 / cmPerPixel;
+        let wCut = 180 / cmPerPixel, hCut = 180 / cmPerPixel;
+        let left = cx - wFull / 2, top = cy - hFull / 2;
+        points = [
+            { x: left, y: top + hFull, label: 'A' },
+            { x: left, y: top, label: 'B' },
+            { x: left + (wFull - wCut), y: top, label: 'C' },
+            { x: left + (wFull - wCut), y: top + hCut, label: 'D' },
+            { x: left + wFull, y: top + hCut, label: 'E' },
+            { x: left + wFull, y: top + hFull, label: 'F' }
         ];
     } else {
         points = [];
