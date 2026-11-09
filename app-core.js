@@ -534,6 +534,7 @@ function switchRoom(idx) {
     if (idx === activeRoomIdx) return;
     syncCurrentRoomState();
     loadRoomIntoUI(idx);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
 function addNewRoom() {
@@ -542,6 +543,7 @@ function addNewRoom() {
     let nextName = presets[(rooms.length - 1) % presets.length] || `Комната ${rooms.length + 1}`;
     rooms.push(createDefaultRoom(nextName));
     loadRoomIntoUI(rooms.length - 1);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast(`Добавлено помещение: ${nextName}`, 'success');
 }
 
@@ -551,6 +553,7 @@ function renameCurrentRoom() {
     if (newTitle && newTitle.trim()) {
         curr.title = newTitle.trim();
         renderRoomsBar();
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     }
 }
 
@@ -560,6 +563,7 @@ function deleteCurrentRoom() {
     if (confirm(`Удалить помещение "${curr.title}" из заказа?`)) {
         rooms.splice(activeRoomIdx, 1);
         loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
         showToast('Помещение удалено');
     }
 }
@@ -575,6 +579,7 @@ function startNewProject() {
     rooms = [createDefaultRoom('Зал / Комната 1')];
     if (typeof resetSketch === 'function') resetSketch();
     loadRoomIntoUI(0);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast('Создан новый замер', 'success');
 }
 
@@ -652,6 +657,7 @@ function saveProject() {
     }
 
     localStorage.setItem('pro_projects', JSON.stringify(saved));
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
 function openProjectsModal() {
@@ -741,6 +747,7 @@ function loadSavedProject(projId) {
     }
 
     closeProjectsModal();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
@@ -907,6 +914,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const noteEl = document.getElementById('zamerNotebook');
     if (noteEl) noteEl.value = localStorage.getItem('_pz_notebook') || '';
 });
+
 // --- ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ ПРИ СБРОСЕ КЭША (АВТОЗАГРУЗКА) ---
 window.addEventListener('DOMContentLoaded', () => {
     // Ждем секунду, чтобы холст успел проинициализироваться
