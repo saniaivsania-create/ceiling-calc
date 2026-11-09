@@ -21,6 +21,10 @@ let pinchStartZoom = 1.0;
 let pinchStartPan = { x: 0, y: 0 };
 let pinchCenter = { x: 0, y: 0 };
 
+// Флаг свободного перемещения холста одним пальцем
+let isPanningCanvas = false;
+let panStartPoint = { x: 0, y: 0 };
+
 function getCanvasPointerPos(e) {
     const rect = canvas.getBoundingClientRect();
     const rawX = e.clientX - rect.left;
@@ -423,41 +427,37 @@ function snapOrthogonal() {
 function rotateSketch() {
     if (isSketchLocked) return;
 
-    // СТРОГОЕ УСЛОВИЕ: Если включен режим коробов (editMode === 'inner') или есть созданные короба
-    if (editMode === 'inner' && innerElements.length > 0) {
+    // ЕСЛИ ВЫБРАН ВНУТРЕННИЙ ЭЛЕМЕНТ (КОРОБ / ЛЮК / КОЛОННА) — КРУТИМ ТОЛЬКО ЕГО ВОКРУГ ЕГО ЦЕНТРА
+    if (editMode === 'inner' && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
         saveState();
-        let targetIdx = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) ? selectedInnerIdx : innerElements.length - 1;
-        let el = innerElements[targetIdx];
-        
-        if (el) {
-            let cx = el.x;
-            let cy = el.y;
+        let el = innerElements[selectedInnerIdx];
+        let cx = el.x;
+        let cy = el.y;
 
-            if (el.type === 'rect') {
-                let tmpW = el.w;
-                el.w = el.h;
-                el.h = tmpW;
-                let tmpCm = el.lenCm;
-                el.lenCm = el.widCm;
-                el.widCm = tmpCm;
-            } else if (el.type === 'poly' && el.pts) {
-                el.pts.forEach(pt => {
-                    let pdx = pt.x - cx;
-                    let pdy = pt.y - cy;
-                    pt.x = cx - pdy;
-                    pt.y = cy + pdx;
-                });
-            }
-
-            renderInnerElementsList();
-            drawSketch();
-            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-            showToast('Короб / люк повернут на 90°', 'success');
-            return;
+        if (el.type === 'rect') {
+            let tmpW = el.w;
+            el.w = el.h;
+            el.h = tmpW;
+            let tmpCm = el.lenCm;
+            el.lenCm = el.widCm;
+            el.widCm = tmpCm;
+        } else if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                let pdx = pt.x - cx;
+                let pdy = pt.y - cy;
+                pt.x = cx - pdy;
+                pt.y = cy + pdx;
+            });
         }
+
+        renderInnerElementsList();
+        drawSketch();
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        showToast('Короб повернут на 90°', 'success');
+        return;
     }
 
-    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ТОЛЬКО СТЕНЫ КОМНАТЫ
+    // ИНАЧЕ (РЕЖИМ КОМНАТЫ) — КРУТИМ ВЕСЬ ЧЕРТЕЖ ЦЕЛИКОМ
     if (points.length < 2) return;
     saveState();
     let canvasCX = canvas.width / 2;
@@ -470,13 +470,35 @@ function rotateSketch() {
         p.y = canvasCY + dx;
     });
 
+    innerElements.forEach(el => {
+        let edx = el.x - canvasCX;
+        let edy = el.y - canvasCY;
+        el.x = canvasCX - edy;
+        el.y = canvasCY + edx;
+        if (el.type === 'rect') {
+            let tmpW = el.w;
+            el.w = el.h;
+            el.h = tmpW;
+            let tmpCm = el.lenCm;
+            el.lenCm = el.widCm;
+            el.widCm = tmpCm;
+        } else if (el.type === 'poly' && el.pts) {
+            el.pts.forEach(pt => {
+                let pdx = pt.x - canvasCX;
+                let pdy = pt.y - canvasCY;
+                pt.x = canvasCX - pdy;
+                pt.y = canvasCY + pdx;
+            });
+        }
+    });
+
     fitToScreen(true);
     rebuildWallInputs();
     rebuildDiagonalInputs();
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертеж комнаты повернут', 'success');
+    showToast('Чертеж повернут', 'success');
 }
 
 function fitToScreen(forceFit = false) {
@@ -1772,7 +1794,7 @@ function editCreatedBinding(hit) {
     }
 }
 
-// --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM ---
+// --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM И ПАНОРАМЫ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -1785,6 +1807,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
     if (isFullscreen && activePointers.size === 2) {
         isDragging = false;
+        isPanningCanvas = false;
         draggedPointIndex = null;
         draggedInnerIdx = null;
         draggedInnerVertex = null;
@@ -1913,8 +1936,6 @@ canvas.addEventListener('pointerdown', (e) => {
                 return;
             }
         }
-
-        return;
     }
 
     if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) {
@@ -1965,8 +1986,14 @@ canvas.addEventListener('pointerdown', (e) => {
             updateHint();
             drawSketch();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            return;
         }
     }
+
+    // Добавленная панорама одним пальцем в пустой зоне
+    isPanningCanvas = true;
+    panStartPoint = { x: e.clientX, y: e.clientY };
+    canvas.setPointerCapture(e.pointerId);
 });
 
 canvas.addEventListener('pointermove', (e) => {
@@ -1998,6 +2025,16 @@ canvas.addEventListener('pointermove', (e) => {
     }
 
     if (activePointers.size > 1) return;
+
+    // Смещение холста панорамой одним пальцем
+    if (isPanningCanvas) {
+        e.preventDefault();
+        panOffset.x += (e.clientX - panStartPoint.x);
+        panOffset.y += (e.clientY - panStartPoint.y);
+        panStartPoint = { x: e.clientX, y: e.clientY };
+        drawSketch();
+        return;
+    }
 
     const pos = getCanvasPointerPos(e);
     const curX = pos.x;
@@ -2068,6 +2105,7 @@ function handlePointerEnd(e) {
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }
     isDragging = false;
+    isPanningCanvas = false;
     draggedPointIndex = null;
     draggedInnerIdx = null;
     draggedInnerVertex = null;
