@@ -907,3 +907,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const noteEl = document.getElementById('zamerNotebook');
     if (noteEl) noteEl.value = localStorage.getItem('_pz_notebook') || '';
 });
+// --- ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ ПРИ СБРОСЕ КЭША (АВТОЗАГРУЗКА) ---
+window.addEventListener('DOMContentLoaded', () => {
+    // Ждем секунду, чтобы холст успел проинициализироваться
+    setTimeout(() => {
+        if (typeof loadProjectFromLocalStorage === 'function') {
+            loadProjectFromLocalStorage();
+        }
+    }, 300);
+});
