@@ -112,19 +112,20 @@ function loadProjectFromLocalStorage() {
             rooms = data.rooms;
         }
 
-        // Перерисовываем кнопки комнат в интерфейсе
+        // --- ВАЖНОЕ ДОБАВЛЕНИЕ 1: Перерисовываем кнопки комнат ---
         if (typeof renderRoomsBar === 'function') {
             renderRoomsBar();
         }
 
-        // Загружаем на экран активную (или первую) комнату
+        // --- ВАЖНОЕ ДОБАВЛЕНИЕ 2: Загружаем на экран активную (или первую) комнату ---
         if (typeof activeRoomIdx !== 'undefined' && typeof loadRoomIntoUI === 'function') {
+             // Берем индекс комнаты, на которой остановились, или хотя бы первую (0)
              let idxToLoad = (rooms && rooms[activeRoomIdx]) ? activeRoomIdx : 0;
              if (rooms && rooms.length > 0) {
                  loadRoomIntoUI(idxToLoad);
              }
         } else {
-            // Запасной вариант, если мульти-комнатность не сработала
+            // Фолбэк, если функция комнат недоступна: просто грузим точки из памяти
             points = data.points || [];
             isClosed = !!data.isClosed;
             innerElements = data.innerElements || [];
@@ -136,6 +137,13 @@ function loadProjectFromLocalStorage() {
             renderInnerElementsList();
             drawSketch();
         }
+        
+        // Восстанавливаем имя клиента, если сохраняли
+        let nameInput = document.getElementById('clientName');
+        if (nameInput && data.name) nameInput.value = data.name;
+        
+        let addrInput = document.getElementById('clientAddress');
+        if (addrInput && data.address) addrInput.value = data.address;
 
         return true;
     } catch (e) {
@@ -1133,7 +1141,7 @@ function openInnerEditSheet(idx) {
             rowsHtml += `
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                     <span style="font-size: 11px; font-weight: 600; color: var(--text-main); white-space: nowrap;">Сторона ${i + 1}–${nextIdx + 1}:</span>
-                    <input type="text" inputmode="numeric" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenM}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; width: 110px; text-align: center;">
+                    <input type="text" class="input-field poly-side-input" value="${curLenM} м" readonly style="font-weight: 700; width: 110px; text-align: center; opacity: 0.6; border: 1px dashed var(--border); background: transparent;">
                 </div>
             `;
         }
