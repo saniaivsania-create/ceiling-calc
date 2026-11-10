@@ -1,4 +1,4 @@
-const CACHE_NAME = 'potolok-pro-offline-v89';
+const CACHE_NAME = 'potolok-pro-offline-v90';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
