@@ -122,11 +122,59 @@ function toggleInsertUsage() {
 // ==========================================
 
 function performCalculation() {
-    if (points.length < 3) {
-        showToast('Поставьте минимум 3 точки на чертеже!', 'error');
-        if (typeof isTabMode !== 'undefined' && isTabMode) switchTab('sketch');
-        return;
+    try {
+        if (!points || points.length < 3) {
+            showToast('Поставьте минимум 3 точки на чертеже!', 'error');
+            if (typeof isTabMode !== 'undefined' && isTabMode) switchTab('sketch');
+            return;
+        }
+        if (!isClosed) {
+            isClosed = true;
+            rebuildWallInputs();
+            if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
+            updateHint();
+            drawSketch();
+        }
+        if (typeof isSubscriptionActive === 'function' && !isSubscriptionActive()) {
+            if (usedAttempts >= MAX_FREE_ATTEMPTS) {
+                document.getElementById('paywallModal').style.display = 'flex';
+                return;
+            }
+            usedAttempts++;
+            if (typeof saveSecurityState === 'function') saveSecurityState();
+            if (typeof updateAttemptsUI === 'function') updateAttemptsUI();
+        }
+
+        // Сохраняем состояние текущей открытой комнаты
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+
+        let globalTotal = 0;
+
+        // В ФОНЕ ПРОБЕГАЕМ ПО ВСЕМ КОМНАТАМ И СЧИТАЕМ ИХ С ЗАЩИТОЙ
+        if (typeof rooms !== 'undefined' && Array.isArray(rooms)) {
+            for (let rIdx = 0; rIdx < rooms.length; rIdx++) {
+                let r = rooms[rIdx];
+                if (r && r.points && r.points.length >= 3) {
+                    let roomCost = calculateRoomCostInBackground(r);
+                    r.lastTotal = roomCost;
+                    globalTotal += roomCost;
+                } else if (r) {
+                    r.lastTotal = 0;
+                }
+            }
+        }
+
+        // Считаем и выводим детализацию для ТЕКУЩЕЙ комнаты
+        calculateActiveRoomDetails(globalTotal);
+
+        if (typeof isTabMode !== 'undefined' && isTabMode) switchTab('estimate');
+        showToast('Смета успешно рассчитана!', 'success');
+
+    } catch (err) {
+        console.error("Ошибка при расчете сметы:", err);
+        showToast('Ошибка расчета: ' + err.message, 'error');
     }
+}
     if (!isClosed) {
         isClosed = true;
         rebuildWallInputs();
