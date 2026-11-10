@@ -118,68 +118,75 @@ function toggleInsertUsage() {
 }
 
 // ==========================================
-// ОБНОВЛЕННАЯ ЛОГИКА РАСЧЕТА СМЕТЫ
+// ГЛАВНАЯ ФУНКЦИЯ РАСЧЕТА СМЕТЫ ВСЕГО ОБЪЕКТА
 // ==========================================
-
 function performCalculation() {
-    if (points.length < 3) {
-        showToast('Поставьте минимум 3 точки на чертеже!', 'error');
-        if (typeof isTabMode !== 'undefined' && isTabMode) switchTab('sketch');
-        return;
-    }
-    if (!isClosed) {
-        isClosed = true;
-        rebuildWallInputs();
-        if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
-        updateHint();
-        drawSketch();
-    }
-    if (typeof isSubscriptionActive === 'function' && !isSubscriptionActive()) {
-        if (usedAttempts >= MAX_FREE_ATTEMPTS) {
-            document.getElementById('paywallModal').style.display = 'flex';
+    try {
+        if (!points || points.length < 3) {
+            showToast('Поставьте минимум 3 точки на чертеже!', 'error');
+            if (typeof isTabMode !== 'undefined' && isTabMode && typeof switchTab === 'function') {
+                switchTab('sketch');
+            }
             return;
         }
-        usedAttempts++;
-        if (typeof saveSecurityState === 'function') saveSecurityState();
-        if (typeof updateAttemptsUI === 'function') updateAttemptsUI();
-    }
-
-    // Сохраняем состояние текущей открытой комнаты
-    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-
-    // Запоминаем индекс комнаты, на которой мы находимся
-    let originalRoomIdx = activeRoomIdx;
-    
-    // Переменная для подсчета глобальной суммы всего заказа
-    let globalTotal = 0;
-
-    // В ФОНЕ ПРОБЕГАЕМ ПО ВСЕМ КОМНАТАМ И СЧИТАЕМ ИХ
-    for (let rIdx = 0; rIdx < rooms.length; rIdx++) {
-        let r = rooms[rIdx];
-        if (r.points && r.points.length >= 3) {
-             let roomCost = calculateRoomCostInBackground(r);
-             r.lastTotal = roomCost;
-             globalTotal += roomCost;
-        } else {
-             r.lastTotal = 0;
+        if (!isClosed) {
+            isClosed = true;
+            if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
+            if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
+            if (typeof updateHint === 'function') updateHint();
+            if (typeof drawSketch === 'function') drawSketch();
         }
+        if (typeof isSubscriptionActive === 'function' && !isSubscriptionActive()) {
+            if (typeof usedAttempts !== 'undefined' && typeof MAX_FREE_ATTEMPTS !== 'undefined' && usedAttempts >= MAX_FREE_ATTEMPTS) {
+                let modal = document.getElementById('paywallModal');
+                if (modal) modal.style.display = 'flex';
+                return;
+            }
+            if (typeof usedAttempts !== 'undefined') usedAttempts++;
+            if (typeof saveSecurityState === 'function') saveSecurityState();
+            if (typeof updateAttemptsUI === 'function') updateAttemptsUI();
+        }
+
+        // Сохраняем состояние текущей открытой комнаты
+        if (typeof syncCurrentRoomState === 'function') {
+            syncCurrentRoomState();
+        }
+
+        let globalTotal = 0;
+
+        // В фоновом режиме считаем стоимость всех комнат
+        if (typeof rooms !== 'undefined' && Array.isArray(rooms)) {
+            for (let rIdx = 0; rIdx < rooms.length; rIdx++) {
+                let r = rooms[rIdx];
+                if (r && r.points && r.points.length >= 3) {
+                    let roomCost = calculateRoomCostInBackground(r);
+                    r.lastTotal = roomCost;
+                    globalTotal += roomCost;
+                } else if (r) {
+                    r.lastTotal = 0;
+                }
+            }
+        }
+
+        // Рассчитываем и выводим детализацию для активной комнаты
+        calculateActiveRoomDetails(globalTotal);
+
+        if (typeof isTabMode !== 'undefined' && isTabMode && typeof switchTab === 'function') {
+            switchTab('estimate');
+        }
+        showToast('Смета успешно рассчитана!', 'success');
+
+    } catch (err) {
+        console.error("Ошибка при расчете сметы:", err);
+        showToast('Ошибка расчета: ' + err.message, 'error');
     }
-
-    // Считаем и выводим детализацию для ТЕКУЩЕЙ комнаты
-    calculateActiveRoomDetails(globalTotal);
-
-    if (typeof isTabMode !== 'undefined' && isTabMode) switchTab('estimate');
-    showToast('Смета по всему объекту рассчитана!', 'success');
 }
 
-// Фоновый калькулятор для одной комнаты (без изменения интерфейса)
+// Фоновый калькулятор для одной комнаты
 function calculateRoomCostInBackground(r) {
     let currentScale = r.scale || 2.5;
-    
-    // Площадь
     let grossArea = calculatePolygonAreaM2(r.points, currentScale);
 
-    // Периметр
     let perimM = 0;
     for (let i = 0; i < r.points.length; i++) {
         let valM = r.walls && r.walls[i] ? parseFloat(r.walls[i]) : 0;
@@ -191,7 +198,6 @@ function calculateRoomCostInBackground(r) {
         perimM += valM;
     }
 
-    // Внутренние элементы
     let totalInnerArea = 0;
     let totalInnerPerim = 0;
     let totalInnerCorners = 0;
@@ -207,7 +213,6 @@ function calculateRoomCostInBackground(r) {
         netArea = Math.max(0.1, grossArea - totalInnerArea);
     }
 
-    // Цены из общих инпутов
     let pCanvas = parseFloat(document.getElementById('priceCanvas')?.value) || 0;
     let pProfile = parseFloat(document.getElementById('priceProfile')?.value) || 0;
     let pInsert = parseFloat(document.getElementById('priceInsert')?.value) || 0;
@@ -225,7 +230,6 @@ function calculateRoomCostInBackground(r) {
     let pNiche = parseFloat(document.getElementById('priceNiche')?.value) || 0;
     let pShadow = parseFloat(document.getElementById('priceShadow')?.value) || 0;
 
-    // Математика комнаты
     let extraAngles = r.points.length > 4 ? r.points.length - 4 : 0;
     let cInsert = r.useInsert ? (Math.round(perimM * 10) / 10) : (parseFloat(r.countInsert) || 0);
 
@@ -251,7 +255,7 @@ function calculateRoomCostInBackground(r) {
            (parseFloat(r.customPrice1) || 0) + (parseFloat(r.customPrice2) || 0);
 }
 
-// Отрисовка детализации активной комнаты
+// Расчет детализации активной комнаты
 function calculateActiveRoomDetails(globalTotal) {
     let wallsData = [];
     let wallCount = getWallCount();
@@ -405,7 +409,7 @@ function calculateActiveRoomDetails(globalTotal) {
                 costChandelier + costCornice + costPipes + costInnerProfile + costLightLines + 
                 costTrack + costNiche + costShadow + custom1 + custom2;
 
-    let currentRoomTitle = rooms[activeRoomIdx].title;
+    let currentRoomTitle = (typeof rooms !== 'undefined' && rooms[activeRoomIdx]) ? rooms[activeRoomIdx].title : 'Комната';
     if (document.getElementById('activeRoomEstimateTitle')) {
         document.getElementById('activeRoomEstimateTitle').innerText = currentRoomTitle;
     }
@@ -461,7 +465,7 @@ function calculateActiveRoomDetails(globalTotal) {
     if (cPipes > 0) lastBreakdownItems.push({ title: 'Обход труб', sub: `${cPipes} шт. × ${pPipe} ₽`, val: `${costPipes.toLocaleString()} ₽` });
     if (cLightLines > 0) lastBreakdownItems.push({ title: 'Световые линии', sub: `${cLightLines} м.п. × ${pLightLines} ₽`, val: `${costLightLines.toLocaleString()} ₽` });
     if (cTrack > 0) lastBreakdownItems.push({ title: 'Трековая система', sub: `${cTrack} м.п. × ${pTrack} ₽`, val: `${costTrack.toLocaleString()} ₽` });
-    if (cNiche > 0) lastBreakdownItems.push({ title: 'Скрытая ниша ПК-5', sub: `${cNiche} м.п. × ${pNiche} ₽`, val: `${costNiche.toLocaleString()} ₽` });
+    if (cNiche > 0) lastBreakdownItems.push({ title: 'Скрытая ниша ПК-5', sub: `${cNiche} м.п. × ${pNiche} ₽`, val: `${cNiche > 0 ? costNiche.toLocaleString() : '0'} ₽` });
     if (cShadow > 0) lastBreakdownItems.push({ title: 'Теневой / Парящий профиль', sub: `${cShadow} м.п. × ${pShadow} ₽`, val: `${costShadow.toLocaleString()} ₽` });
     if (custom1 > 0) lastBreakdownItems.push({ title: name1, sub: 'Доп. работа', val: `${custom1.toLocaleString()} ₽` });
     if (custom2 > 0) lastBreakdownItems.push({ title: name2, sub: 'Доп. работа', val: `${custom2.toLocaleString()} ₽` });
@@ -480,7 +484,7 @@ function calculateActiveRoomDetails(globalTotal) {
     document.getElementById('resTotal').innerText = Math.round(total).toLocaleString() + ' ₽';
 
     const allRoomsRow = document.getElementById('allRoomsTotalRow');
-    if (rooms.length > 1) {
+    if (rooms && rooms.length > 1) {
         allRoomsRow.style.display = 'flex';
         document.getElementById('resAllRoomsTotal').innerText = Math.round(globalTotal).toLocaleString() + ' ₽';
     } else {
@@ -515,100 +519,62 @@ function calculateActiveRoomDetails(globalTotal) {
 
     let innerEstimateText = '';
     if (inElements.length > 0) {
-        innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)
-`;
+        innerEstimateText = `🔹 Короба/люки (${inElements.length} шт.): ${totalInnerPerimM.toFixed(2)} м.п. (${costInnerProfile} ₽)\n`;
     }
 
     let hatchAnglesText = '';
     if (useHatchAngles && countHatchAngles > 0) {
-        hatchAnglesText = `🔹 Углы коробов (${countHatchAngles} шт): ${costHatchAngles} ₽
-`;
+        hatchAnglesText = `🔹 Углы коробов (${countHatchAngles} шт): ${costHatchAngles} ₽\n`;
     }
 
     lastEstimateText =
-        `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})
-` +
-        `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}
-` +
-        `📍 Адрес: ${clientAddr}
-` +
-        (clientDate ? `📅 Дата: ${clientDate}
-` : '') +
-        `──────────────────
-` +
-        `🔹 Полотно: ${netArea.toFixed(2)} м² (${costCanvas} ₽)
-` +
-        `🔹 Профиль: ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)
-` +
-        (cInsert > 0 ? `🔹 Вставка: ${cInsert} м.п. (${costInsert} ₽)
-` : '') +
+        `📋 СМЕТА НА НАТЯЖНОЙ ПОТОЛОК (${currentRoomTitle})\n` +
+        `👤 Клиент: ${clientName} ${clientPhone ? '('+clientPhone+')' : ''}\n` +
+        `📍 Адрес: ${clientAddr}\n` +
+        (clientDate ? `📅 Дата: ${clientDate}\n` : '') +
+        `──────────────────\n` +
+        `🔹 Полотно: ${netArea.toFixed(2)} м² (${costCanvas} ₽)\n` +
+        `🔹 Профиль: ${roomPerimeterM.toFixed(2)} м.п. (${costProfile} ₽)\n` +
+        (cInsert > 0 ? `🔹 Вставка: ${cInsert} м.п. (${costInsert} ₽)\n` : '') +
         innerEstimateText +
-        `🔹 Углы комнаты (${roomAngles} шт, доп: ${extraAngles}): ${costAngles} ₽
-` +
+        `🔹 Углы комнаты (${roomAngles} шт, доп: ${extraAngles}): ${costAngles} ₽\n` +
         hatchAnglesText +
-        (cLights > 0 ? `🔹 Светильники (${cLights} шт): ${costLights} ₽
-` : '') +
-        (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽
-` : '') +
-        (cCornice > 0 ? `🔹 Карниз (${cCornice} м.п.): ${costCornice} ₽
-` : '') +
-        (cPipes > 0 ? `🔹 Обход труб (${cPipes} шт): ${costPipes} ₽
-` : '') +
-        (cLightLines > 0 ? `🔹 Световые линии (${cLightLines} м.п.): ${costLightLines} ₽
-` : '') +
-        (cTrack > 0 ? `🔹 Трековая система (${cTrack} м.п.): ${costTrack} ₽
-` : '') +
-        (cNiche > 0 ? `🔹 Ниша ПК-5 (${cNiche} м.п.): ${costNiche} ₽
-` : '') +
-        (cShadow > 0 ? `🔹 Теневой (${cShadow} м.п.): ${costShadow} ₽
-` : '') +
-        (custom1 > 0 ? `🔹 ${name1}: ${custom1} ₽
-` : '') +
-        (custom2 > 0 ? `🔹 ${name2}: ${custom2} ₽
-` : '') +
-        `──────────────────
-` +
+        (cLights > 0 ? `🔹 Светильники (${cLights} шт): ${costLights} ₽\n` : '') +
+        (cChandeliers > 0 ? `🔹 Люстра (${cChandeliers} шт): ${costChandelier} ₽\n` : '') +
+        (cCornice > 0 ? `🔹 Карниз (${cCornice} м.п.): ${costCornice} ₽\n` : '') +
+        (cPipes > 0 ? `🔹 Обход труб (${cPipes} шт): ${costPipes} ₽\n` : '') +
+        (cLightLines > 0 ? `🔹 Световые линии (${cLightLines} м.п.): ${costLightLines} ₽\n` : '') +
+        (cTrack > 0 ? `🔹 Трековая система (${cTrack} м.п.): ${costTrack} ₽\n` : '') +
+        (cNiche > 0 ? `🔹 Ниша ПК-5 (${cNiche} м.п.): ${costNiche} ₽\n` : '') +
+        (cShadow > 0 ? `🔹 Теневой (${cShadow} м.п.): ${costShadow} ₽\n` : '') +
+        (custom1 > 0 ? `🔹 ${name1}: ${custom1} ₽\n` : '') +
+        (custom2 > 0 ? `🔹 ${name2}: ${custom2} ₽\n` : '') +
+        `──────────────────\n` +
         `💰 ИТОГО К ОПЛАТЕ: ${Math.round(total).toLocaleString()} ₽` +
-        (rooms.length > 1 ? `
-🏢 ВСЕ КОМНАТЫ: ${Math.round(globalTotal).toLocaleString()} ₽` : '');
+        (rooms && rooms.length > 1 ? `\n🏢 ВСЕ КОМНАТЫ: ${Math.round(globalTotal).toLocaleString()} ₽` : '');
 
     let innerFactoryText = '';
     if (innerSummaryList.length > 0) {
-        innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:
-` +
+        innerFactoryText = `🚪 ВНУТРЕННИЕ ВЫРЕЗЫ И КОРОБА:\n` +
             innerSummaryList.map(item => {
                 let bindsStr = item.bindingsList.length > 0 
-                    ? item.bindingsList.map(b => `    • ${b}`).join('
-') 
+                    ? item.bindingsList.map(b => `    • ${b}`).join('\n') 
                     : '    • по центру';
-                return `  • ${item.name}: ${item.perimM} м.п.
-${bindsStr}`;
-            }).join('
-') + `
-`;
+                return `  • ${item.name}: ${item.perimM} м.п.\n${bindsStr}`;
+            }).join('\n') + `\n`;
     }
 
     lastFactoryText =
-        `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА
-` +
-        `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})
-` +
-        `⚠️ ВНИМАНИЕ: Размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!
-` +
-        `──────────────────
-` +
+        `🏭 ЗАКАЗ В ЦЕХ НА РАСКРОЙ ПОЛОТНА\n` +
+        `📍 Объект: ${clientName} — ${currentRoomTitle} (${clientAddr})\n` +
+        `⚠️ ВНИМАНИЕ: Размеры указаны БЕЗ УСАДКИ (чистый габарит комнаты)!\n` +
+        `──────────────────\n` +
         `📐 Чистая площадь: ${netArea.toFixed(2)} м² | Периметр: ${roomPerimeterM.toFixed(2)} м.п. | Углов комнаты: ${roomAngles} шт.` +
-        (totalInnerCorners > 0 ? ` (углов коробов: ${totalInnerCorners} шт.)` : '') + `
-` +
+        (totalInnerCorners > 0 ? ` (углов коробов: ${totalInnerCorners} шт.)` : '') + `\n` +
         innerFactoryText +
-        `📏 СТЕНЫ (чистые):
-` +
-        wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('
-') + `
-` +
-        (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):
-` + diags.map(d => `  • Диагональ ${d.name}${d.isCustom ? ' [ручной замер]' : ''}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('
-') : '');
+        `📏 СТЕНЫ (чистые):\n` +
+        wallsData.map(w => `  • Стена ${w.name}: ${w.m} м (${w.cm} см)`).join('\n') + `\n` +
+        (diags.length > 0 ? `📐 ДИАГОНАЛИ (чистые):\n` + diags.map(d => `  • Диагональ ${d.name}${d.isCustom ? ' [ручной замер]' : ''}: ${(d.len / 100).toFixed(2)} м (${d.len} см)`).join('\n') : '');
 }
 
 // --- УПРАВЛЕНИЕ ВЫГРУЗКОЙ ---
@@ -734,7 +700,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.beginPath(); targetCtx.moveTo(0, y); targetCtx.lineTo(canvas.width, y); targetCtx.stroke();
     }
 
-    // 2. Диагонали раскроя — отображаются абсолютно ВСЕ диагонали из расчета
+    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         targetCtx.save();
@@ -780,7 +746,7 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     targetCtx.lineWidth = 2.5;
     targetCtx.stroke();
 
-    // 4. Внутренние элементы, их размеры, номера углов и привязки
+    // 4. Внутренние элементы
     innerElements.forEach(el => {
         let activeBinds = [];
 
@@ -828,7 +794,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             });
         }
 
-        // Красные пунктирные привязки (к стенам и углам) с защитой от наслоения
         targetCtx.save();
         targetCtx.strokeStyle = '#ef4444';
         targetCtx.lineWidth = 1.3;
@@ -859,7 +824,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         });
         targetCtx.restore();
 
-        // Тело короба, размеры сторон и номера углов
         targetCtx.save();
         targetCtx.strokeStyle = '#2563eb';
         targetCtx.lineWidth = 2;
@@ -913,7 +877,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
             targetCtx.stroke();
             targetCtx.fill();
 
-            // Длины сторон короба с защитой от наслоения
             targetCtx.setLineDash([]);
             targetCtx.font = '600 9.5px sans-serif';
             targetCtx.textAlign = 'center';
@@ -934,7 +897,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
                 targetCtx.fillText(`${sideM}`, safePos.x, safePos.y + 3.5);
             }
 
-            // Номера углов короба (1, 2, 3...)
             el.pts.forEach((pt, vIdx) => {
                 targetCtx.fillStyle = '#2563eb';
                 targetCtx.beginPath();
@@ -949,7 +911,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.restore();
     });
 
-    // 5. Размеры внешних стен помещения
     let centerX = 0, centerY = 0;
     points.forEach(p => { centerX += p.x; centerY += p.y; });
     centerX /= points.length;
@@ -982,7 +943,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
         targetCtx.fillText(`${lenVal} м`, safePos.x, safePos.y + 3.5);
     }
 
-    // 6. Углы комнаты (буквы A, B, C...)
     points.forEach(p => {
         targetCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
         targetCtx.beginPath();
@@ -1001,7 +961,6 @@ function renderCleanSketchForExport(targetCtx, destX, destY, isWhite) {
     targetCtx.restore();
 }
 
-// Карточка сметы клиенту
 function exportClientImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -1071,7 +1030,6 @@ function exportClientImage() {
     shareOrDownloadCanvas(tempCanvas, fileName, `Смета — ${lastCalcData.clientName}`);
 }
 
-// Карточка раскроя в цех со столбиками для привязок (как у основных стен)
 function exportFactoryImage() {
     if (!lastCalcData || points.length < 3) {
         showToast('Сначала нажмите «РАССЧИТАТЬ СМЕТУ»!', 'error');
@@ -1085,7 +1043,6 @@ function exportFactoryImage() {
     const wallsRows = Math.ceil(lastCalcData.wallsData.length / 2);
     const diagsRows = Math.ceil(lastCalcData.diags.length / 2);
     
-    // Подсчет высоты под двухколоночный список привязок
     let innerExtraH = 0;
     if (inCount > 0) {
         lastCalcData.innerElements.forEach(item => {
@@ -1140,7 +1097,6 @@ function exportFactoryImage() {
         if (!isLeft || i === lastCalcData.wallsData.length - 1) y += 20;
     });
 
-    // Отрисовка привязок в 2 столбика
     if (lastCalcData.innerElements && lastCalcData.innerElements.length > 0) {
         y += 8;
         tCtx.fillStyle = isWhite ? '#0f172a' : '#ffffff';
@@ -1221,7 +1177,7 @@ function shareOrDownloadCanvas(cnv, fileName, shareTitle) {
 
 function downloadBlobFile(blob, fileName) {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    let a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
     a.download = fileName;
@@ -1240,11 +1196,10 @@ function exportWordDoc(target = 'client') {
         return;
     }
 
-    // ФИКС: Рендерим чистый белый холст без интерфейса и зума для Word
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = Math.max(canvas.width, 540);
     tempCanvas.height = canvas.height + 40;
-    const tCtx = tempCanvas.getContext('2d');
+    let tCtx = tempCanvas.getContext('2d');
     
     tCtx.fillStyle = '#ffffff';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -1315,7 +1270,7 @@ function exportWordDoc(target = 'client') {
         : `Ceh_Raskroy_${lastCalcData.clientName.replace(/[^\wа-яА-ЯёЁ]/gi, '_')}.doc`;
 
     if (navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'application/msword' });
+        let file = new File([blob], fileName, { type: 'application/msword' });
         if (navigator.canShare({ files: [file] })) {
             navigator.share({
                 files: [file],
