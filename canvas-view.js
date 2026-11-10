@@ -152,13 +152,13 @@ function loadProjectFromLocalStorage() {
     }
 }
 
-// --- ЗАГРУЗКА КОМНАТЫ С ПОЛНЫМ СБРОСОМ СОСТОЯНИЯ ---
+// --- НОВОЕ: ЗАГРУЗКА КОМНАТЫ С ПОЛНЫМ СБРОСОМ ---
 function loadRoomIntoUI(idx) {
     if (typeof activeRoomIdx !== 'undefined') activeRoomIdx = idx;
     let r = typeof rooms !== 'undefined' ? rooms[idx] : null;
     if (!r) return;
 
-    // ВАЖНО: Сбрасываем замочек и режим редактирования, чтобы новая комната не была заблокирована!
+    // ВАЖНО: Сбрасываем замочек и режим при смене вкладки комнаты
     isSketchLocked = false;
     editMode = 'room';
 
@@ -182,22 +182,15 @@ function loadRoomIntoUI(idx) {
     }
 
     const subCheckbox = document.getElementById('hatchSubtractArea');
-    if (subCheckbox) {
-        subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
-    }
-
+    if (subCheckbox) subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
     const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
-    if (hatchAnglesCheckbox) {
-        hatchAnglesCheckbox.checked = !!r.useHatchAngles;
-    }
+    if (hatchAnglesCheckbox) hatchAnglesCheckbox.checked = !!r.useHatchAngles;
     const hatchAnglesCountEl = document.getElementById('countHatchAngles');
     if (hatchAnglesCountEl && typeof calculateHatchAngles === 'function') {
         hatchAnglesCountEl.value = calculateHatchAngles(r.innerElements);
     }
     const priceHatchAngleEl = document.getElementById('priceHatchAngle');
-    if (priceHatchAngleEl) {
-        priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
-    }
+    if (priceHatchAngleEl) priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
 
     if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
     if (document.getElementById('useInsertCheckbox')) document.getElementById('useInsertCheckbox').checked = !!r.useInsert;
@@ -205,7 +198,6 @@ function loadRoomIntoUI(idx) {
     if (document.getElementById('countChandeliers')) document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
     if (document.getElementById('countCornice')) document.getElementById('countCornice').value = r.countCornice ?? 3.0;
     if (document.getElementById('countPipes')) document.getElementById('countPipes').value = r.countPipes ?? 1;
-
     if (document.getElementById('countLightLines')) document.getElementById('countLightLines').value = r.countLightLines ?? 0;
     if (document.getElementById('countTrack')) document.getElementById('countTrack').value = r.countTrack ?? 0;
     if (document.getElementById('countNiche')) document.getElementById('countNiche').value = r.countNiche ?? 0;
@@ -1156,7 +1148,7 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
-// --- УМНЫЕ ВЫПАДАЮЩИЕ СПИСКИ ДЛЯ ПРИВЯЗОК КОРОБА ---
+// --- НОВОЕ: УМНЫЕ СПИСКИ ДЛЯ ПРИВЯЗОК С НОМЕРОМ УГЛА ---
 function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
@@ -1463,7 +1455,6 @@ function drawSketch() {
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
     const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
-    // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     let gridLimitX = Math.max(canvas.width, 2000);
@@ -1485,7 +1476,6 @@ function drawSketch() {
     centerX /= points.length;
     centerY /= points.length;
 
-    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         ctx.save();
@@ -1525,7 +1515,6 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 3. Контур стен помещения
     if (points.length >= 2) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
@@ -1565,7 +1554,6 @@ function drawSketch() {
         renderedBadgeBoxes.push({ x: p.x + (vx / vLen) * 16, y: p.y + (vy / vLen) * 16, w: 24, h: 16 });
     });
 
-    // 4. Внутренние элементы и привязки
     innerElements.forEach((el, elIdx) => {
         let activeBindsToRender = [];
 
@@ -1701,11 +1689,6 @@ function drawSketch() {
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
 
-            // Размеры короба тоже добавляем в систему "защиты от наложения"
-            renderedBadgeBoxes.push({ x: el.x, y: el.y - rh / 2, w: 60, h: 20 });
-            renderedBadgeBoxes.push({ x: el.x + rw / 2, y: el.y + 20, w: 50, h: 20 });
-
-            ctx.fillStyle = badgeBgColor;
             ctx.fillRect(el.x - 30, el.y - rh / 2 - 8, 60, 15);
             ctx.fillStyle = '#2563eb';
             ctx.fillText(`${(el.lenCm / 100).toFixed(3)}`, el.x, el.y - rh / 2 + 3);
@@ -1787,7 +1770,6 @@ function drawSketch() {
         ctx.restore();
     });
 
-    // 5. Отрисовка активных точек произвольного короба
     if (activeDrawingPoly.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#f59e0b';
@@ -1814,7 +1796,6 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 6. Размеры внешних стен помещения
     let wallCount = getWallCount();
     ctx.textAlign = 'center';
     for (let i = 0; i < wallCount; i++) {
@@ -1851,7 +1832,6 @@ function drawSketch() {
         ctx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
-    // 7. Углы (вершины) комнаты
     points.forEach((p, idx) => {
         if (!p) return;
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
@@ -1897,7 +1877,8 @@ function createInteractiveBinding(targetType, targetIdx) {
         bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Стена ${pA.label}–${pB.label}`;
     }
 
-    showCustomPrompt(`📏 ${bindTitle}<br><span style="color:var(--text-muted);font-size:12px;">Введите расстояние (м):</span>`, curDistM.toFixed(3), (userVal) => {
+    let userVal = prompt(`📏 ${bindTitle}\nВведите расстояние (м):`, curDistM.toFixed(3));
+    if (userVal !== null) {
         let targetM = parseFloat(userVal.replace(',', '.'));
         if (targetM && targetM > 0.05 && targetM < 50) {
             saveState();
@@ -1924,7 +1905,7 @@ function createInteractiveBinding(targetType, targetIdx) {
         } else {
             showToast('Некорректное значение расстояния', 'error');
         }
-    }, true);
+    }
 
     activeBindSource = null;
     updateHint();
@@ -1936,7 +1917,8 @@ function editCreatedBinding(hit) {
     if (!el || !el.customBindings || !el.customBindings[hit.bindIdx]) return;
 
     let b = el.customBindings[hit.bindIdx];
-    showCustomPrompt(`📏 Изменить размер привязки (м)<br><span style="color:var(--danger);font-size:12px;">(введите 0 для удаления)</span>`, b.distM, (userVal) => {
+    let userVal = prompt(`📏 Изменить размер привязки (м) или введите 0 для удаления:`, b.distM);
+    if (userVal !== null) {
         let targetM = parseFloat(userVal.replace(',', '.'));
         saveState();
         if (targetM === 0) {
@@ -1950,10 +1932,9 @@ function editCreatedBinding(hit) {
         renderInnerElementsList();
         drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    }, true);
+    }
 }
 
-// --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM И ПАНОРАМЫ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -2271,7 +2252,6 @@ function handlePointerEnd(e) {
 canvas.addEventListener('pointerup', handlePointerEnd);
 canvas.addEventListener('pointercancel', handlePointerEnd);
 
-// --- ПЕРЕКЛЮЧЕНИЕ СПИСКА ДИАГОНАЛЕЙ ---
 function toggleDiagonalsMode() {
     showDiagonalsList = !showDiagonalsList;
     const diagBtn = document.getElementById('diagToggleBtn');
@@ -2392,7 +2372,6 @@ function handleDiagSmartInput(fromIdx, toIdx, inputEl) {
     }
 }
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -2480,14 +2459,8 @@ function onWallLengthEdit(wallIndex, valStr) {
     if (!m || m <= 0) return;
     let cm = m * 100;
 
-    if (wallIndex >= points.length - 1 && isClosed) {
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        return;
-    }
-
     let p1 = points[wallIndex];
-    let p2 = points[wallIndex + 1];
+    let p2 = points[(wallIndex + 1) % points.length];
     if (!p1 || !p2) return;
 
     let dx = p2.x - p1.x;
@@ -2495,19 +2468,28 @@ function onWallLengthEdit(wallIndex, valStr) {
     let curPx = Math.hypot(dx, dy);
     let targetPx = cm / cmPerPixel;
 
-    let shiftX = 0, shiftY = 0;
-    if (curPx > 0.001) {
-        let newX = p1.x + (dx / curPx) * targetPx;
-        let newY = p1.y + (dy / curPx) * targetPx;
-        shiftX = newX - p2.x;
-        shiftY = newY - p2.y;
-    } else {
-        shiftX = targetPx;
-    }
+    if (curPx < 0.001) return;
 
-    for (let j = wallIndex + 1; j < points.length; j++) {
+    let dirX = dx / curPx;
+    let dirY = dy / curPx;
+    
+    let newP2x = p1.x + dirX * targetPx;
+    let newP2y = p1.y + dirY * targetPx;
+
+    let shiftX = newP2x - p2.x;
+    let shiftY = newP2y - p2.y;
+
+    p2.x = newP2x;
+    p2.y = newP2y;
+
+    for (let j = wallIndex + 2; j < points.length; j++) {
         points[j].x += shiftX;
         points[j].y += shiftY;
+    }
+
+    if (isClosed && wallIndex === points.length - 1) {
+        points[0].x += shiftX;
+        points[0].y += shiftY;
     }
 
     fitToScreen(false);
@@ -2516,7 +2498,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 }
 
 function onWallDirEdit(wallIndex) {
-    showToast('Направление выбрано. Нажмите «🔨 Построить по направлениям»');
+    buildSketchFromTable();
 }
 
 function buildSketchFromTable() {
@@ -2541,7 +2523,7 @@ function buildSketchFromTable() {
         if (dir === 'U') ny -= px;
         else if (dir === 'D') ny += px;
         else if (dir === 'R') nx += px;
-        else if (dir === 'L') nx -= px;
+        else if (dir === 'L') nx -= px; // Исправлено с += на -=
 
         newPts.push({ x: nx, y: ny, label: getPointLabel(i + 1) });
     }
@@ -2621,28 +2603,30 @@ function openWallEditSheet(wallIdx) {
     let inp = document.getElementById(`wall-input-${wallIdx}`);
     let curVal = inp ? inp.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
-    showCustomPrompt(`📏 Длина стены <b>${p1.label}–${p2.label}</b> (м):`, curVal, (userVal) => {
+    let userVal = prompt(`📏 Длина стены ${p1.label}–${p2.label} (м):`, curVal);
+    if (userVal !== null) {
         let val = parseFloat(userVal.replace(',', '.'));
         if (val && val >= 0.1 && val <= 50) {
             if (inp) inp.value = val.toFixed(3);
             onWallLengthEdit(wallIdx, val);
             showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
         }
-    }, true);
+    }
 }
 
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null;
     editingDiagObj = dBox;
 
-    showCustomPrompt(`📐 Длина диагонали <b>${dBox.name}</b> (м):`, dBox.lenM, (userVal) => {
+    let userVal = prompt(`📐 Введите длину диагонали ${dBox.name} (м):`, dBox.lenM);
+    if (userVal !== null) {
         let val = parseFloat(userVal.replace(',', '.'));
         if (val && val >= 0.1 && val <= 50) {
             applyDiagonalLength(dBox.fromIdx, dBox.toIdx, val);
         } else {
             showToast('Некорректное значение диагонали', 'error');
         }
-    }, true);
+    }
 }
 
 function closeWallEditSheet() {
