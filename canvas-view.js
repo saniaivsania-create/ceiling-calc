@@ -1,4 +1,6 @@
-// --- ИНИЦИАЛИЗАЦИЯ ХОЛСТА И СОСТОЯНИЯ ЧЕРТЕЖА ---
+// ==========================================================================
+// ПОТОЛОК ЗАМЕР PRO — ХОЛСТ И ЧЕРТЕЖ (canvas-view.js) [ПОЛНОСТЬЮ ИСПРАВЛЕНО]
+// ==========================================================================
 const canvas = document.getElementById('sketchCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -10,7 +12,6 @@ let draggedPointIndex = null;
 let isDragging = false;
 let cmPerPixel = 2.5;
 
-// --- МАСШТАБИРОВАНИЕ И ПАНОРАМИРОВАНИЕ (PINCH-TO-ZOOM) ---
 let zoomLevel = 1.0;
 let panOffset = { x: 0, y: 0 };
 const MIN_ZOOM = 0.6;
@@ -20,10 +21,6 @@ let pinchStartDistance = null;
 let pinchStartZoom = 1.0;
 let pinchStartPan = { x: 0, y: 0 };
 let pinchCenter = { x: 0, y: 0 };
-
-// Флаг свободного перемещения холста одним пальцем
-let isPanningCanvas = false;
-let panStartPoint = { x: 0, y: 0 };
 
 function getCanvasPointerPos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -37,8 +34,7 @@ function getCanvasPointerPos(e) {
     };
 }
 
-// --- РЕЖИМЫ РЕДАКТИРОВАНИЯ И ВНУТРЕННИЕ ЭЛЕМЕНТЫ ---
-let editMode = 'room'; // 'room' | 'inner' | 'drawing_poly'
+let editMode = 'room'; 
 let innerElements = [];
 let selectedInnerIdx = null;
 let draggedInnerIdx = null;
@@ -46,7 +42,6 @@ let draggedInnerVertex = null;
 let innerDragOffset = { x: 0, y: 0 };
 let activeDrawingPoly = [];
 
-// Интерактивная привязка тапом: { innerIdx, vertexIdx }
 let activeBindSource = null;
 let bindHitBoxes = [];
 
@@ -68,91 +63,16 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-// --- БАНКОМАТНЫЙ ВВОД РАЗМЕРОВ (СДВИГ: 0.000 -> 0.007 -> 0.075 -> 0.750) ---
 function formatLaserShift(rawVal) {
     if (!rawVal) return '';
     let digits = rawVal.toString().replace(/\D/g, '');
     if (!digits) return '';
-
     if (digits.length > 5) digits = digits.slice(-5);
-
     let num = parseInt(digits, 10);
     if (isNaN(num) || num === 0) return '0.000';
-
     return (num / 1000).toFixed(3);
 }
 
-// --- АВТОСОХРАНЕНИЕ ДАННЫХ В ПАМЯТЬ ТЕЛЕФОНА (ЗАЩИТА ОТ СБРОСА КЭША) ---
-function saveProjectToLocalStorage() {
-    const projectData = {
-        points: points,
-        isClosed: isClosed,
-        innerElements: innerElements,
-        customDiagonals: customDiagonals,
-        cmPerPixel: cmPerPixel,
-        // Сохраняем массив всех комнат
-        rooms: typeof rooms !== 'undefined' ? rooms : []
-    };
-    try {
-        localStorage.setItem('ceiling_calc_active_project', JSON.stringify(projectData));
-    } catch (e) {
-        console.error('Ошибка сохранения в localStorage:', e);
-    }
-}
-
-function loadProjectFromLocalStorage() {
-    const saved = localStorage.getItem('ceiling_calc_active_project');
-    if (!saved) return false;
-    
-    try {
-        const data = JSON.parse(saved);
-        
-        // Восстанавливаем список комнат, если он был сохранен
-        if (data.rooms && typeof rooms !== 'undefined') {
-            rooms = data.rooms;
-        }
-
-        // --- ВАЖНОЕ ДОБАВЛЕНИЕ 1: Перерисовываем кнопки комнат ---
-        if (typeof renderRoomsBar === 'function') {
-            renderRoomsBar();
-        }
-
-        // --- ВАЖНОЕ ДОБАВЛЕНИЕ 2: Загружаем на экран активную (или первую) комнату ---
-        if (typeof activeRoomIdx !== 'undefined' && typeof loadRoomIntoUI === 'function') {
-             // Берем индекс комнаты, на которой остановились, или хотя бы первую (0)
-             let idxToLoad = (rooms && rooms[activeRoomIdx]) ? activeRoomIdx : 0;
-             if (rooms && rooms.length > 0) {
-                 loadRoomIntoUI(idxToLoad);
-             }
-        } else {
-            // Фолбэк, если функция комнат недоступна: просто грузим точки из памяти
-            points = data.points || [];
-            isClosed = !!data.isClosed;
-            innerElements = data.innerElements || [];
-            customDiagonals = data.customDiagonals || [];
-            cmPerPixel = data.scale || data.cmPerPixel || 2.5;
-            
-            rebuildWallInputs();
-            rebuildDiagonalInputs();
-            renderInnerElementsList();
-            drawSketch();
-        }
-        
-        // Восстанавливаем имя клиента, если сохраняли
-        let nameInput = document.getElementById('clientName');
-        if (nameInput && data.name) nameInput.value = data.name;
-        
-        let addrInput = document.getElementById('clientAddress');
-        if (addrInput && data.address) addrInput.value = data.address;
-
-        return true;
-    } catch (e) {
-        console.error('Ошибка восстановления проекта:', e);
-        return false;
-    }
-}
-
-// --- УПРАВЛЕНИЕ ИСТОРИЕЙ И СБРОСОМ ---
 function saveState() {
     historyState.push({
         pts: points.map(p => ({ x: p.x, y: p.y, label: p.label })),
@@ -163,10 +83,6 @@ function saveState() {
         editMode
     });
     if (historyState.length > 40) historyState.shift();
-    
-    // Сохранение в память телефона
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
-
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
 
@@ -191,7 +107,6 @@ function undoPoint() {
         innerElements = st.inner || [];
         customDiagonals = st.customDiags || [];
         editMode = st.editMode || 'room';
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // Обновляем localStorage после отмены
     } else {
         points = [];
         isClosed = false;
@@ -199,7 +114,6 @@ function undoPoint() {
         innerElements = [];
         customDiagonals = [];
         editMode = 'room';
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     }
     activeDrawingPoly = [];
     draggedInnerVertex = null;
@@ -235,7 +149,6 @@ function resetSketch() {
     renderInnerElementsList();
     updateHint();
     drawSketch();
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // Сохраняем пустой проект
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Чертёж очищен');
 }
@@ -293,15 +206,22 @@ function toggleFullscreen() {
     }
 
     setTimeout(() => {
-        canvas.width = canvas.clientWidth || window.innerWidth;
-        canvas.height = canvas.clientHeight || (window.innerHeight - 80);
-        fitToScreen(false);
+        canvas.width = canvas.clientWidth || 350;
+        canvas.height = canvas.clientHeight || 320;
+        drawSketch();
     }, 80);
 }
 
 function resizeCanvas() {
-    canvas.width = canvas.clientWidth || 350;
-    canvas.height = canvas.clientHeight || 320;
+    const displayWidth = canvas.clientWidth || 350;
+    const displayHeight = canvas.clientHeight || 320;
+    const dpr = window.devicePixelRatio || 1;
+    
+    if (canvas.width !== Math.floor(displayWidth * dpr) || canvas.height !== Math.floor(displayHeight * dpr)) {
+        canvas.width = displayWidth * dpr;
+        canvas.height = displayHeight * dpr;
+        ctx.scale(dpr, dpr);
+    }
     fitToScreen(false);
 }
 
@@ -386,7 +306,6 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
-// ВЫРАВНИВАНИЕ ПОД 90° С ЗАМКНУТЫМ УСТРАНЕНИЕМ ПЕРЕКОСА
 function snapOrthogonal() {
     saveState();
 
@@ -502,14 +421,22 @@ function snapOrthogonal() {
 }
 
 function rotateSketch() {
-    if (isSketchLocked) return;
+    if (isSketchLocked || points.length < 2) return;
+    saveState();
+    let cx = canvas.width / 2;
+    let cy = canvas.height / 2;
+    points.forEach(p => {
+        let dx = p.x - cx;
+        let dy = p.y - cy;
+        p.x = cx - dy;
+        p.y = cy + dx;
+    });
 
-    if (editMode === 'inner' && selectedInnerIdx !== null && innerElements[selectedInnerIdx]) {
-        saveState();
-        let el = innerElements[selectedInnerIdx];
-        let cx = el.x;
-        let cy = el.y;
-
+    innerElements.forEach(el => {
+        let edx = el.x - cx;
+        let edy = el.y - cy;
+        el.x = cx - edy;
+        el.y = cy + edx;
         if (el.type === 'rect') {
             let tmpW = el.w;
             el.w = el.h;
@@ -525,46 +452,6 @@ function rotateSketch() {
                 pt.y = cy + pdx;
             });
         }
-
-        renderInnerElementsList();
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast('Короб / люк повернут на 90°', 'success');
-        return;
-    }
-
-    if (points.length < 2) return;
-    saveState();
-    let canvasCX = canvas.width / 2;
-    let canvasCY = canvas.height / 2;
-
-    points.forEach(p => {
-        let dx = p.x - canvasCX;
-        let dy = p.y - canvasCY;
-        p.x = canvasCX - dy;
-        p.y = canvasCY + dx;
-    });
-
-    innerElements.forEach(el => {
-        let edx = el.x - canvasCX;
-        let edy = el.y - canvasCY;
-        el.x = canvasCX - edy;
-        el.y = canvasCY + edx;
-        if (el.type === 'rect') {
-            let tmpW = el.w;
-            el.w = el.h;
-            el.h = tmpW;
-            let tmpCm = el.lenCm;
-            el.lenCm = el.widCm;
-            el.widCm = tmpCm;
-        } else if (el.type === 'poly' && el.pts) {
-            el.pts.forEach(pt => {
-                let pdx = pt.x - canvasCX;
-                let pdy = pt.y - canvasCY;
-                pt.x = canvasCX - pdy;
-                pt.y = canvasCY + pdx;
-            });
-        }
     });
 
     fitToScreen(true);
@@ -573,7 +460,6 @@ function rotateSketch() {
     renderInnerElementsList();
     drawSketch();
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Чертеж комнаты повернут', 'success');
 }
 
 function fitToScreen(forceFit = false) {
@@ -591,19 +477,17 @@ function fitToScreen(forceFit = false) {
 
     let polyW = Math.max(maxX - minX, 20);
     let polyH = Math.max(maxY - minY, 20);
-    let padX = 52;
-    let padTop = 38;
-    let padBottom = 76; // Запас снизу под плавающие кнопки
+    let pad = 52;
 
-    let availW = Math.max(canvas.width - padX * 2, 60);
-    let availH = Math.max(canvas.height - padTop - padBottom, 60);
+    let availW = Math.max(canvas.width - pad * 2, 60);
+    let availH = Math.max(canvas.height - pad * 2, 60);
     let factor = Math.min(availW / polyW, availH / polyH);
 
     if (factor < 1 || factor > 1.35 || forceFit) {
         let centerX = (minX + maxX) / 2;
         let centerY = (minY + maxY) / 2;
         let canvasCX = canvas.width / 2;
-        let canvasCY = padTop + availH / 2;
+        let canvasCY = (canvas.height - 16) / 2;
 
         points.forEach(p => {
             p.x = canvasCX + (p.x - centerX) * factor;
@@ -698,7 +582,7 @@ function getCleanDiagonals() {
             let len = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
             diags.push({ from: p1, to: p2, idxFrom: i, idxTo: j, name: `${p1.label}-${p2.label}`, len, isCustom: false });
             
-            if (diags.length >= needed && customDiagonals.length === 0) return diags;
+            if (diags.length >= needed) return diags;
         }
     }
     return diags;
@@ -952,20 +836,12 @@ function applySingleBindingShift(el, binding, targetDistM) {
     } else if (binding.targetWallIdx !== undefined && binding.targetWallIdx !== null) {
         let pA = points[binding.targetWallIdx];
         let pB = points[(binding.targetWallIdx + 1) % points.length];
-        if (!pA || !pB) return;
+        let pBox = (el.pts && el.pts[binding.vertexIdx]) ? el.pts[binding.vertexIdx] : { x: el.x, y: el.y };
+        if (!pA || !pB || !pBox) return;
 
-        let pBox, proj, curDist;
-        if (el.type === 'rect' || el.type === 'circle') {
-            let res = getClosestPointOnElementToSegment(el, pA, pB);
-            pBox = res.edgePoint;
-            proj = res.proj;
-            curDist = res.distPx;
-        } else {
-            pBox = (el.pts && el.pts[binding.vertexIdx]) ? el.pts[binding.vertexIdx] : { x: el.x, y: el.y };
-            proj = getClosestPointOnSegment(pBox, pA, pB);
-            curDist = Math.hypot(proj.x - pBox.x, proj.y - pBox.y);
-        }
-
+        let proj = getClosestPointOnSegment(pBox, pA, pB);
+        let curDist = Math.hypot(proj.x - pBox.x, proj.y - pBox.y);
+        
         let shift = curDist - targetDistPx;
         let dx = proj.x - pBox.x;
         let dy = proj.y - pBox.y;
@@ -1066,7 +942,7 @@ function getWallOptionsHtml(selectedWallIdx) {
         let p1 = points[i];
         let p2 = points[(i + 1) % points.length];
         if (p1 && p2) {
-            let isSel = (Number(selectedWallIdx) === i) ? 'selected' : '';
+            let isSel = (parseInt(selectedWallIdx) === i) ? 'selected' : '';
             html += `<option value="${i}" ${isSel}>Стена ${p1.label}–${p2.label}</option>`;
         }
     }
@@ -1175,7 +1051,7 @@ function openInnerEditSheet(idx) {
             rowsHtml += `
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                     <span style="font-size: 11px; font-weight: 600; color: var(--text-main); white-space: nowrap;">Сторона ${i + 1}–${nextIdx + 1}:</span>
-                    <input type="text" class="input-field poly-side-input" value="${curLenM} м" readonly style="font-weight: 700; width: 110px; text-align: center; opacity: 0.6; border: 1px dashed var(--border); background: transparent;">
+                    <input type="text" inputmode="numeric" class="input-field poly-side-input" data-side-idx="${i}" value="${curLenM}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; width: 110px; text-align: center;">
                 </div>
             `;
         }
@@ -1193,12 +1069,8 @@ function openInnerEditSheet(idx) {
         bindingsContainer.innerHTML = '';
         if (el.customBindings && el.customBindings.length > 0) {
             el.customBindings.forEach(b => {
-                if (b.targetCornerIdx !== undefined && b.targetCornerIdx !== null) {
-                    addInnerWallBindingRow(b.targetCornerIdx, b.distM, b);
-                } else {
-                    let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
-                    addInnerWallBindingRow(wIdx, b.distM, b);
-                }
+                let wIdx = b.targetWallIdx !== undefined ? b.targetWallIdx : (b.wallIdx || 0);
+                addInnerWallBindingRow(wIdx, b.distM, b);
             });
         } else {
             let nearest = getElementWallDistances(el);
@@ -1240,6 +1112,50 @@ function applyInnerSheetSettings() {
             el.title = `Люк ${lM.toFixed(3)}×${wM.toFixed(3)} м`;
         }
     } else if (el.type === 'poly' && el.pts) {
+        const sideInputs = document.querySelectorAll('.poly-side-input');
+        let vals = [];
+        sideInputs.forEach(inp => vals.push(parseFloat(inp.value) || 0));
+
+        if (el.pts.length === 4) {
+            let targetW = vals[0] > 0 ? vals[0] : (vals[2] > 0 ? vals[2] : 2.5);
+            let targetH = vals[1] > 0 ? vals[1] : (vals[3] > 0 ? vals[3] : 2.5);
+
+            let wPx = (targetW * 100) / cmPerPixel;
+            let hPx = (targetH * 100) / cmPerPixel;
+
+            let cx = el.x;
+            let cy = el.y;
+
+            el.pts[0] = { x: cx - wPx/2, y: cy + hPx/2 };
+            el.pts[1] = { x: cx - wPx/2, y: cy - hPx/2 };
+            el.pts[2] = { x: cx + wPx/2, y: cy - hPx/2 };
+            el.pts[3] = { x: cx + wPx/2, y: cy + hPx/2 };
+        } else {
+            sideInputs.forEach(inp => {
+                let sideIdx = parseInt(inp.getAttribute('data-side-idx'));
+                let targetM = parseFloat(inp.value);
+                if (!isNaN(sideIdx) && targetM && targetM > 0 && el.pts[sideIdx]) {
+                    let p1 = el.pts[sideIdx];
+                    let nextI = (sideIdx + 1) % el.pts.length;
+                    let p2 = el.pts[nextI];
+                    let curLenPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    let targetLenPx = (targetM * 100) / cmPerPixel;
+
+                    if (curLenPx > 0.001) {
+                        let dirX = (p2.x - p1.x) / curLenPx;
+                        let dirY = (p2.y - p1.y) / curLenPx;
+                        let diffX = (p1.x + dirX * targetLenPx) - p2.x;
+                        let diffY = (p1.y + dirY * targetLenPx) - p2.y;
+
+                        for (let k = nextI; k < el.pts.length; k++) {
+                            el.pts[k].x += diffX;
+                            el.pts[k].y += diffY;
+                        }
+                    }
+                }
+            });
+        }
+
         let sx = 0, sy = 0;
         el.pts.forEach(p => { sx += p.x; sy += p.y; });
         el.x = sx / el.pts.length;
@@ -1357,7 +1273,6 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА С КОМПАКТНЫМИ ДИНАМИЧЕСКИМИ БЕЙДЖАМИ И ЗУМОМ ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1380,7 +1295,6 @@ function drawSketch() {
     const pointLabelColor = isLight ? '#0f172a' : '#ffffff';
     const strictFont = '600 11px "Inter", "Roboto", sans-serif';
 
-    // 1. Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     let gridLimitX = Math.max(canvas.width, 2000);
@@ -1402,7 +1316,6 @@ function drawSketch() {
     centerX /= points.length;
     centerY /= points.length;
 
-    // 2. Диагонали раскроя
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
         ctx.save();
@@ -1442,7 +1355,6 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 3. Контур стен помещения
     if (points.length >= 2) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
@@ -1482,7 +1394,6 @@ function drawSketch() {
         renderedBadgeBoxes.push({ x: p.x + (vx / vLen) * 16, y: p.y + (vy / vLen) * 16, w: 24, h: 16 });
     });
 
-    // 4. Внутренние элементы и привязки
     innerElements.forEach((el, elIdx) => {
         let activeBindsToRender = [];
 
@@ -1704,7 +1615,6 @@ function drawSketch() {
         ctx.restore();
     });
 
-    // 5. Отрисовка активных точек произвольного короба
     if (activeDrawingPoly.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#f59e0b';
@@ -1731,7 +1641,6 @@ function drawSketch() {
         ctx.restore();
     }
 
-    // 6. Размеры внешних стен помещения
     let wallCount = getWallCount();
     ctx.textAlign = 'center';
     for (let i = 0; i < wallCount; i++) {
@@ -1768,7 +1677,6 @@ function drawSketch() {
         ctx.fillText(`${lenVal} м`, labelX, labelY);
     }
 
-    // 7. Углы (вершины) комнаты
     points.forEach((p, idx) => {
         if (!p) return;
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : mainStrokeColor;
@@ -1854,7 +1762,6 @@ function editCreatedBinding(hit) {
     }, true);
 }
 
-// --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM И ПАНОРАМЫ ---
 canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (isSketchLocked) return;
@@ -2172,7 +2079,6 @@ function handlePointerEnd(e) {
 canvas.addEventListener('pointerup', handlePointerEnd);
 canvas.addEventListener('pointercancel', handlePointerEnd);
 
-// --- ПЕРЕКЛЮЧЕНИЕ СПИСКА ДИАГОНАЛЕЙ ---
 function toggleDiagonalsMode() {
     showDiagonalsList = !showDiagonalsList;
     const diagBtn = document.getElementById('diagToggleBtn');
@@ -2293,7 +2199,6 @@ function handleDiagSmartInput(fromIdx, toIdx, inputEl) {
     }
 }
 
-// --- СВЯЗЬ СО СТЕНАМИ И ТАБЛИЦЕЙ РАЗМЕРОВ ---
 function rebuildWallInputs() {
     const container = document.getElementById('wallsInputsContainer');
     const actionBtns = document.getElementById('tableActionButtons');
@@ -2381,14 +2286,8 @@ function onWallLengthEdit(wallIndex, valStr) {
     if (!m || m <= 0) return;
     let cm = m * 100;
 
-    if (wallIndex >= points.length - 1 && isClosed) {
-        drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        return;
-    }
-
     let p1 = points[wallIndex];
-    let p2 = points[wallIndex + 1];
+    let p2 = points[(wallIndex + 1) % points.length];
     if (!p1 || !p2) return;
 
     let dx = p2.x - p1.x;
@@ -2396,19 +2295,28 @@ function onWallLengthEdit(wallIndex, valStr) {
     let curPx = Math.hypot(dx, dy);
     let targetPx = cm / cmPerPixel;
 
-    let shiftX = 0, shiftY = 0;
-    if (curPx > 0.001) {
-        let newX = p1.x + (dx / curPx) * targetPx;
-        let newY = p1.y + (dy / curPx) * targetPx;
-        shiftX = newX - p2.x;
-        shiftY = newY - p2.y;
-    } else {
-        shiftX = targetPx;
-    }
+    if (curPx < 0.001) return;
 
-    for (let j = wallIndex + 1; j < points.length; j++) {
+    let dirX = dx / curPx;
+    let dirY = dy / curPx;
+    
+    let newP2x = p1.x + dirX * targetPx;
+    let newP2y = p1.y + dirY * targetPx;
+
+    let shiftX = newP2x - p2.x;
+    let shiftY = newP2y - p2.y;
+
+    p2.x = newP2x;
+    p2.y = newP2y;
+
+    for (let j = wallIndex + 2; j < points.length; j++) {
         points[j].x += shiftX;
         points[j].y += shiftY;
+    }
+
+    if (isClosed && wallIndex === points.length - 1) {
+        points[0].x += shiftX;
+        points[0].y += shiftY;
     }
 
     fitToScreen(false);
@@ -2417,7 +2325,7 @@ function onWallLengthEdit(wallIndex, valStr) {
 }
 
 function onWallDirEdit(wallIndex) {
-    showToast('Направление выбрано. Нажмите «🔨 Построить по направлениям»');
+    buildSketchFromTable();
 }
 
 function buildSketchFromTable() {
