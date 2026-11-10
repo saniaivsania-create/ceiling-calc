@@ -524,6 +524,14 @@
                 <span style="font-size: 15px; font-weight: 700;">📂 База клиентов (Контакты)</span>
                 <button class="btn btn-danger" onclick="closeProjectsModal()" style="padding: 6px 10px;">✖</button>
             </div>
+            
+            <!-- КНОПКИ БЭКАПА -->
+            <div style="display: flex; gap: 6px; margin-bottom: 2px;">
+                <button class="btn btn-primary" onclick="backupDatabase()" style="flex: 1; padding: 8px; font-size: 11px;">💾 Скачать базу</button>
+                <button class="btn" onclick="triggerRestoreDatabase()" style="flex: 1; padding: 8px; font-size: 11px;">🔄 Загрузить из файла</button>
+                <input type="file" id="restoreDbInput" accept=".json" style="display: none;" onchange="restoreDatabase(event)">
+            </div>
+
             <input type="text" id="projectSearchInput" class="input-field" placeholder="🔍 Поиск по имени, адресу или телефону..." oninput="renderProjectsList()">
             <div class="saved-list" id="savedProjectsList"></div>
         </div>
