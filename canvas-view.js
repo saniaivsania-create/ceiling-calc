@@ -1077,25 +1077,59 @@ function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
 
+    let el = innerElements[selectedInnerIdx];
+    if (!el) return;
+
     let row = document.createElement('div');
     row.className = 'inner-binding-row';
-    row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
+    row.style.cssText = 'display: grid; grid-template-columns: 0.9fr 1.2fr 1fr auto; gap: 4px; align-items: center;';
     
-    let vIdx = bindData && bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
-    let tCorner = bindData && bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
-    row.setAttribute('data-vertex-idx', vIdx);
+    let vIdx = 0;
+    let tCorner = '';
+    
+    if (bindData) {
+        vIdx = bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
+        tCorner = bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
+    } else {
+        if (el.type === 'poly' && el.pts) {
+            let existingRows = container.querySelectorAll('.inner-binding-row');
+            if (existingRows.length > 0) {
+                let lastRow = existingRows[existingRows.length - 1];
+                let lastSource = lastRow.querySelector('.inner-bind-source');
+                if (lastSource) {
+                    vIdx = (parseInt(lastSource.value) + 1) % el.pts.length;
+                }
+            }
+        }
+    }
+
     row.setAttribute('data-target-corner', tCorner);
+
+    let sourceHtml = '';
+    if (el.type === 'poly' && el.pts) {
+        sourceHtml = `<select class="dir-select inner-bind-source" style="padding: 6px 2px; font-size: 11px;">`;
+        for (let i = 0; i < el.pts.length; i++) {
+            sourceHtml += `<option value="${i}" ${i === vIdx ? 'selected' : ''}>Угол ${i + 1}</option>`;
+        }
+        sourceHtml += `</select>`;
+    } else {
+        sourceHtml = `
+            <div style="font-size:11px; color:var(--text-muted); text-align:center; background:var(--input-bg); padding:6px 0; border-radius:6px; border:1px solid var(--border);">Край</div>
+            <input type="hidden" class="inner-bind-source" value="0">
+        `;
+    }
 
     let selectHtml = '';
     if (tCorner !== '' && tCorner !== null && !isNaN(tCorner)) {
-        selectHtml = `<select class="dir-select inner-bind-wall">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
+        selectHtml = `<select class="dir-select inner-bind-wall" style="padding: 6px 2px; font-size: 11px;">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
     } else {
-        selectHtml = `<select class="dir-select inner-bind-wall">${getWallOptionsHtml(wallIdx)}</select>`;
+        selectHtml = `<select class="dir-select inner-bind-wall" style="padding: 6px 2px; font-size: 11px;">${getWallOptionsHtml(wallIdx)}</select>`;
     }
 
     row.innerHTML = `
+        ${sourceHtml}
         ${selectHtml}
-        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
+        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center; font-size: 12px; padding: 6px 2px;">
         <button class="checklist-act-btn" type="button" style="color: var(--danger); font-size: 13px; padding: 6px 8px;" onclick="this.parentElement.remove()" title="Удалить">✖</button>
     `;
     container.appendChild(row);
@@ -1216,13 +1250,15 @@ function applyInnerSheetSettings() {
     el.customBindings = [];
 
     bindingRows.forEach(row => {
+        let sourceSelect = row.querySelector('.inner-bind-source');
         let wallSelect = row.querySelector('.inner-bind-wall');
         let distInput = row.querySelector('.inner-bind-dist');
         if (!wallSelect || !distInput) return;
 
         let selectedVal = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
-        let vIdx = parseInt(row.getAttribute('data-vertex-idx')) || 0;
+        
+        let vIdx = sourceSelect ? parseInt(sourceSelect.value) : 0;
         let tCornerStr = row.getAttribute('data-target-corner');
 
         if (!isNaN(distM) && distM > 0) {
