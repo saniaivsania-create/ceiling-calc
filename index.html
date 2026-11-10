@@ -360,6 +360,29 @@
             </div>
         </div>
 
+        <!-- ВКЛАДКА 5: СВОДКА (ОБЩАЯ ПО ОБЪЕКТУ) -->
+        <div class="tab-pane" id="tabSummary">
+            <div class="section-card">
+                <div class="section-title">
+                    <span>🏢 Общая сводка по объекту</span>
+                    <button class="btn btn-primary" onclick="buildGlobalSummary()" style="padding: 4px 10px; font-size: 11px;">🔄 Обновить</button>
+                </div>
+                
+                <div class="estimate-breakdown" id="globalSummaryContainer">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px 0;">
+                        Нажмите «Обновить», чтобы собрать данные со всех комнат.
+                    </div>
+                </div>
+
+                <div class="total-price">
+                    <span id="globalTotalLabel">ОБЩАЯ СУММА:</span>
+                    <span class="price-value" id="globalTotalValue">0 ₽</span>
+                </div>
+                
+                <button class="btn-calc-pill" onclick="shareGlobalSummary()" style="margin-top: 8px;">✈️ Отправить в Telegram</button>
+            </div>
+        </div>
+
         <!-- ВКЛАДКА 4: ЧЕК-ЛИСТ И БЛОКНОТ ЗАМЕРЩИКА -->
         <div class="tab-pane" id="tabNote">
             <div class="section-card">
@@ -408,6 +431,10 @@
             <button class="nav-tab-btn" id="navBtnEstimate" onclick="switchTab('estimate')">
                 <span class="nav-icon">&#128203;</span>
                 <span>Смета</span>
+            </button>
+            <button class="nav-tab-btn" id="navBtnSummary" onclick="switchTab('summary')">
+                <span class="nav-icon">&#128202;</span>
+                <span>Сводка</span>
             </button>
             <button class="nav-tab-btn" id="navBtnNote" onclick="switchTab('note')">
                 <span class="nav-icon">&#128221;</span>
