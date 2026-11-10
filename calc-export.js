@@ -1282,3 +1282,145 @@ function exportWordDoc(target = 'client') {
 
     downloadBlobFile(blob, fileName);
 }
+// ==========================================================================
+// СВОДКА ПО ВСЕМУ ОБЪЕКТУ (ДЛЯ НОВОЙ ВКЛАДКИ)
+// ==========================================
+let globalSummaryText = '';
+
+function buildGlobalSummary() {
+    if (typeof rooms === 'undefined' || rooms.length === 0) {
+        showToast('Нет комнат для расчета', 'error');
+        return;
+    }
+
+    if (typeof syncCurrentRoomState === 'function') {
+        syncCurrentRoomState();
+    }
+
+    let tArea = 0, tPerim = 0, tInsert = 0, tInnerPerim = 0;
+    let cLights = 0, cChand = 0, cCornice = 0, cPipes = 0;
+    let cLines = 0, cTrack = 0, cNiche = 0, cShadow = 0;
+    let tAngles = 0, tHatchAngles = 0;
+    let totalObjCost = 0;
+    
+    let roomsDetails = [];
+
+    rooms.forEach((r, idx) => {
+        if (!r || !r.points || r.points.length < 3) return;
+
+        let scale = r.scale || 2.5;
+        let grossArea = calculatePolygonAreaM2(r.points, scale);
+        
+        let perimM = 0;
+        for (let i = 0; i < r.points.length; i++) {
+            let valM = r.walls && r.walls[i] ? parseFloat(r.walls[i]) : 0;
+            if (!valM || isNaN(valM)) {
+                let p1 = r.points[i], p2 = r.points[(i + 1) % r.points.length];
+                valM = (Math.hypot(p2.x - p1.x, p2.y - p1.y) * scale) / 100;
+            }
+            perimM += valM;
+        }
+
+        let innerArea = 0, innerPerim = 0, innerCorners = 0;
+        (r.innerElements || []).forEach(el => {
+            let m = getInnerElementMetrics(el, scale); 
+            innerArea += m.areaM2;
+            innerPerim += m.perimM;
+            innerCorners += m.cornersCount;
+        });
+
+        let netArea = grossArea;
+        if ((r.innerElements || []).length > 0 && r.hatchSubtractArea !== false) {
+            netArea = Math.max(0.1, grossArea - innerArea);
+        }
+        
+        let extraAngles = r.points.length > 4 ? r.points.length - 4 : 0;
+        let cIns = r.useInsert ? (Math.round(perimM * 10) / 10) : (parseFloat(r.countInsert) || 0);
+        let hAngs = r.useHatchAngles ? innerCorners : 0;
+
+        tArea += netArea;
+        tPerim += perimM;
+        tInsert += cIns;
+        tInnerPerim += innerPerim;
+        tAngles += (r.points.length + extraAngles);
+        tHatchAngles += hAngs;
+        
+        cLights += (parseFloat(r.countLights) || 0);
+        cChand += (parseFloat(r.countChandeliers) || 0);
+        cCornice += (parseFloat(r.countCornice) || 0);
+        cPipes += (parseFloat(r.countPipes) || 0);
+        cLines += (parseFloat(r.countLightLines) || 0);
+        cTrack += (parseFloat(r.countTrack) || 0);
+        cNiche += (parseFloat(r.countNiche) || 0);
+        cShadow += (parseFloat(r.countShadow) || 0);
+
+        let roomCost = calculateRoomCostInBackground(r);
+        totalObjCost += roomCost;
+        
+        roomsDetails.push(`🔹 ${r.title}: ${netArea.toFixed(1)} м², ${perimM.toFixed(1)} м.п. — ${Math.round(roomCost).toLocaleString()} ₽`);
+    });
+
+    if (tArea === 0) {
+        showToast('Начертите хотя бы одну комнату', 'error');
+        return;
+    }
+
+    let html = '';
+    html += `<div class="breakdown-row"><div class="breakdown-label"><span>Площадь полотна (чистая)</span></div><div class="breakdown-val">${tArea.toFixed(2)} м²</div></div>`;
+    html += `<div class="breakdown-row"><div class="breakdown-label"><span>Периметр (багет)</span></div><div class="breakdown-val">${tPerim.toFixed(2)} м.п.</div></div>`;
+    if (tInsert > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Вставка</span></div><div class="breakdown-val">${tInsert.toFixed(2)} м.п.</div></div>`;
+    if (tInnerPerim > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Внутренние короба/вырезы</span></div><div class="breakdown-val">${tInnerPerim.toFixed(2)} м.п.</div></div>`;
+    if (cLights > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Светильники</span></div><div class="breakdown-val">${cLights} шт.</div></div>`;
+    if (cChand > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Люстры</span></div><div class="breakdown-val">${cChand} шт.</div></div>`;
+    if (cCornice > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Карнизы</span></div><div class="breakdown-val">${cCornice.toFixed(1)} м.п.</div></div>`;
+    if (cPipes > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Обход труб</span></div><div class="breakdown-val">${cPipes} шт.</div></div>`;
+    if (cLines > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Световые линии</span></div><div class="breakdown-val">${cLines.toFixed(1)} м.п.</div></div>`;
+    if (cTrack > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Треки</span></div><div class="breakdown-val">${cTrack.toFixed(1)} м.п.</div></div>`;
+    if (cNiche > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Ниши ПК-5</span></div><div class="breakdown-val">${cNiche.toFixed(1)} м.п.</div></div>`;
+    if (cShadow > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Теневой профиль</span></div><div class="breakdown-val">${cShadow.toFixed(1)} м.п.</div></div>`;
+
+    document.getElementById('globalSummaryContainer').innerHTML = html;
+    document.getElementById('globalTotalValue').innerText = Math.round(totalObjCost).toLocaleString() + ' ₽';
+
+    let clientName = document.getElementById('clientName')?.value || 'Заказчик';
+    let clientAddr = document.getElementById('clientAddress')?.value || 'Не указан';
+
+    globalSummaryText = 
+        `🏢 ОБЩАЯ СВОДКА ПО ОБЪЕКТУ\n` +
+        `👤 Клиент: ${clientName}\n` +
+        `📍 Адрес: ${clientAddr}\n` +
+        `──────────────────\n` +
+        `📏 СУММАРНЫЕ МАТЕРИАЛЫ:\n` +
+        `• Полотно: ${tArea.toFixed(2)} м²\n` +
+        `• Багет (периметр): ${tPerim.toFixed(2)} м.п.\n` +
+        (tInsert > 0 ? `• Вставка: ${tInsert.toFixed(2)} м.п.\n` : '') +
+        (tInnerPerim > 0 ? `• Внутр. вырезы (короба): ${tInnerPerim.toFixed(2)} м.п.\n` : '') +
+        (cLights > 0 ? `• Светильники: ${cLights} шт.\n` : '') +
+        (cChand > 0 ? `• Люстры: ${cChand} шт.\n` : '') +
+        (cCornice > 0 ? `• Карнизы: ${cCornice.toFixed(1)} м.п.\n` : '') +
+        (cPipes > 0 ? `• Трубы: ${cPipes} шт.\n` : '') +
+        (cLines > 0 ? `• Световые линии: ${cLines.toFixed(1)} м.п.\n` : '') +
+        (cTrack > 0 ? `• Треки: ${cTrack.toFixed(1)} м.п.\n` : '') +
+        (cNiche > 0 ? `• Ниши ПК-5: ${cNiche.toFixed(1)} м.п.\n` : '') +
+        (cShadow > 0 ? `• Теневой: ${cShadow.toFixed(1)} м.п.\n` : '') +
+        `──────────────────\n` +
+        `🚪 ПОМЕЩЕНИЯ (${roomsDetails.length} шт):\n` +
+        roomsDetails.join('\n') + `\n` +
+        `──────────────────\n` +
+        `💰 ОБЩАЯ СУММА К ОПЛАТЕ: ${Math.round(totalObjCost).toLocaleString()} ₽`;
+
+    showToast('Сводка успешно обновлена', 'success');
+}
+
+function shareGlobalSummary() {
+    if (!globalSummaryText) {
+        showToast('Сначала нажмите «Обновить»!', 'error');
+        return;
+    }
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(globalSummaryText).then(() => {
+            showToast('📋 Сводка скопирована! Открываю Telegram...', 'success');
+        });
+    }
+    window.location.href = "tg://";
+            }
