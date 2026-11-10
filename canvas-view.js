@@ -165,7 +165,7 @@ function saveState() {
     if (historyState.length > 40) historyState.shift();
     
     // Сохранение в память телефона
-    saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
 }
@@ -191,7 +191,7 @@ function undoPoint() {
         innerElements = st.inner || [];
         customDiagonals = st.customDiags || [];
         editMode = st.editMode || 'room';
-        saveProjectToLocalStorage(); // Обновляем localStorage после отмены
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // Обновляем localStorage после отмены
     } else {
         points = [];
         isClosed = false;
@@ -199,7 +199,7 @@ function undoPoint() {
         innerElements = [];
         customDiagonals = [];
         editMode = 'room';
-        saveProjectToLocalStorage();
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     }
     activeDrawingPoly = [];
     draggedInnerVertex = null;
@@ -235,7 +235,7 @@ function resetSketch() {
     renderInnerElementsList();
     updateHint();
     drawSketch();
-    saveProjectToLocalStorage(); // Сохраняем пустой проект
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // Сохраняем пустой проект
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     showToast('Чертёж очищен');
 }
@@ -1579,10 +1579,14 @@ function drawSketch() {
             ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
             ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
 
-            ctx.fillStyle = badgeBgColor;
             ctx.font = '600 10px "Inter", sans-serif';
             ctx.textAlign = 'center';
 
+            // Размеры короба тоже добавляем в систему "защиты от наложения"
+            renderedBadgeBoxes.push({ x: el.x, y: el.y - rh / 2, w: 60, h: 20 });
+            renderedBadgeBoxes.push({ x: el.x + rw / 2, y: el.y + 20, w: 50, h: 20 });
+
+            ctx.fillStyle = badgeBgColor;
             ctx.fillRect(el.x - 30, el.y - rh / 2 - 8, 60, 15);
             ctx.fillStyle = '#2563eb';
             ctx.fillText(`${(el.lenCm / 100).toFixed(3)}`, el.x, el.y - rh / 2 + 3);
@@ -1753,10 +1757,7 @@ function drawSketch() {
 function createInteractiveBinding(targetType, targetIdx) {
     if (!activeBindSource) return;
     let el = innerElements[activeBindSource.innerIdx];
-    if (!el) {
-        activeBindSource = null;
-        return;
-    }
+    if (!el) { activeBindSource = null; return; }
 
     let pBox = (el.pts && el.pts[activeBindSource.vertexIdx]) ? el.pts[activeBindSource.vertexIdx] : { x: el.x, y: el.y };
     let curDistM = 0.500;
@@ -1765,7 +1766,7 @@ function createInteractiveBinding(targetType, targetIdx) {
     if (targetType === 'corner') {
         let pRoom = points[targetIdx];
         curDistM = (Math.hypot(pRoom.x - pBox.x, pRoom.y - pBox.y) * cmPerPixel / 100);
-        bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Угол комнаты ${pRoom.label}`;
+        bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Угол ${pRoom.label}`;
     } else {
         let pA = points[targetIdx];
         let pB = points[(targetIdx + 1) % points.length];
@@ -1774,48 +1775,34 @@ function createInteractiveBinding(targetType, targetIdx) {
         bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Стена ${pA.label}–${pB.label}`;
     }
 
-    let userVal = prompt(`📏 ${bindTitle}\nВведите расстояние (м):`, curDistM.toFixed(3));
-    if (userVal !== null) {
+    showCustomPrompt(`📏 ${bindTitle}<br><span style="color:var(--text-muted);font-size:12px;">Введите расстояние (м):</span>`, curDistM.toFixed(3), (userVal) => {
         let targetM = parseFloat(userVal.replace(',', '.'));
         if (targetM && targetM > 0.05 && targetM < 50) {
             saveState();
             if (!el.customBindings) el.customBindings = [];
-
-            let bindObj = {
-                vertexIdx: activeBindSource.vertexIdx,
-                distM: targetM.toFixed(3)
-            };
-
-            if (targetType === 'corner') {
-                bindObj.targetCornerIdx = targetIdx;
-            } else {
-                bindObj.targetWallIdx = targetIdx;
-            }
-
+            let bindObj = { vertexIdx: activeBindSource.vertexIdx, distM: targetM.toFixed(3) };
+            if (targetType === 'corner') bindObj.targetCornerIdx = targetIdx;
+            else bindObj.targetWallIdx = targetIdx;
             el.customBindings.push(bindObj);
             applySingleBindingShift(el, bindObj, targetM);
-
-            renderInnerElementsList();
-            drawSketch();
+            renderInnerElementsList(); drawSketch();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast(`Привязка зафиксирована: ${targetM.toFixed(3)} м`, 'success');
         } else {
-            showToast('Некорректное значение расстояния', 'error');
+            showToast('Некорректное расстояние', 'error');
         }
-    }
+    }, true);
 
     activeBindSource = null;
-    updateHint();
-    drawSketch();
+    updateHint(); drawSketch();
 }
 
 function editCreatedBinding(hit) {
     let el = innerElements[hit.elIdx];
     if (!el || !el.customBindings || !el.customBindings[hit.bindIdx]) return;
-
     let b = el.customBindings[hit.bindIdx];
-    let userVal = prompt(`📏 Изменить размер привязки (м) или введите 0 для удаления:`, b.distM);
-    if (userVal !== null) {
+
+    showCustomPrompt(`📏 Изменить размер привязки (м)<br><span style="color:var(--danger);font-size:12px;">(введите 0 для удаления)</span>`, b.distM, (userVal) => {
         let targetM = parseFloat(userVal.replace(',', '.'));
         saveState();
         if (targetM === 0) {
@@ -1826,10 +1813,9 @@ function editCreatedBinding(hit) {
             applySingleBindingShift(el, b, targetM);
             showToast(`Привязка обновлена: ${b.distM} м`, 'success');
         }
-        renderInnerElementsList();
-        drawSketch();
+        renderInnerElementsList(); drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    }
+    }, true);
 }
 
 // --- ТАЧ-СОБЫТИЯ С ПОДДЕРЖКОЙ PINCH-TO-ZOOM И ПАНОРАМЫ ---
@@ -2500,30 +2486,28 @@ function openWallEditSheet(wallIdx) {
     let inp = document.getElementById(`wall-input-${wallIdx}`);
     let curVal = inp ? inp.value : (Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel / 100).toFixed(3);
 
-    let userVal = prompt(`📏 Длина стены ${p1.label}–${p2.label} (м):`, curVal);
-    if (userVal !== null) {
+    showCustomPrompt(`📏 Длина стены <b>${p1.label}–${p2.label}</b> (м):`, curVal, (userVal) => {
         let val = parseFloat(userVal.replace(',', '.'));
         if (val && val >= 0.1 && val <= 50) {
             if (inp) inp.value = val.toFixed(3);
             onWallLengthEdit(wallIdx, val);
             showToast(`Стена обновлена: ${val.toFixed(3)} м`, 'success');
         }
-    }
+    }, true);
 }
 
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null;
     editingDiagObj = dBox;
 
-    let userVal = prompt(`📐 Введите длину диагонали ${dBox.name} (м):`, dBox.lenM);
-    if (userVal !== null) {
+    showCustomPrompt(`📐 Длина диагонали <b>${dBox.name}</b> (м):`, dBox.lenM, (userVal) => {
         let val = parseFloat(userVal.replace(',', '.'));
         if (val && val >= 0.1 && val <= 50) {
             applyDiagonalLength(dBox.fromIdx, dBox.toIdx, val);
         } else {
             showToast('Некорректное значение диагонали', 'error');
         }
-    }
+    }, true);
 }
 
 function closeWallEditSheet() {
