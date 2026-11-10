@@ -963,3 +963,19 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }, 300);
 });
+// --- ДИАГНОСТИКА КНОПКИ РАСЧЕТА ---
+window.addEventListener('DOMContentLoaded', () => {
+    const calcBtn = document.querySelector('.btn-calc-pill');
+    if (calcBtn) {
+        calcBtn.addEventListener('click', (e) => {
+            console.log("Кнопка расчета нажата!");
+            // Если функция performCalculation существует, вызываем её принудительно
+            if (typeof performCalculation === 'function') {
+                performCalculation();
+            } else {
+                alert("Внимание: функция performCalculation не найдена в скриптах!");
+            }
+        });
+    }
+});
+                        
