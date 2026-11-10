@@ -1,4 +1,4 @@
-const CACHE_NAME = 'potolok-pro-offline-v75';
+const CACHE_NAME = 'potolok-pro-offline-v76';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -34,11 +34,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Перехват запросов: сначала сеть, при отсутствии интернета — память
+// Перехват запросов: Сначала кэш (для мгновенного открытия), затем сеть
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
+    caches.match(event.request).then((cachedResponse) => {
+      // Если файл есть в кэше — отдаем его моментально!
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      // Если файла в кэше нет — идем в интернет
+      return fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -46,16 +51,12 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      })
-      .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
-        });
-      })
+      }).catch(() => {
+        // Если интернета нет и файла нет, отдаем главную страницу
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+      });
+    })
   );
 });
