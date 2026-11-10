@@ -2,6 +2,49 @@
 // ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
 // ==========================================================================
 
+// --- КАСТОМНЫЙ PROMPT (ВМЕСТО СТАНДАРТНОГО БРАУЗЕРНОГО) ---
+let currentPromptCallback = null;
+
+function showCustomPrompt(title, defaultVal, callback, isNumeric = false) {
+    currentPromptCallback = callback;
+    const modal = document.getElementById('customPromptModal');
+    const titleEl = document.getElementById('promptTitle');
+    const inputEl = document.getElementById('promptInput');
+    
+    if (modal && titleEl && inputEl) {
+        titleEl.innerHTML = title;
+        inputEl.value = defaultVal || '';
+        inputEl.setAttribute('inputmode', isNumeric ? 'numeric' : 'text');
+        inputEl.style.textAlign = isNumeric ? 'center' : 'left';
+        
+        modal.style.display = 'flex';
+        setTimeout(() => inputEl.focus(), 50);
+        
+        inputEl.onkeydown = function(e) {
+            if (e.key === 'Enter') confirmCustomPrompt();
+        };
+    } else {
+        // Фоллбэк, если HTML еще не обновили
+        let res = prompt(title.replace(/<[^>]*>?/gm, ''), defaultVal);
+        if (res !== null) callback(res);
+    }
+}
+
+function closeCustomPrompt() {
+    const modal = document.getElementById('customPromptModal');
+    if (modal) modal.style.display = 'none';
+    currentPromptCallback = null;
+}
+
+function confirmCustomPrompt() {
+    const inputEl = document.getElementById('promptInput');
+    if (inputEl && currentPromptCallback) {
+        let val = inputEl.value;
+        closeCustomPrompt();
+        currentPromptCallback(val);
+    }
+}
+
 // --- РЕГИСТРАЦИЯ ОФФЛАЙН РЕЖИМА (SERVICE WORKER) ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -265,7 +308,14 @@ function grantAccess(days, message) {
 
 function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-    let encodedCode = btoa(code); 
+    let encodedCode = '';
+    
+    // Защита от краша при вводе русских букв
+    try {
+        encodedCode = btoa(code); 
+    } catch (e) {
+        encodedCode = ''; 
+    }
 
     if (encodedCode === 'VklQLTc3Ny1TVk9J') {
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
@@ -431,6 +481,8 @@ function syncCurrentRoomState() {
     r.customPrice1 = parseFloat(document.getElementById('customPrice1')?.value) || 0;
     r.customName2 = document.getElementById('customName2')?.value || '';
     r.customPrice2 = parseFloat(document.getElementById('customPrice2')?.value) || 0;
+
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
 function loadRoomIntoUI(idx) {
@@ -550,12 +602,13 @@ function addNewRoom() {
 
 function renameCurrentRoom() {
     let curr = rooms[activeRoomIdx];
-    let newTitle = prompt('Название помещения:', curr.title);
-    if (newTitle && newTitle.trim()) {
-        curr.title = newTitle.trim();
-        renderRoomsBar();
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
-    }
+    showCustomPrompt('Название помещения:', curr.title, (newTitle) => {
+        if (newTitle && newTitle.trim()) {
+            curr.title = newTitle.trim();
+            renderRoomsBar();
+            if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+        }
+    });
 }
 
 function deleteCurrentRoom() {
@@ -853,12 +906,13 @@ function toggleChecklistItem(idx) {
 
 function editChecklistItem(idx) {
     if (!checklistData[idx]) return;
-    let newText = prompt('Изменить пункт чек-листа:', checklistData[idx].text);
-    if (newText !== null && newText.trim() !== '') {
-        checklistData[idx].text = newText.trim();
-        saveChecklist();
-        renderChecklist();
-    }
+    showCustomPrompt('Изменить пункт чек-листа:', checklistData[idx].text, (newText) => {
+        if (newText && newText.trim() !== '') {
+            checklistData[idx].text = newText.trim();
+            saveChecklist();
+            renderChecklist();
+        }
+    });
 }
 
 function deleteChecklistItem(idx) {
