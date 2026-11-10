@@ -97,17 +97,20 @@ function toggleViewMode() {
     showToast(isTabMode ? 'Режим быстрых вкладок включён' : 'Классический длинный вид включён');
 }
 
+// ИСПРАВЛЕНО: Добавлены 2 строчки для новой вкладки "Сводка" (summary)
 function switchTab(tabName) {
     if (document.activeElement) document.activeElement.blur();
 
     document.getElementById('tabSketch')?.classList.toggle('active', tabName === 'sketch');
     document.getElementById('tabParams')?.classList.toggle('active', tabName === 'params');
     document.getElementById('tabEstimate')?.classList.toggle('active', tabName === 'estimate');
+    document.getElementById('tabSummary')?.classList.toggle('active', tabName === 'summary');
     document.getElementById('tabNote')?.classList.toggle('active', tabName === 'note');
 
     document.getElementById('navBtnSketch')?.classList.toggle('active', tabName === 'sketch');
     document.getElementById('navBtnParams')?.classList.toggle('active', tabName === 'params');
     document.getElementById('navBtnEstimate')?.classList.toggle('active', tabName === 'estimate');
+    document.getElementById('navBtnSummary')?.classList.toggle('active', tabName === 'summary');
     document.getElementById('navBtnNote')?.classList.toggle('active', tabName === 'note');
 
     if (tabName === 'sketch') {
@@ -485,84 +488,6 @@ function syncCurrentRoomState() {
     if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
-function loadRoomIntoUI(idx) {
-    activeRoomIdx = idx;
-    let r = rooms[activeRoomIdx];
-    if (!r) return;
-
-    if (typeof points !== 'undefined') {
-        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
-    }
-    if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
-    if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
-    if (typeof historyState !== 'undefined') historyState = [];
-    
-    if (typeof zoomLevel !== 'undefined') zoomLevel = 1.0;
-    if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
-
-    if (typeof innerElements !== 'undefined') {
-        innerElements = typeof structuredClone === 'function' ? structuredClone(r.innerElements || []) : JSON.parse(JSON.stringify(r.innerElements || []));
-        if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
-    }
-    
-    if (typeof customDiagonals !== 'undefined') {
-        customDiagonals = typeof structuredClone === 'function' ? structuredClone(r.customDiagonals || []) : JSON.parse(JSON.stringify(r.customDiagonals || []));
-    }
-
-    const subCheckbox = document.getElementById('hatchSubtractArea');
-    if (subCheckbox) {
-        subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
-    }
-
-    const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
-    if (hatchAnglesCheckbox) {
-        hatchAnglesCheckbox.checked = !!r.useHatchAngles;
-    }
-    const hatchAnglesCountEl = document.getElementById('countHatchAngles');
-    if (hatchAnglesCountEl) {
-        hatchAnglesCountEl.value = calculateHatchAngles(r.innerElements);
-    }
-    const priceHatchAngleEl = document.getElementById('priceHatchAngle');
-    if (priceHatchAngleEl) {
-        priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
-    }
-
-    if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
-    if (document.getElementById('useInsertCheckbox')) document.getElementById('useInsertCheckbox').checked = !!r.useInsert;
-    if (document.getElementById('countLights')) document.getElementById('countLights').value = r.countLights ?? 4;
-    if (document.getElementById('countChandeliers')) document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
-    if (document.getElementById('countCornice')) document.getElementById('countCornice').value = r.countCornice ?? 3.0;
-    if (document.getElementById('countPipes')) document.getElementById('countPipes').value = r.countPipes ?? 1;
-
-    if (document.getElementById('countLightLines')) document.getElementById('countLightLines').value = r.countLightLines ?? 0;
-    if (document.getElementById('countTrack')) document.getElementById('countTrack').value = r.countTrack ?? 0;
-    if (document.getElementById('countNiche')) document.getElementById('countNiche').value = r.countNiche ?? 0;
-    if (document.getElementById('countShadow')) document.getElementById('countShadow').value = r.countShadow ?? 0;
-    if (document.getElementById('customName1')) document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
-    if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
-    if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
-    if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
-
-    const presetCorners = document.getElementById('presetCornersCount');
-    if (presetCorners && points && points.length >= 3) {
-        presetCorners.value = points.length;
-    }
-
-    if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
-    if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
-    
-    if (r.walls && r.walls.length > 0) {
-        let wallInputs = document.querySelectorAll('.wall-len');
-        r.walls.forEach((val, i) => {
-            if (wallInputs[i]) wallInputs[i].value = val;
-        });
-    }
-
-    renderRoomsBar();
-    if (typeof updateHint === 'function') updateHint();
-    if (typeof fitToScreen === 'function') fitToScreen(false);
-}
-
 function renderRoomsBar() {
     const bar = document.getElementById('roomsBar');
     const badge = document.getElementById('roomsCountBadge');
@@ -586,8 +511,7 @@ function renderRoomsBar() {
 function switchRoom(idx) {
     if (idx === activeRoomIdx) return;
     syncCurrentRoomState();
-    loadRoomIntoUI(idx);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(idx);
 }
 
 function addNewRoom() {
@@ -595,8 +519,7 @@ function addNewRoom() {
     const presets = ['Спальня', 'Кухня', 'Коридор', 'Детская', 'Санузел', 'Балкон'];
     let nextName = presets[(rooms.length - 1) % presets.length] || `Комната ${rooms.length + 1}`;
     rooms.push(createDefaultRoom(nextName));
-    loadRoomIntoUI(rooms.length - 1);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(rooms.length - 1);
     showToast(`Добавлено помещение: ${nextName}`, 'success');
 }
 
@@ -616,8 +539,7 @@ function deleteCurrentRoom() {
     let curr = rooms[activeRoomIdx];
     if (confirm(`Удалить помещение "${curr.title}" из заказа?`)) {
         rooms.splice(activeRoomIdx, 1);
-        loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
         showToast('Помещение удалено');
     }
 }
@@ -632,8 +554,7 @@ function startNewProject() {
     document.getElementById('clientDate').value = '';
     rooms = [createDefaultRoom('Зал / Комната 1')];
     if (typeof resetSketch === 'function') resetSketch();
-    loadRoomIntoUI(0);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
     showToast('Создан новый замер', 'success');
 }
 
@@ -788,7 +709,7 @@ function loadSavedProject(projId) {
 
     if (proj.rooms && Array.isArray(proj.rooms) && proj.rooms.length > 0) {
         rooms = proj.rooms;
-        loadRoomIntoUI(0);
+        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
     } else {
         rooms = [createDefaultRoom('Комната 1')];
         rooms[0].points = proj.points || [];
@@ -797,7 +718,7 @@ function loadSavedProject(projId) {
         rooms[0].walls = proj.walls || [];
         rooms[0].innerElements = proj.innerElements || [];
         rooms[0].customDiagonals = proj.customDiagonals || [];
-        loadRoomIntoUI(0);
+        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
     }
 
     closeProjectsModal();
