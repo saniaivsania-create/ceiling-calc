@@ -446,6 +446,20 @@
         </div>
     </div>
 
+    <!-- УНИВЕРСАЛЬНОЕ ОКНО ВВОДА (ЗАМЕНА БРАУЗЕРНОМУ PROMPT) -->
+    <div class="modal-overlay" id="customPromptModal" style="z-index: 30000; align-items: flex-end; padding-bottom: 20px;">
+        <div class="bottom-sheet" style="transform: translateY(0); border-radius: 20px; max-height: none; padding-bottom: 24px; pointer-events: auto; max-width: 400px; margin: 0 auto; transition: none;">
+            <div class="sheet-header" style="margin-bottom: 12px;">
+                <span class="sheet-title" id="promptTitle" style="font-size: 14px; line-height: 1.4;">Введите значение:</span>
+                <button class="btn" onclick="closeCustomPrompt()" style="padding: 6px 10px;">✖</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" inputmode="text" id="promptInput" class="input-field" style="font-size: 18px; font-weight: 700; padding: 12px;" placeholder="...">
+                <button class="btn btn-primary" onclick="confirmCustomPrompt()" style="padding: 14px 22px; font-size: 14px;">ОК</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ШТОРКА РЕДАКТИРОВАНИЯ СТЕНЫ -->
     <div class="bottom-sheet-overlay" id="wallEditSheetOverlay" onclick="closeWallEditSheet()">
         <div class="bottom-sheet" onclick="event.stopPropagation()">
