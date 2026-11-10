@@ -284,7 +284,8 @@ function activateByCode() {
 
 function sendEmailToSupport() {
     let subject = encodeURIComponent(`Покупка подписки Потолок Замер PRO (ID: ${deviceId})`);
-    let body = encodeURIComponent(`Здравствуйте! Хочу приобрести доступ PRO.\nМой ID: ${deviceId}`);
+    let body = encodeURIComponent(`Здравствуйте! Хочу приобрести доступ PRO.
+Мой ID: ${deviceId}`);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 }
 
@@ -534,7 +535,7 @@ function switchRoom(idx) {
     if (idx === activeRoomIdx) return;
     syncCurrentRoomState();
     loadRoomIntoUI(idx);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
 }
 
 function addNewRoom() {
@@ -543,7 +544,7 @@ function addNewRoom() {
     let nextName = presets[(rooms.length - 1) % presets.length] || `Комната ${rooms.length + 1}`;
     rooms.push(createDefaultRoom(nextName));
     loadRoomIntoUI(rooms.length - 1);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
     showToast(`Добавлено помещение: ${nextName}`, 'success');
 }
 
@@ -553,7 +554,7 @@ function renameCurrentRoom() {
     if (newTitle && newTitle.trim()) {
         curr.title = newTitle.trim();
         renderRoomsBar();
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
     }
 }
 
@@ -563,7 +564,7 @@ function deleteCurrentRoom() {
     if (confirm(`Удалить помещение "${curr.title}" из заказа?`)) {
         rooms.splice(activeRoomIdx, 1);
         loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
-        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
         showToast('Помещение удалено');
     }
 }
@@ -579,7 +580,7 @@ function startNewProject() {
     rooms = [createDefaultRoom('Зал / Комната 1')];
     if (typeof resetSketch === 'function') resetSketch();
     loadRoomIntoUI(0);
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
     showToast('Создан новый замер', 'success');
 }
 
@@ -657,7 +658,7 @@ function saveProject() {
     }
 
     localStorage.setItem('pro_projects', JSON.stringify(saved));
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
 }
 
 function openProjectsModal() {
@@ -747,7 +748,7 @@ function loadSavedProject(projId) {
     }
 
     closeProjectsModal();
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
@@ -902,7 +903,46 @@ function autoSaveNotebook() {
     localStorage.setItem('_pz_notebook', document.getElementById('zamerNotebook').value);
 }
 
+
+// --- БЭКАП И ВОССТАНОВЛЕНИЕ БАЗЫ КЛИЕНТОВ ---
+function backupDatabase() {
+    let saved = localStorage.getItem('pro_projects') || '[]';
+    let blob = new Blob([saved], { type: "application/json" });
+    let a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `База_Замеров_${new Date().toLocaleDateString().replace(/\./g, '-')}.json`;
+    a.click();
+    showToast('База клиентов успешно сохранена в файл!', 'success');
+}
+
+function triggerRestoreDatabase() {
+    document.getElementById('restoreDbInput').click();
+}
+
+function restoreDatabase(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (Array.isArray(data)) {
+                localStorage.setItem('pro_projects', JSON.stringify(data));
+                renderProjectsList();
+                showToast('База клиентов успешно восстановлена!', 'success');
+            } else {
+                showToast('Неверный формат файла!', 'error');
+            }
+        } catch (err) {
+            showToast('Ошибка при чтении файла', 'error');
+        }
+        event.target.value = ''; // Сброс инпута
+    };
+    reader.readAsText(file);
+}
+
 // --- СТАРТОВАЯ ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ---
+
 window.addEventListener('DOMContentLoaded', () => {
     loadSecurityState();
     if (typeof loadUserPrices === 'function') loadUserPrices();
@@ -914,7 +954,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const noteEl = document.getElementById('zamerNotebook');
     if (noteEl) noteEl.value = localStorage.getItem('_pz_notebook') || '';
 });
-
 // --- ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ ПРИ СБРОСЕ КЭША (АВТОЗАГРУЗКА) ---
 window.addEventListener('DOMContentLoaded', () => {
     // Ждем секунду, чтобы холст успел проинициализироваться
