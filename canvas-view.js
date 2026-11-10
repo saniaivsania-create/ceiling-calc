@@ -152,6 +152,89 @@ function loadProjectFromLocalStorage() {
     }
 }
 
+// --- ЗАГРУЗКА КОМНАТЫ С ПОЛНЫМ СБРОСОМ СОСТОЯНИЯ ---
+function loadRoomIntoUI(idx) {
+    if (typeof activeRoomIdx !== 'undefined') activeRoomIdx = idx;
+    let r = typeof rooms !== 'undefined' ? rooms[idx] : null;
+    if (!r) return;
+
+    // ВАЖНО: Сбрасываем замочек и режим редактирования, чтобы новая комната не была заблокирована!
+    isSketchLocked = false;
+    editMode = 'room';
+
+    if (typeof points !== 'undefined') {
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
+    }
+    if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
+    if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
+    if (typeof historyState !== 'undefined') historyState = [];
+    
+    if (typeof zoomLevel !== 'undefined') zoomLevel = 1.0;
+    if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
+
+    if (typeof innerElements !== 'undefined') {
+        innerElements = typeof structuredClone === 'function' ? structuredClone(r.innerElements || []) : JSON.parse(JSON.stringify(r.innerElements || []));
+        if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
+    }
+    
+    if (typeof customDiagonals !== 'undefined') {
+        customDiagonals = typeof structuredClone === 'function' ? structuredClone(r.customDiagonals || []) : JSON.parse(JSON.stringify(r.customDiagonals || []));
+    }
+
+    const subCheckbox = document.getElementById('hatchSubtractArea');
+    if (subCheckbox) {
+        subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
+    }
+
+    const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
+    if (hatchAnglesCheckbox) {
+        hatchAnglesCheckbox.checked = !!r.useHatchAngles;
+    }
+    const hatchAnglesCountEl = document.getElementById('countHatchAngles');
+    if (hatchAnglesCountEl && typeof calculateHatchAngles === 'function') {
+        hatchAnglesCountEl.value = calculateHatchAngles(r.innerElements);
+    }
+    const priceHatchAngleEl = document.getElementById('priceHatchAngle');
+    if (priceHatchAngleEl) {
+        priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
+    }
+
+    if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
+    if (document.getElementById('useInsertCheckbox')) document.getElementById('useInsertCheckbox').checked = !!r.useInsert;
+    if (document.getElementById('countLights')) document.getElementById('countLights').value = r.countLights ?? 4;
+    if (document.getElementById('countChandeliers')) document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
+    if (document.getElementById('countCornice')) document.getElementById('countCornice').value = r.countCornice ?? 3.0;
+    if (document.getElementById('countPipes')) document.getElementById('countPipes').value = r.countPipes ?? 1;
+
+    if (document.getElementById('countLightLines')) document.getElementById('countLightLines').value = r.countLightLines ?? 0;
+    if (document.getElementById('countTrack')) document.getElementById('countTrack').value = r.countTrack ?? 0;
+    if (document.getElementById('countNiche')) document.getElementById('countNiche').value = r.countNiche ?? 0;
+    if (document.getElementById('countShadow')) document.getElementById('countShadow').value = r.countShadow ?? 0;
+    if (document.getElementById('customName1')) document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
+    if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
+    if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
+    if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
+
+    const presetCorners = document.getElementById('presetCornersCount');
+    if (presetCorners && points && points.length >= 3) {
+        presetCorners.value = points.length;
+    }
+
+    if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
+    if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
+    
+    if (r.walls && r.walls.length > 0) {
+        let wallInputs = document.querySelectorAll('.wall-len');
+        r.walls.forEach((val, i) => {
+            if (wallInputs[i]) wallInputs[i].value = val;
+        });
+    }
+
+    if (typeof renderRoomsBar === 'function') renderRoomsBar();
+    if (typeof updateHint === 'function') updateHint();
+    if (typeof fitToScreen === 'function') fitToScreen(false);
+}
+
 // --- УПРАВЛЕНИЕ ИСТОРИЕЙ И СБРОСОМ ---
 function saveState() {
     historyState.push({
@@ -1073,29 +1156,64 @@ function getWallOptionsHtml(selectedWallIdx) {
     return html;
 }
 
+// --- УМНЫЕ ВЫПАДАЮЩИЕ СПИСКИ ДЛЯ ПРИВЯЗОК КОРОБА ---
 function addInnerWallBindingRow(wallIdx = 0, distVal = '', bindData = null) {
     const container = document.getElementById('innerWallBindingsContainer');
     if (!container) return;
 
+    let el = innerElements[selectedInnerIdx];
+    if (!el) return;
+
     let row = document.createElement('div');
     row.className = 'inner-binding-row';
-    row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 6px; align-items: center;';
+    row.style.cssText = 'display: grid; grid-template-columns: 0.9fr 1.2fr 1fr auto; gap: 4px; align-items: center;';
     
-    let vIdx = bindData && bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
-    let tCorner = bindData && bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
-    row.setAttribute('data-vertex-idx', vIdx);
+    let vIdx = 0;
+    let tCorner = '';
+    
+    if (bindData) {
+        vIdx = bindData.vertexIdx !== undefined ? bindData.vertexIdx : 0;
+        tCorner = bindData.targetCornerIdx !== undefined ? bindData.targetCornerIdx : '';
+    } else {
+        if (el.type === 'poly' && el.pts) {
+            let existingRows = container.querySelectorAll('.inner-binding-row');
+            if (existingRows.length > 0) {
+                let lastRow = existingRows[existingRows.length - 1];
+                let lastSource = lastRow.querySelector('.inner-bind-source');
+                if (lastSource) {
+                    vIdx = (parseInt(lastSource.value) + 1) % el.pts.length;
+                }
+            }
+        }
+    }
+
     row.setAttribute('data-target-corner', tCorner);
+
+    let sourceHtml = '';
+    if (el.type === 'poly' && el.pts) {
+        sourceHtml = `<select class="dir-select inner-bind-source" style="padding: 6px 2px; font-size: 11px;">`;
+        for (let i = 0; i < el.pts.length; i++) {
+            sourceHtml += `<option value="${i}" ${i === vIdx ? 'selected' : ''}>Угол ${i + 1}</option>`;
+        }
+        sourceHtml += `</select>`;
+    } else {
+        sourceHtml = `
+            <div style="font-size:11px; color:var(--text-muted); text-align:center; background:var(--input-bg); padding:6px 0; border-radius:6px; border:1px solid var(--border);">Край</div>
+            <input type="hidden" class="inner-bind-source" value="0">
+        `;
+    }
 
     let selectHtml = '';
     if (tCorner !== '' && tCorner !== null && !isNaN(tCorner)) {
-        selectHtml = `<select class="dir-select inner-bind-wall">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
+        selectHtml = `<select class="dir-select inner-bind-wall" style="padding: 6px 2px; font-size: 11px;">${getCornerLetterOptionsHtml(parseInt(tCorner))}</select>`;
     } else {
-        selectHtml = `<select class="dir-select inner-bind-wall">${getWallOptionsHtml(wallIdx)}</select>`;
+        selectHtml = `<select class="dir-select inner-bind-wall" style="padding: 6px 2px; font-size: 11px;">${getWallOptionsHtml(wallIdx)}</select>`;
     }
 
     row.innerHTML = `
+        ${sourceHtml}
         ${selectHtml}
-        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center;">
+        <input type="text" inputmode="numeric" class="input-field inner-bind-dist" placeholder="0.000" value="${distVal}" oninput="this.value = formatLaserShift(this.value)" style="font-weight: 700; text-align: center; font-size: 12px; padding: 6px 2px;">
         <button class="checklist-act-btn" type="button" style="color: var(--danger); font-size: 13px; padding: 6px 8px;" onclick="this.parentElement.remove()" title="Удалить">✖</button>
     `;
     container.appendChild(row);
@@ -1216,13 +1334,15 @@ function applyInnerSheetSettings() {
     el.customBindings = [];
 
     bindingRows.forEach(row => {
+        let sourceSelect = row.querySelector('.inner-bind-source');
         let wallSelect = row.querySelector('.inner-bind-wall');
         let distInput = row.querySelector('.inner-bind-dist');
         if (!wallSelect || !distInput) return;
 
         let selectedVal = parseInt(wallSelect.value);
         let distM = parseFloat(distInput.value);
-        let vIdx = parseInt(row.getAttribute('data-vertex-idx')) || 0;
+        
+        let vIdx = sourceSelect ? parseInt(sourceSelect.value) : 0;
         let tCornerStr = row.getAttribute('data-target-corner');
 
         if (!isNaN(distM) && distM > 0) {
@@ -1321,7 +1441,6 @@ function renderInnerElementsList() {
     }).join('');
 }
 
-// --- ОТРИСОВКА ХОЛСТА С КОМПАКТНЫМИ ДИНАМИЧЕСКИМИ БЕЙДЖАМИ И ЗУМОМ ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1757,7 +1876,10 @@ function drawSketch() {
 function createInteractiveBinding(targetType, targetIdx) {
     if (!activeBindSource) return;
     let el = innerElements[activeBindSource.innerIdx];
-    if (!el) { activeBindSource = null; return; }
+    if (!el) {
+        activeBindSource = null;
+        return;
+    }
 
     let pBox = (el.pts && el.pts[activeBindSource.vertexIdx]) ? el.pts[activeBindSource.vertexIdx] : { x: el.x, y: el.y };
     let curDistM = 0.500;
@@ -1766,7 +1888,7 @@ function createInteractiveBinding(targetType, targetIdx) {
     if (targetType === 'corner') {
         let pRoom = points[targetIdx];
         curDistM = (Math.hypot(pRoom.x - pBox.x, pRoom.y - pBox.y) * cmPerPixel / 100);
-        bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Угол ${pRoom.label}`;
+        bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Угол комнаты ${pRoom.label}`;
     } else {
         let pA = points[targetIdx];
         let pB = points[(targetIdx + 1) % points.length];
@@ -1780,28 +1902,40 @@ function createInteractiveBinding(targetType, targetIdx) {
         if (targetM && targetM > 0.05 && targetM < 50) {
             saveState();
             if (!el.customBindings) el.customBindings = [];
-            let bindObj = { vertexIdx: activeBindSource.vertexIdx, distM: targetM.toFixed(3) };
-            if (targetType === 'corner') bindObj.targetCornerIdx = targetIdx;
-            else bindObj.targetWallIdx = targetIdx;
+
+            let bindObj = {
+                vertexIdx: activeBindSource.vertexIdx,
+                distM: targetM.toFixed(3)
+            };
+
+            if (targetType === 'corner') {
+                bindObj.targetCornerIdx = targetIdx;
+            } else {
+                bindObj.targetWallIdx = targetIdx;
+            }
+
             el.customBindings.push(bindObj);
             applySingleBindingShift(el, bindObj, targetM);
-            renderInnerElementsList(); drawSketch();
+
+            renderInnerElementsList();
+            drawSketch();
             if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
             showToast(`Привязка зафиксирована: ${targetM.toFixed(3)} м`, 'success');
         } else {
-            showToast('Некорректное расстояние', 'error');
+            showToast('Некорректное значение расстояния', 'error');
         }
     }, true);
 
     activeBindSource = null;
-    updateHint(); drawSketch();
+    updateHint();
+    drawSketch();
 }
 
 function editCreatedBinding(hit) {
     let el = innerElements[hit.elIdx];
     if (!el || !el.customBindings || !el.customBindings[hit.bindIdx]) return;
-    let b = el.customBindings[hit.bindIdx];
 
+    let b = el.customBindings[hit.bindIdx];
     showCustomPrompt(`📏 Изменить размер привязки (м)<br><span style="color:var(--danger);font-size:12px;">(введите 0 для удаления)</span>`, b.distM, (userVal) => {
         let targetM = parseFloat(userVal.replace(',', '.'));
         saveState();
@@ -1813,7 +1947,8 @@ function editCreatedBinding(hit) {
             applySingleBindingShift(el, b, targetM);
             showToast(`Привязка обновлена: ${b.distM} м`, 'success');
         }
-        renderInnerElementsList(); drawSketch();
+        renderInnerElementsList();
+        drawSketch();
         if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
     }, true);
 }
