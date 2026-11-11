@@ -13,7 +13,7 @@ let cmPerPixel = 2.5;
 let zoomLevel = 1.0;
 let panOffset = { x: 0, y: 0 };
 const MIN_ZOOM = 0.6;
-const MAX_ZOOM = 3.0;
+const MAX_ZOOM = 15.0; // ИСПРАВЛЕНИЕ: Зум увеличен до 15x для Умного Микроскопа
 let activePointers = new Map();
 let pinchStartDistance = null;
 let pinchStartZoom = 1.0;
@@ -63,7 +63,6 @@ function getPointLabel(index) {
     return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
 }
 
-// ИСПРАВЛЕНИЕ: Добавлена пропавшая функция для списков углов
 function getCornerLetterOptionsHtml(selectedIdx = 0) {
     let html = '';
     points.forEach((p, idx) => {
@@ -326,6 +325,13 @@ function closePolygon() {
 
 function snapOrthogonal() {
     saveState();
+    
+    // Блокировка, чтобы 90 градусов не ломало ручные диагонали
+    if (customDiagonals.length > 0) {
+        showToast('Отключено: Ручные диагонали задают жесткую форму, 90° её сломает!', 'error');
+        return;
+    }
+
     if (editMode === 'inner' && innerElements.length > 0) {
         let el = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) ? innerElements[selectedInnerIdx] : innerElements[innerElements.length - 1];
         if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
@@ -353,11 +359,6 @@ function snapOrthogonal() {
     }
 
     if (isSketchLocked || points.length < 3) return;
-
-    if (customDiagonals.length > 0) {
-        showToast('Отключено: Ручные диагонали задают жесткую форму, 90° её сломает!', 'error');
-        return;
-    }
 
     let nPts = points.length;
     if (nPts === 4 && isClosed) {
@@ -500,6 +501,7 @@ function getClosestPointOnSegment(p, a, b) {
     let lenTotal = abx * abx + aby * aby, t = lenTotal === 0 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby) / lenTotal));
     return { x: a.x + t * abx, y: a.y + t * aby };
 }
+
 function rayCrossesOwnElement(pStart, pEnd, el) {
     if (!el || !el.pts || el.pts.length < 3) return false;
     let n = el.pts.length;
@@ -765,21 +767,31 @@ function renderInnerElementsList() {
     }).join('');
 }
 
+// --- УМНЫЙ МИКРОСКОП (ОТРИСОВКА С ИНВЕРСИЕЙ МАСШТАБА) ---
 function drawSketch() {
     if (!canvas.width || !canvas.height) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     wallHitBoxes = []; diagHitBoxes = []; bindHitBoxes = [];
-    ctx.save(); ctx.translate(panOffset.x, panOffset.y); ctx.scale(zoomLevel, zoomLevel);
+    
+    ctx.save(); 
+    ctx.translate(panOffset.x, panOffset.y); 
+    ctx.scale(zoomLevel, zoomLevel);
+
+    // Этот коэффициент не дает точкам и тексту "раздуваться" при увеличении
+    const iZ = 1 / zoomLevel; 
 
     const isLight = document.body.classList.contains('light-theme');
-    const gridColor = isLight ? '#f1f5f9' : '#1e293b'; const mainStrokeColor = isLight ? '#0f172a' : '#e2e8f0';
+    const gridColor = isLight ? '#f1f5f9' : '#1e293b'; 
+    const mainStrokeColor = isLight ? '#0f172a' : '#e2e8f0';
     const polyFillColor = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(79, 70, 229, 0.08)';
     const diagLineColor = isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
     const badgeBgColor = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.92)';
-    const wallTextColor = isLight ? '#0f172a' : '#f8fafc'; const diagTextColor = isLight ? '#475569' : '#94a3b8';
-    const pointLabelColor = isLight ? '#0f172a' : '#ffffff'; const strictFont = '600 11px "Inter", "Roboto", sans-serif';
+    const wallTextColor = isLight ? '#0f172a' : '#f8fafc'; 
+    const diagTextColor = isLight ? '#475569' : '#94a3b8';
+    const pointLabelColor = isLight ? '#0f172a' : '#ffffff'; 
 
-    ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+    ctx.strokeStyle = gridColor; 
+    ctx.lineWidth = 1 * iZ;
     let gridLimitX = Math.max(canvas.width, 2000), gridLimitY = Math.max(canvas.height, 2000);
     for (let x = -1000; x < gridLimitX; x += 20) { ctx.beginPath(); ctx.moveTo(x, -1000); ctx.lineTo(x, gridLimitY); ctx.stroke(); }
     for (let y = -1000; y < gridLimitY; y += 20) { ctx.beginPath(); ctx.moveTo(-1000, y); ctx.lineTo(gridLimitX, y); ctx.stroke(); }
@@ -789,15 +801,24 @@ function drawSketch() {
     let centerX = 0, centerY = 0; points.forEach(p => { centerX += p.x; centerY += p.y; }); centerX /= points.length; centerY /= points.length;
     let diags = getCleanDiagonals();
     if (diags.length > 0) {
-        ctx.save(); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+        ctx.save(); 
+        ctx.lineWidth = 1.2 * iZ; 
+        ctx.setLineDash([4 * iZ, 4 * iZ]);
         diags.forEach((d, idx) => {
             ctx.strokeStyle = d.isCustom ? '#0284c7' : diagLineColor;
             ctx.beginPath(); ctx.moveTo(d.from.x, d.from.y); ctx.lineTo(d.to.x, d.to.y); ctx.stroke();
             let ratio = 0.4 + (idx % 3) * 0.12, mx = d.from.x + (d.to.x - d.from.x) * ratio, my = d.from.y + (d.to.y - d.from.y) * ratio;
             diagHitBoxes.push({ fromIdx: d.idxFrom, toIdx: d.idxTo, name: d.name, lenCm: d.len, x: mx, y: my });
-            ctx.fillStyle = badgeBgColor; ctx.fillRect(mx - 24, my - 9, 48, 14);
-            ctx.strokeStyle = d.isCustom ? '#0284c7' : (isLight ? '#cbd5e1' : '#334155'); ctx.strokeRect(mx - 24, my - 9, 48, 14);
-            ctx.fillStyle = d.isCustom ? '#0284c7' : diagTextColor; ctx.font = '500 10px "Inter", "Roboto", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(`${d.len} см`, mx, my + 2);
+            
+            ctx.fillStyle = badgeBgColor; 
+            ctx.fillRect(mx - 24 * iZ, my - 9 * iZ, 48 * iZ, 18 * iZ);
+            ctx.strokeStyle = d.isCustom ? '#0284c7' : (isLight ? '#cbd5e1' : '#334155'); 
+            ctx.strokeRect(mx - 24 * iZ, my - 9 * iZ, 48 * iZ, 18 * iZ);
+            
+            ctx.fillStyle = d.isCustom ? '#0284c7' : diagTextColor; 
+            ctx.font = '500 ' + (10 * iZ) + 'px "Inter", "Roboto", sans-serif'; 
+            ctx.textAlign = 'center'; 
+            ctx.fillText(`${d.len} см`, mx, my + 3 * iZ);
         });
         ctx.restore();
     }
@@ -806,9 +827,12 @@ function drawSketch() {
         ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
         for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
         if (isClosed && points.length >= 3) { ctx.closePath(); ctx.fillStyle = polyFillColor; ctx.fill(); }
-        ctx.strokeStyle = mainStrokeColor; ctx.lineWidth = 2.2; ctx.stroke();
+        ctx.strokeStyle = mainStrokeColor; 
+        ctx.lineWidth = 2.2 * iZ; 
+        ctx.stroke();
+        
         if (!isClosed && points.length >= 3) {
-            ctx.save(); ctx.strokeStyle = 'rgba(5, 150, 105, 0.55)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+            ctx.save(); ctx.strokeStyle = 'rgba(5, 150, 105, 0.55)'; ctx.lineWidth = 1.5 * iZ; ctx.setLineDash([5 * iZ, 5 * iZ]);
             ctx.beginPath(); ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y); ctx.lineTo(points[0].x, points[0].y); ctx.stroke(); ctx.restore();
         }
     }
@@ -816,9 +840,9 @@ function drawSketch() {
     let renderedBadgeBoxes = [];
     points.forEach(p => {
         if (!p) return;
-        renderedBadgeBoxes.push({ x: p.x, y: p.y, w: 20, h: 20 });
+        renderedBadgeBoxes.push({ x: p.x, y: p.y, w: 20 * iZ, h: 20 * iZ });
         let vx = p.x - centerX, vy = p.y - centerY, vLen = Math.hypot(vx, vy) || 1;
-        renderedBadgeBoxes.push({ x: p.x + (vx / vLen) * 16, y: p.y + (vy / vLen) * 16, w: 24, h: 16 });
+        renderedBadgeBoxes.push({ x: p.x + (vx / vLen) * 16 * iZ, y: p.y + (vy / vLen) * 16 * iZ, w: 24 * iZ, h: 16 * iZ });
     });
 
     innerElements.forEach((el, elIdx) => {
@@ -846,45 +870,43 @@ function drawSketch() {
             defDists.forEach(w => activeBindsToRender.push({ elIdx, bindIdx: null, edgeX: w.edgeX, edgeY: w.edgeY, projX: w.projX, projY: w.projY, distCm: w.distCm }));
         }
 
-        ctx.save(); ctx.font = '700 9px "Inter", sans-serif';
+        ctx.save(); ctx.font = '700 ' + (9 * iZ) + 'px "Inter", sans-serif';
         activeBindsToRender.forEach(w => {
-            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(w.edgeX, w.edgeY); ctx.lineTo(w.projX, w.projY); ctx.stroke();
-            let text = `${w.distCm} см`, textW = ctx.measureText(text).width, padX = 6, boxW = textW + padX * 2, boxH = 14;
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.2 * iZ; ctx.setLineDash([3 * iZ, 3 * iZ]); ctx.beginPath(); ctx.moveTo(w.edgeX, w.edgeY); ctx.lineTo(w.projX, w.projY); ctx.stroke();
+            let text = `${w.distCm} см`, textW = ctx.measureText(text).width, padX = 6 * iZ, boxW = textW + padX * 2, boxH = 14 * iZ;
             let midX = (w.edgeX + w.projX) / 2, midY = (w.edgeY + w.projY) / 2;
 
-            // ИСПРАВЛЕНИЕ: Ограничиваем количество "прыжков" ярлыков, чтобы они не убегали в бесконечность
             let jumps = 0;
             for (let b of renderedBadgeBoxes) {
-                if (Math.abs(b.x - midX) < (boxW / 2 + 10) && Math.abs(b.y - midY) < 14) {
-                    midY += (midY >= b.y) ? 14 : -14;
-                    jumps++;
-                    if (jumps > 3) break; 
+                if (Math.abs(b.x - midX) < (boxW / 2 + 10 * iZ) && Math.abs(b.y - midY) < 14 * iZ) {
+                    midY += (midY >= b.y) ? 14 * iZ : -14 * iZ;
+                    jumps++; if (jumps > 3) break; 
                 }
             }
             renderedBadgeBoxes.push({ x: midX, y: midY, w: boxW, h: boxH });
             if (w.bindIdx !== null) bindHitBoxes.push({ elIdx: w.elIdx, bindIdx: w.bindIdx, distCm: w.distCm, x: midX, y: midY, w: boxW, h: boxH });
 
             ctx.setLineDash([]); ctx.fillStyle = badgeBgColor; ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
-            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1; ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
-            ctx.fillStyle = '#ef4444'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, midX, midY + 0.5);
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1 * iZ; ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
+            ctx.fillStyle = '#ef4444'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, midX, midY + 0.5 * iZ);
         });
         ctx.restore();
 
-        ctx.save(); ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.22)';
+        ctx.save(); ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2 * iZ; ctx.fillStyle = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(37, 99, 235, 0.22)';
         if (el.type === 'rect') {
             let rw = el.w || (el.lenCm / cmPerPixel), rh = el.h || (el.widCm / cmPerPixel);
-            ctx.setLineDash([5, 3]); ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh); ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
-            ctx.font = '600 10px "Inter", sans-serif'; ctx.textAlign = 'center'; ctx.fillRect(el.x - 30, el.y - rh / 2 - 8, 60, 15); ctx.fillStyle = '#2563eb'; ctx.fillText(`${Math.round(el.lenCm)}`, el.x, el.y - rh / 2 + 3);
-            ctx.fillStyle = badgeBgColor; ctx.fillRect(el.x + rw / 2 - 25, el.y + 12, 50, 15); ctx.fillStyle = '#2563eb'; ctx.fillText(`${Math.round(el.widCm)}`, el.x + rw / 2, el.y + 23);
+            ctx.setLineDash([5 * iZ, 3 * iZ]); ctx.strokeRect(el.x - rw / 2, el.y - rh / 2, rw, rh); ctx.fillRect(el.x - rw / 2, el.y - rh / 2, rw, rh);
+            ctx.font = '600 ' + (10 * iZ) + 'px "Inter", sans-serif'; ctx.textAlign = 'center'; ctx.fillRect(el.x - 30 * iZ, el.y - rh / 2 - 8 * iZ, 60 * iZ, 15 * iZ); ctx.fillStyle = '#2563eb'; ctx.fillText(`${Math.round(el.lenCm)}`, el.x, el.y - rh / 2 + 3 * iZ);
+            ctx.fillStyle = badgeBgColor; ctx.fillRect(el.x + rw / 2 - 25 * iZ, el.y + 12 * iZ, 50 * iZ, 15 * iZ); ctx.fillStyle = '#2563eb'; ctx.fillText(`${Math.round(el.widCm)}`, el.x + rw / 2, el.y + 23 * iZ);
         } else if (el.type === 'circle') {
             let rad = el.radius || ((el.diamCm / 2) / cmPerPixel);
-            ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(el.x, el.y, rad, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
-            ctx.fillStyle = badgeBgColor; ctx.fillRect(el.x - 32, el.y - 9, 64, 18); ctx.fillStyle = '#2563eb'; ctx.font = '700 10px "Inter", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(`⌀${Math.round(el.diamCm)}`, el.x, el.y + 4);
+            ctx.setLineDash([4 * iZ, 3 * iZ]); ctx.beginPath(); ctx.arc(el.x, el.y, rad, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
+            ctx.fillStyle = badgeBgColor; ctx.fillRect(el.x - 32 * iZ, el.y - 9 * iZ, 64 * iZ, 18 * iZ); ctx.fillStyle = '#2563eb'; ctx.font = '700 ' + (10 * iZ) + 'px "Inter", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(`⌀${Math.round(el.diamCm)}`, el.x, el.y + 4 * iZ);
         } else if (el.type === 'poly' && el.pts && el.pts.length >= 3) {
-            ctx.setLineDash([5, 3]); ctx.beginPath(); ctx.moveTo(el.pts[0].x, el.pts[0].y);
+            ctx.setLineDash([5 * iZ, 3 * iZ]); ctx.beginPath(); ctx.moveTo(el.pts[0].x, el.pts[0].y);
             for (let i = 1; i < el.pts.length; i++) ctx.lineTo(el.pts[i].x, el.pts[i].y);
             ctx.closePath(); ctx.stroke(); ctx.fill();
-            ctx.font = '600 10px "Inter", sans-serif'; ctx.textAlign = 'center';
+            ctx.font = '600 ' + (10 * iZ) + 'px "Inter", sans-serif'; ctx.textAlign = 'center';
             for (let i = 0; i < el.pts.length; i++) {
                 let p1 = el.pts[i], p2 = el.pts[(i + 1) % el.pts.length];
                 let sideCm = Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
@@ -892,21 +914,21 @@ function drawSketch() {
                 
                 let jumps = 0;
                 for (let b of renderedBadgeBoxes) {
-                    if (Math.abs(b.x - midX) < 40 && Math.abs(b.y - midY) < 16) {
-                        midY += (midY >= b.y) ? 16 : -16;
+                    if (Math.abs(b.x - midX) < 40 * iZ && Math.abs(b.y - midY) < 16 * iZ) {
+                        midY += (midY >= b.y) ? 16 * iZ : -16 * iZ;
                         jumps++; if (jumps > 3) break;
                     }
                 }
-                renderedBadgeBoxes.push({ x: midX, y: midY, w: 44, h: 14 });
-                ctx.fillStyle = badgeBgColor; ctx.fillRect(midX - 22, midY - 7, 44, 14); ctx.fillStyle = '#2563eb'; ctx.fillText(`${sideCm}`, midX, midY + 4);
+                renderedBadgeBoxes.push({ x: midX, y: midY, w: 44 * iZ, h: 14 * iZ });
+                ctx.fillStyle = badgeBgColor; ctx.fillRect(midX - 22 * iZ, midY - 7 * iZ, 44 * iZ, 14 * iZ); ctx.fillStyle = '#2563eb'; ctx.fillText(`${sideCm}`, midX, midY + 4 * iZ);
             }
             if (editMode === 'inner') {
                 ctx.setLineDash([]);
                 el.pts.forEach((pt, vIdx) => {
                     let isSelectedSource = (activeBindSource && activeBindSource.innerIdx === elIdx && activeBindSource.vertexIdx === vIdx);
-                    if (isSelectedSource) { ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 11, 0, Math.PI * 2); ctx.fill(); }
-                    ctx.fillStyle = isSelectedSource ? '#d97706' : '#2563eb'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = '#ffffff'; ctx.font = '700 9px "Inter", sans-serif'; ctx.fillText(`${vIdx + 1}`, pt.x, pt.y + 3);
+                    if (isSelectedSource) { ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 11 * iZ, 0, Math.PI * 2); ctx.fill(); }
+                    ctx.fillStyle = isSelectedSource ? '#d97706' : '#2563eb'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 7 * iZ, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + (9 * iZ) + 'px "Inter", sans-serif'; ctx.fillText(`${vIdx + 1}`, pt.x, pt.y + 3 * iZ);
                 });
             }
         }
@@ -914,11 +936,11 @@ function drawSketch() {
     });
 
     if (activeDrawingPoly.length > 0) {
-        ctx.save(); ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(activeDrawingPoly[0].x, activeDrawingPoly[0].y);
+        ctx.save(); ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2 * iZ; ctx.setLineDash([4 * iZ, 3 * iZ]); ctx.beginPath(); ctx.moveTo(activeDrawingPoly[0].x, activeDrawingPoly[0].y);
         for (let i = 1; i < activeDrawingPoly.length; i++) { ctx.lineTo(activeDrawingPoly[i].x, activeDrawingPoly[i].y); } ctx.stroke();
         activeDrawingPoly.forEach((pt, i) => {
-            ctx.fillStyle = i === 0 ? '#10b981' : '#f59e0b'; ctx.beginPath(); ctx.arc(pt.x, pt.y, i === 0 ? 8 : 5, 0, Math.PI * 2); ctx.fill();
-            if (i === 0 && activeDrawingPoly.length >= 3) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke(); }
+            ctx.fillStyle = i === 0 ? '#10b981' : '#f59e0b'; ctx.beginPath(); ctx.arc(pt.x, pt.y, (i === 0 ? 8 : 5) * iZ, 0, Math.PI * 2); ctx.fill();
+            if (i === 0 && activeDrawingPoly.length >= 3) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * iZ; ctx.stroke(); }
         });
         ctx.restore();
     }
@@ -933,47 +955,46 @@ function drawSketch() {
         let midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
         let outX = midX - centerX, outY = midY - centerY, outLen = Math.hypot(outX, outY) || 1;
         
-        // Если стена крошечная, отодвигаем ярлык чуть дальше по умолчанию
-        let pushDist = wallPx < 25 ? 28 : 18; 
+        let pushDist = wallPx < 25 ? 28 * iZ : 18 * iZ; 
         let labelX = midX + (outX / outLen) * pushDist, labelY = midY + (outY / outLen) * pushDist;
 
         let jumps = 0;
         for (let b of renderedBadgeBoxes) {
-            if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
-                labelY += (labelY >= b.y) ? 16 : -16;
+            if (Math.abs(b.x - labelX) < 46 * iZ && Math.abs(b.y - labelY) < 16 * iZ) {
+                labelY += (labelY >= b.y) ? 16 * iZ : -16 * iZ;
                 jumps++; if (jumps > 2) break; 
             }
         }
 
-        // РИСУЕМ ЛИНИЮ-ВЫНОСКУ, если ярлык сильно сдвинут или стена крошечная
         if (jumps > 0 || wallPx < 25) {
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(midX, midY);
             ctx.lineTo(labelX, labelY);
             ctx.strokeStyle = isLight ? '#94a3b8' : '#64748b';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([2, 2]);
+            ctx.lineWidth = 1 * iZ;
+            ctx.setLineDash([2 * iZ, 2 * iZ]);
             ctx.stroke();
             ctx.restore();
         }
 
-        renderedBadgeBoxes.push({ x: labelX, y: labelY, w: 56, h: 16 }); wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
-        ctx.fillStyle = badgeBgColor; ctx.fillRect(labelX - 28, labelY - 11, 56, 16);
-        ctx.strokeStyle = isLight ? '#e2e8f0' : '#334155'; ctx.strokeRect(labelX - 28, labelY - 11, 56, 16);
-        ctx.fillStyle = wallTextColor; ctx.font = strictFont; ctx.fillText(`${lenVal} см`, labelX, labelY);
+        renderedBadgeBoxes.push({ x: labelX, y: labelY, w: 56 * iZ, h: 16 * iZ }); wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
+        ctx.fillStyle = badgeBgColor; ctx.fillRect(labelX - 28 * iZ, labelY - 11 * iZ, 56 * iZ, 16 * iZ);
+        ctx.strokeStyle = isLight ? '#e2e8f0' : '#334155'; ctx.strokeRect(labelX - 28 * iZ, labelY - 11 * iZ, 56 * iZ, 16 * iZ);
+        ctx.fillStyle = wallTextColor; ctx.font = '600 ' + (11 * iZ) + 'px "Inter", "Roboto", sans-serif'; 
+        ctx.fillText(`${lenVal} см`, labelX, labelY + 3.5 * iZ);
     }
 
     points.forEach((p, idx) => {
         if (!p) return;
         let isAimTarget = (editMode === 'aim_diag' && diagStartPointIdx === idx);
-        if (isAimTarget) { ctx.fillStyle = 'rgba(2, 132, 199, 0.4)'; ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.fill(); }
+        if (isAimTarget) { ctx.fillStyle = 'rgba(2, 132, 199, 0.4)'; ctx.beginPath(); ctx.arc(p.x, p.y, 14 * iZ, 0, Math.PI * 2); ctx.fill(); }
 
         ctx.fillStyle = (!isClosed && idx === 0 && points.length >= 3) ? '#059669' : (isAimTarget ? '#0284c7' : mainStrokeColor);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6 * iZ, 0, Math.PI * 2); ctx.fill();
         let vx = p.x - centerX, vy = p.y - centerY, vLen = Math.hypot(vx, vy) || 1;
-        let lx = p.x + (vx / vLen) * 16, ly = p.y + (vy / vLen) * 16 + 4;
-        ctx.fillStyle = pointLabelColor; ctx.font = '700 12px "Inter", "Roboto", sans-serif'; ctx.fillText(p.label, lx, ly);
+        let lx = p.x + (vx / vLen) * 16 * iZ, ly = p.y + (vy / vLen) * 16 * iZ + 4 * iZ;
+        ctx.fillStyle = pointLabelColor; ctx.font = '700 ' + (12 * iZ) + 'px "Inter", "Roboto", sans-serif'; ctx.fillText(p.label, lx, ly);
     });
     ctx.textAlign = 'start'; ctx.restore();
 }
@@ -1040,11 +1061,11 @@ canvas.addEventListener('pointerdown', (e) => {
     if (activePointers.size > 1) return;
 
     const pos = getCanvasPointerPos(e), x = pos.x, y = pos.y;
+    const iZ = 1 / zoomLevel;
 
     if (editMode === 'aim_diag') {
         for (let i = 0; i < points.length; i++) {
-            // ИСПРАВЛЕНИЕ: Зона прицеливания 50px
-            if (Math.hypot(points[i].x - x, points[i].y - y) < 50) { 
+            if (Math.hypot(points[i].x - x, points[i].y - y) < 50 * iZ) { 
                 if (diagStartPointIdx === null) {
                     diagStartPointIdx = i; showToast(`Первый угол выбран (${points[i].label}). Тапните во второй.`);
                     updateHint(); drawSketch();
@@ -1071,21 +1092,21 @@ canvas.addEventListener('pointerdown', (e) => {
     }
 
     for (let bBox of bindHitBoxes) {
-        let halfW = (bBox.w || 64) / 2, halfH = (bBox.h || 16) / 2;
+        let halfW = (bBox.w || 64*iZ) / 2, halfH = (bBox.h || 16*iZ) / 2;
         if (x >= bBox.x - halfW && x <= bBox.x + halfW && y >= bBox.y - halfH && y <= bBox.y + halfH) { editCreatedBinding(bBox); return; }
     }
 
     if (activeBindSource !== null) {
-        for (let i = 0; i < points.length; i++) { if (Math.hypot(points[i].x - x, points[i].y - y) < 26) { createInteractiveBinding('corner', i); return; } }
+        for (let i = 0; i < points.length; i++) { if (Math.hypot(points[i].x - x, points[i].y - y) < 26 * iZ) { createInteractiveBinding('corner', i); return; } }
         let count = getWallCount();
         for (let i = 0; i < count; i++) {
             let proj = getClosestPointOnSegment({ x, y }, points[i], points[(i + 1) % points.length]);
-            if (Math.hypot(proj.x - x, proj.y - y) < 22) { createInteractiveBinding('wall', i); return; }
+            if (Math.hypot(proj.x - x, proj.y - y) < 22 * iZ) { createInteractiveBinding('wall', i); return; }
         }
     }
 
     if (editMode === 'drawing_poly') {
-        if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45) {
+        if (activeDrawingPoly.length >= 3 && Math.hypot(activeDrawingPoly[0].x - x, activeDrawingPoly[0].y - y) < 45 * iZ) {
             saveState(); let sx = 0, sy = 0; activeDrawingPoly.forEach(p => { sx += p.x; sy += p.y; });
             innerElements.push({ id: 'inner_' + Date.now(), type: 'poly', title: `Короб (${activeDrawingPoly.length} угл.)`, x: sx / activeDrawingPoly.length, y: sy / activeDrawingPoly.length, pts: [...activeDrawingPoly], customBindings: [] });
             activeDrawingPoly = []; editMode = 'inner'; renderInnerElementsList(); updateHint(); drawSketch(); if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState(); showToast('Произвольный короб создан!', 'success'); return;
@@ -1098,7 +1119,7 @@ canvas.addEventListener('pointerdown', (e) => {
             let el = innerElements[i];
             if (el.type === 'poly' && el.pts) {
                 for (let v = 0; v < el.pts.length; v++) {
-                    if (Math.hypot(el.pts[v].x - x, el.pts[v].y - y) < 24) {
+                    if (Math.hypot(el.pts[v].x - x, el.pts[v].y - y) < 24 * iZ) {
                         if (activeBindSource && activeBindSource.innerIdx === i && activeBindSource.vertexIdx === v) { activeBindSource = null; showToast('Выбор точки отменён'); }
                         else { activeBindSource = { innerIdx: i, vertexIdx: v }; selectedInnerIdx = i; showToast(`🎯 Угол ${v + 1} выбран! Теперь тапайте по стене или углу комнаты`, 'success'); }
                         updateHint(); drawSketch(); return;
@@ -1110,18 +1131,18 @@ canvas.addEventListener('pointerdown', (e) => {
             let el = innerElements[i], hit = false, rw = el.w || (el.lenCm / cmPerPixel), rh = el.h || (el.widCm / cmPerPixel), rad = el.radius || (el.diamCm ? (el.diamCm / 2) / cmPerPixel : 20 / cmPerPixel);
             if (el.type === 'rect') hit = (x >= el.x - rw / 2 && x <= el.x + rw / 2 && y >= el.y - rh / 2 && y <= el.y + rh / 2);
             else if (el.type === 'circle') hit = Math.hypot(el.x - x, el.y - y) <= rad;
-            else if (el.type === 'poly') hit = Math.hypot(el.x - x, el.y - y) <= 45;
+            else if (el.type === 'poly') hit = Math.hypot(el.x - x, el.y - y) <= 45 * iZ;
             if (hit) { selectedInnerIdx = i; saveState(); draggedInnerIdx = i; draggedInnerVertex = null; innerDragOffset = { x: x - el.x, y: y - el.y }; canvas.setPointerCapture(e.pointerId); return; }
         }
     }
 
-    if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30) { closePolygon(); return; }
-    for (let dBox of diagHitBoxes) { if (x >= dBox.x - 26 && x <= dBox.x + 26 && y >= dBox.y - 12 && y <= dBox.y + 12) { openDiagonalEditSheet(dBox); return; } }
-    for (let box of wallHitBoxes) { if (x >= box.x - 28 && x <= box.x + 28 && y >= box.y - 14 && y <= box.y + 14) { openWallEditSheet(box.wallIdx); return; } }
+    if (!isClosed && points.length >= 3 && Math.hypot(points[0].x - x, points[0].y - y) < 30 * iZ) { closePolygon(); return; }
+    for (let dBox of diagHitBoxes) { if (x >= dBox.x - 26*iZ && x <= dBox.x + 26*iZ && y >= dBox.y - 12*iZ && y <= dBox.y + 12*iZ) { openDiagonalEditSheet(dBox); return; } }
+    for (let box of wallHitBoxes) { if (x >= box.x - 28*iZ && x <= box.x + 28*iZ && y >= box.y - 14*iZ && y <= box.y + 14*iZ) { openWallEditSheet(box.wallIdx); return; } }
 
     if (editMode === 'room') {
         for (let i = 0; i < points.length; i++) {
-            if (Math.hypot(points[i].x - x, points[i].y - y) < 25) { saveState(); draggedPointIndex = i; isDragging = true; canvas.setPointerCapture(e.pointerId); return; }
+            if (Math.hypot(points[i].x - x, points[i].y - y) < 25 * iZ) { saveState(); draggedPointIndex = i; isDragging = true; canvas.setPointerCapture(e.pointerId); return; }
         }
     }
 
@@ -1399,6 +1420,70 @@ function applyWallSheetValue() {
         }
         closeWallEditSheet();
     }
+}
+
+function snapOrthogonal() {
+    saveState();
+    
+    // Блокировка, чтобы 90 градусов не ломало ручные диагонали
+    if (customDiagonals.length > 0) {
+        showToast('Отключено: Ручные диагонали задают жесткую форму, 90° её сломает!', 'error');
+        return;
+    }
+
+    if (editMode === 'inner' && innerElements.length > 0) {
+        let el = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) ? innerElements[selectedInnerIdx] : innerElements[innerElements.length - 1];
+        if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
+            let n = el.pts.length;
+            if (n === 4) {
+                let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
+                let h = Math.hypot(p1.x - p0.x, p1.y - p0.y), w = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                let cx = (p0.x + p1.x + p2.x + p3.x) / 4, cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+                el.pts[0] = { x: cx - w/2, y: cy + h/2 }; el.pts[1] = { x: cx - w/2, y: cy - h/2 };
+                el.pts[2] = { x: cx + w/2, y: cy - h/2 }; el.pts[3] = { x: cx + w/2, y: cy + h/2 };
+            } else {
+                for (let iter = 0; iter < 2; iter++) {
+                    for (let i = 0; i < n; i++) {
+                        let curr = el.pts[i], next = el.pts[(i + 1) % n];
+                        if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) { curr.y = next.y = (curr.y + next.y) / 2; }
+                        else { curr.x = next.x = (curr.x + next.x) / 2; }
+                    }
+                }
+            }
+            let sx = 0, sy = 0; el.pts.forEach(p => { sx += p.x; sy += p.y; }); el.x = sx / el.pts.length; el.y = sy / el.pts.length;
+            renderInnerElementsList(); drawSketch();
+            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+            showToast('Углы короба выровнены под 90°', 'success'); return;
+        }
+    }
+
+    if (isSketchLocked || points.length < 3) return;
+
+    let nPts = points.length;
+    if (nPts === 4 && isClosed) {
+        let pA = points[0], pB = points[1], pC = points[2], pD = points[3];
+        let inpAB = document.getElementById('wall-input-0'), valAB = inpAB ? parseInt(inpAB.value, 10) : 0;
+        let hPx = valAB > 0 ? valAB / cmPerPixel : Math.hypot(pB.x - pA.x, pB.y - pA.y);
+        let inpBC = document.getElementById('wall-input-1'), valBC = inpBC ? parseInt(inpBC.value, 10) : 0;
+        let wPx = valBC > 0 ? valBC / cmPerPixel : Math.hypot(pC.x - pB.x, pC.y - pB.y);
+        let cx = (pA.x + pB.x + pC.x + pD.x) / 4, cy = (pA.y + pB.y + pC.y + pD.y) / 4;
+        points[0] = { x: cx - wPx/2, y: cy + hPx/2, label: 'A' }; points[1] = { x: cx - wPx/2, y: cy - hPx/2, label: 'B' };
+        points[2] = { x: cx + wPx/2, y: cy - hPx/2, label: 'C' }; points[3] = { x: cx + wPx/2, y: cy + hPx/2, label: 'D' };
+        fitToScreen(false); syncInputsValuesOnly(); rebuildWallInputs(); rebuildDiagonalInputs(); drawSketch();
+        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        showToast('Прямоугольник построен строго по стенам A-B и B-C', 'success'); return;
+    }
+    for (let iter = 0; iter < 2; iter++) {
+        for (let i = 0; i < nPts; i++) {
+            if (!isClosed && i === nPts - 1) continue;
+            let curr = points[i], next = points[(i + 1) % nPts];
+            if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) { curr.y = next.y = (curr.y + next.y) / 2; }
+            else { curr.x = next.x = (curr.x + next.x) / 2; }
+        }
+    }
+    fitToScreen(false); syncInputsValuesOnly(); drawSketch();
+    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+    showToast('Углы выровнены под 90°', 'success');
 }
 
 // --- РЕЖИМ ДЖОЙСТИКА (ПОШАГОВЫЙ ВВОД С РУЛЕТКИ) ---
