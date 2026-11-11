@@ -24,7 +24,6 @@ function showCustomPrompt(title, defaultVal, callback, isNumeric = false) {
             if (e.key === 'Enter') confirmCustomPrompt();
         };
     } else {
-        // Фоллбэк, если HTML еще не обновили
         let res = prompt(title.replace(/<[^>]*>?/gm, ''), defaultVal);
         if (res !== null) callback(res);
     }
@@ -43,6 +42,57 @@ function confirmCustomPrompt() {
         closeCustomPrompt();
         currentPromptCallback(val);
     }
+}
+
+// --- УПРАВЛЕНИЕ ДЖОЙСТИКОМ (UI) ---
+let isJoystickMode = false;
+
+function startJoystickMode() {
+    if (points && points.length > 0) {
+        if (!confirm('Текущий чертеж будет сброшен. Начать построение рулеткой?')) return;
+    }
+    
+    isJoystickMode = true;
+    if (typeof resetSketch === 'function') resetSketch();
+    
+    // Ставим первую точку
+    if (typeof points !== 'undefined') {
+        points = [{ x: canvas.width / 2, y: canvas.height / 2, label: 'A' }];
+        isClosed = false;
+        if (typeof drawSketch === 'function') drawSketch();
+    }
+
+    const panel = document.getElementById('joystickPanel');
+    if (panel) {
+        panel.style.display = 'flex';
+        updateJoystickLabel();
+        
+        // Автоматически ставим курсор в поле ввода
+        setTimeout(() => {
+            const inp = document.getElementById('joystickInput');
+            if (inp) {
+                inp.value = '';
+                inp.focus();
+            }
+        }, 100);
+    }
+    showToast('Режим рулетки: Введите длину и нажмите стрелку', 'success');
+}
+
+function exitJoystickMode() {
+    isJoystickMode = false;
+    const panel = document.getElementById('joystickPanel');
+    if (panel) panel.style.display = 'none';
+    showToast('Выход из режима рулетки');
+}
+
+function updateJoystickLabel() {
+    const labelEl = document.getElementById('joystickWallLabel');
+    if (!labelEl || typeof points === 'undefined' || points.length === 0) return;
+    
+    let currentLabel = points[points.length - 1].label;
+    let nextLabel = String.fromCharCode(currentLabel.charCodeAt(0) + 1);
+    labelEl.innerText = `${currentLabel}-${nextLabel}:`;
 }
 
 // --- РЕГИСТРАЦИЯ ОФФЛАЙН РЕЖИМА (SERVICE WORKER) ---
@@ -97,7 +147,6 @@ function toggleViewMode() {
     showToast(isTabMode ? 'Режим быстрых вкладок включён' : 'Классический длинный вид включён');
 }
 
-// ИСПРАВЛЕНО: Добавлены 2 строчки для новой вкладки "Сводка" (summary)
 function switchTab(tabName) {
     if (document.activeElement) document.activeElement.blur();
 
@@ -313,7 +362,6 @@ function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
     let encodedCode = '';
     
-    // Защита от краша при вводе русских букв
     try {
         encodedCode = btoa(code); 
     } catch (e) {
@@ -488,6 +536,84 @@ function syncCurrentRoomState() {
     if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
+function loadRoomIntoUI(idx) {
+    activeRoomIdx = idx;
+    let r = rooms[activeRoomIdx];
+    if (!r) return;
+
+    if (typeof points !== 'undefined') {
+        points = (r.points || []).map(p => ({ x: p.x, y: p.y, label: p.label || '' }));
+    }
+    if (typeof isClosed !== 'undefined') isClosed = !!r.isClosed;
+    if (typeof cmPerPixel !== 'undefined') cmPerPixel = r.scale || 2.5;
+    if (typeof historyState !== 'undefined') historyState = [];
+    
+    if (typeof zoomLevel !== 'undefined') zoomLevel = 1.0;
+    if (typeof panOffset !== 'undefined') panOffset = { x: 0, y: 0 };
+
+    if (typeof innerElements !== 'undefined') {
+        innerElements = typeof structuredClone === 'function' ? structuredClone(r.innerElements || []) : JSON.parse(JSON.stringify(r.innerElements || []));
+        if (typeof renderInnerElementsList === 'function') renderInnerElementsList();
+    }
+    
+    if (typeof customDiagonals !== 'undefined') {
+        customDiagonals = typeof structuredClone === 'function' ? structuredClone(r.customDiagonals || []) : JSON.parse(JSON.stringify(r.customDiagonals || []));
+    }
+
+    const subCheckbox = document.getElementById('hatchSubtractArea');
+    if (subCheckbox) {
+        subCheckbox.checked = r.hatchSubtractArea !== undefined ? !!r.hatchSubtractArea : true;
+    }
+
+    const hatchAnglesCheckbox = document.getElementById('useHatchAnglesCheckbox');
+    if (hatchAnglesCheckbox) {
+        hatchAnglesCheckbox.checked = !!r.useHatchAngles;
+    }
+    const hatchAnglesCountEl = document.getElementById('countHatchAngles');
+    if (hatchAnglesCountEl) {
+        hatchAnglesCountEl.value = calculateHatchAngles(r.innerElements);
+    }
+    const priceHatchAngleEl = document.getElementById('priceHatchAngle');
+    if (priceHatchAngleEl) {
+        priceHatchAngleEl.value = r.priceHatchAngle !== undefined ? r.priceHatchAngle : 150;
+    }
+
+    if (document.getElementById('countInsert')) document.getElementById('countInsert').value = r.countInsert ?? 0;
+    if (document.getElementById('useInsertCheckbox')) document.getElementById('useInsertCheckbox').checked = !!r.useInsert;
+    if (document.getElementById('countLights')) document.getElementById('countLights').value = r.countLights ?? 4;
+    if (document.getElementById('countChandeliers')) document.getElementById('countChandeliers').value = r.countChandeliers ?? 1;
+    if (document.getElementById('countCornice')) document.getElementById('countCornice').value = r.countCornice ?? 3.0;
+    if (document.getElementById('countPipes')) document.getElementById('countPipes').value = r.countPipes ?? 1;
+
+    if (document.getElementById('countLightLines')) document.getElementById('countLightLines').value = r.countLightLines ?? 0;
+    if (document.getElementById('countTrack')) document.getElementById('countTrack').value = r.countTrack ?? 0;
+    if (document.getElementById('countNiche')) document.getElementById('countNiche').value = r.countNiche ?? 0;
+    if (document.getElementById('countShadow')) document.getElementById('countShadow').value = r.countShadow ?? 0;
+    if (document.getElementById('customName1')) document.getElementById('customName1').value = r.customName1 ?? 'Брус под гардину';
+    if (document.getElementById('customPrice1')) document.getElementById('customPrice1').value = r.customPrice1 ?? 0;
+    if (document.getElementById('customName2')) document.getElementById('customName2').value = r.customName2 ?? 'Обход короба';
+    if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
+
+    const presetCorners = document.getElementById('presetCornersCount');
+    if (presetCorners && points && points.length >= 3) {
+        presetCorners.value = points.length;
+    }
+
+    if (typeof rebuildWallInputs === 'function') rebuildWallInputs();
+    if (typeof rebuildDiagonalInputs === 'function') rebuildDiagonalInputs();
+    
+    if (r.walls && r.walls.length > 0) {
+        let wallInputs = document.querySelectorAll('.wall-len');
+        r.walls.forEach((val, i) => {
+            if (wallInputs[i]) wallInputs[i].value = val;
+        });
+    }
+
+    renderRoomsBar();
+    if (typeof updateHint === 'function') updateHint();
+    if (typeof fitToScreen === 'function') fitToScreen(false);
+}
+
 function renderRoomsBar() {
     const bar = document.getElementById('roomsBar');
     const badge = document.getElementById('roomsCountBadge');
@@ -511,7 +637,8 @@ function renderRoomsBar() {
 function switchRoom(idx) {
     if (idx === activeRoomIdx) return;
     syncCurrentRoomState();
-    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(idx);
+    loadRoomIntoUI(idx);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
 function addNewRoom() {
@@ -519,7 +646,8 @@ function addNewRoom() {
     const presets = ['Спальня', 'Кухня', 'Коридор', 'Детская', 'Санузел', 'Балкон'];
     let nextName = presets[(rooms.length - 1) % presets.length] || `Комната ${rooms.length + 1}`;
     rooms.push(createDefaultRoom(nextName));
-    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(rooms.length - 1);
+    loadRoomIntoUI(rooms.length - 1);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast(`Добавлено помещение: ${nextName}`, 'success');
 }
 
@@ -529,7 +657,7 @@ function renameCurrentRoom() {
         if (newTitle && newTitle.trim()) {
             curr.title = newTitle.trim();
             renderRoomsBar();
-            if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+            if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
         }
     });
 }
@@ -539,7 +667,8 @@ function deleteCurrentRoom() {
     let curr = rooms[activeRoomIdx];
     if (confirm(`Удалить помещение "${curr.title}" из заказа?`)) {
         rooms.splice(activeRoomIdx, 1);
-        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
+        loadRoomIntoUI(Math.max(0, activeRoomIdx - 1));
+        if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
         showToast('Помещение удалено');
     }
 }
@@ -554,7 +683,8 @@ function startNewProject() {
     document.getElementById('clientDate').value = '';
     rooms = [createDefaultRoom('Зал / Комната 1')];
     if (typeof resetSketch === 'function') resetSketch();
-    if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
+    loadRoomIntoUI(0);
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast('Создан новый замер', 'success');
 }
 
@@ -632,7 +762,7 @@ function saveProject() {
     }
 
     localStorage.setItem('pro_projects', JSON.stringify(saved));
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
 }
 
 function openProjectsModal() {
@@ -709,7 +839,7 @@ function loadSavedProject(projId) {
 
     if (proj.rooms && Array.isArray(proj.rooms) && proj.rooms.length > 0) {
         rooms = proj.rooms;
-        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
+        loadRoomIntoUI(0);
     } else {
         rooms = [createDefaultRoom('Комната 1')];
         rooms[0].points = proj.points || [];
@@ -718,11 +848,11 @@ function loadSavedProject(projId) {
         rooms[0].walls = proj.walls || [];
         rooms[0].innerElements = proj.innerElements || [];
         rooms[0].customDiagonals = proj.customDiagonals || [];
-        if (typeof loadRoomIntoUI === 'function') loadRoomIntoUI(0);
+        loadRoomIntoUI(0);
     }
 
     closeProjectsModal();
-    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage(); // ДОБАВЛЕНО СОХРАНЕНИЕ
+    if (typeof saveProjectToLocalStorage === 'function') saveProjectToLocalStorage();
     showToast(`Загружен клиент: ${proj.name}`, 'success');
 }
 
@@ -931,7 +1061,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 // --- ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ ПРИ СБРОСЕ КЭША (АВТОЗАГРУЗКА) ---
 window.addEventListener('DOMContentLoaded', () => {
-    // Ждем секунду, чтобы холст успел проинициализироваться
     setTimeout(() => {
         if (typeof loadProjectFromLocalStorage === 'function') {
             loadProjectFromLocalStorage();
