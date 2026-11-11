@@ -353,6 +353,12 @@ function snapOrthogonal() {
     }
 
     if (isSketchLocked || points.length < 3) return;
+
+    if (customDiagonals.length > 0) {
+        showToast('Отключено: Ручные диагонали задают жесткую форму, 90° её сломает!', 'error');
+        return;
+    }
+
     let nPts = points.length;
     if (nPts === 4 && isClosed) {
         let pA = points[0], pB = points[1], pC = points[2], pD = points[3];
@@ -921,22 +927,40 @@ function drawSketch() {
     for (let i = 0; i < wallCount; i++) {
         let p1 = points[i], p2 = points[(i + 1) % points.length];
         if (!p1 || !p2) continue;
+        let wallPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         let inputEl = document.getElementById(`wall-input-${i}`);
-        let lenVal = inputEl ? inputEl.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
+        let lenVal = inputEl ? inputEl.value : Math.round(wallPx * cmPerPixel);
         let midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
         let outX = midX - centerX, outY = midY - centerY, outLen = Math.hypot(outX, outY) || 1;
-        let labelX = midX + (outX / outLen) * 18, labelY = midY + (outY / outLen) * 18;
+        
+        // Если стена крошечная, отодвигаем ярлык чуть дальше по умолчанию
+        let pushDist = wallPx < 25 ? 28 : 18; 
+        let labelX = midX + (outX / outLen) * pushDist, labelY = midY + (outY / outLen) * pushDist;
 
         let jumps = 0;
         for (let b of renderedBadgeBoxes) {
             if (Math.abs(b.x - labelX) < 46 && Math.abs(b.y - labelY) < 16) {
                 labelY += (labelY >= b.y) ? 16 : -16;
-                jumps++; if (jumps > 2) break; // ИСПРАВЛЕНИЕ: Не убегать в бесконечность
+                jumps++; if (jumps > 2) break; 
             }
+        }
+
+        // РИСУЕМ ЛИНИЮ-ВЫНОСКУ, если ярлык сильно сдвинут или стена крошечная
+        if (jumps > 0 || wallPx < 25) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(midX, midY);
+            ctx.lineTo(labelX, labelY);
+            ctx.strokeStyle = isLight ? '#94a3b8' : '#64748b';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            ctx.stroke();
+            ctx.restore();
         }
 
         renderedBadgeBoxes.push({ x: labelX, y: labelY, w: 56, h: 16 }); wallHitBoxes.push({ wallIdx: i, x: labelX, y: labelY });
         ctx.fillStyle = badgeBgColor; ctx.fillRect(labelX - 28, labelY - 11, 56, 16);
+        ctx.strokeStyle = isLight ? '#e2e8f0' : '#334155'; ctx.strokeRect(labelX - 28, labelY - 11, 56, 16);
         ctx.fillStyle = wallTextColor; ctx.font = strictFont; ctx.fillText(`${lenVal} см`, labelX, labelY);
     }
 
