@@ -117,8 +117,8 @@
                 
                 <div style="display: flex; gap: 8px; width: 100%; align-items: center; justify-content: center;">
                     <span id="joystickWallLabel" style="font-size: 16px; font-weight: 700; color: var(--text-main);">A-B:</span>
-                    <input type="number" inputmode="decimal" id="joystickInput" class="input-field" style="font-size: 22px; font-weight: 700; text-align: center; max-width: 120px; padding: 10px;" placeholder="0.00">
-                    <span style="font-size: 16px; font-weight: 600; color: var(--text-muted);">м</span>
+                    <input type="number" inputmode="decimal" id="joystickInput" class="input-field" style="font-size: 22px; font-weight: 700; text-align: center; max-width: 120px; padding: 10px;" placeholder="0">
+                    <span style="font-size: 16px; font-weight: 600; color: var(--text-muted);">см</span>
                 </div>
 
                 <div class="joystick-pad" style="display: grid; grid-template-columns: 70px 70px 70px; grid-template-rows: 70px 70px 70px; gap: 8px; margin-top: 10px;">
@@ -483,13 +483,13 @@
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 6px;">
-                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (М):</span>
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">РАЗМЕРЫ ФИГУРЫ (СМ):</span>
                 <div id="innerDimensionsBlock" style="display: flex; gap: 8px;"></div>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (М):</span>
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">ОТСТУПЫ ОТ КРАЯ ДО СТЕН (СМ):</span>
                     <button class="theme-toggle-btn" type="button" onclick="addInnerWallBindingRow()" style="padding: 4px 8px; font-size: 11px; color: var(--indigo-main);">➕ Добавить привязку</button>
                 </div>
                 
@@ -526,7 +526,7 @@
                 <button class="btn" onclick="closeWallEditSheet()" style="padding: 6px 10px;">✖</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" inputmode="numeric" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="0.000" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
+                <input type="text" inputmode="numeric" id="wallSheetInput" class="input-field" style="font-size: 20px; font-weight: 700; text-align: center; padding: 12px;" placeholder="0" onkeydown="if(event.key==='Enter') applyWallSheetValue()">
                 <button class="btn btn-primary" onclick="applyWallSheetValue()" style="padding: 14px 22px; font-size: 14px;">Применить</button>
             </div>
         </div>
