@@ -1,5 +1,5 @@
 // ==========================================================================
-// ПОТОЛОК ЗАМЕР PRO — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
+// eMiMax потолки — ЯДРО ПРИЛОЖЕНИЯ (app-core.js)
 // ==========================================================================
 
 // --- КАСТОМНЫЙ PROMPT (ВМЕСТО СТАНДАРТНОГО БРАУЗЕРНОГО) ---
@@ -214,11 +214,11 @@ function stepValue(inputId, delta, minVal, maxVal) {
 // --- ЛИЦЕНЗИРОВАНИЕ И БЕЗОПАСНОСТЬ (ЛИМИТ СТРОГО 2 ЗАМЕРА) ---
 const MAX_FREE_ATTEMPTS = 2;
 const SUPPORT_EMAIL = "Prilojeniea-p-k@mail.ru";
-const SECRET_SALT = "PRO_ZAMER_2026_500RUB";
+const SECRET_SALT = "EMIMAX_2026_500RUB";
 
 let deviceId = localStorage.getItem('_pz_dev_id');
 if (!deviceId) {
-    deviceId = 'PZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    deviceId = 'MAX-' + Math.random().toString(36).substring(2, 7).toUpperCase();
     localStorage.setItem('_pz_dev_id', deviceId);
 }
 const devLabel = document.getElementById('deviceIdLabel');
@@ -340,7 +340,7 @@ function updateAttemptsUI() {
 function getExpectedLicenseKey(devId) {
     let cleanId = devId.trim().toUpperCase();
     let hash = 5381;
-    let secret = cleanId + "_POTOLOK_PRO_SECRET_73";
+    let secret = cleanId + "_EMIMAX_PRO_SECRET_73";
     for (let i = 0; i < secret.length; i++) {
         hash = ((hash << 5) + hash) + secret.charCodeAt(i);
         hash = hash & 0x7FFFFFFF;
@@ -384,7 +384,7 @@ function activateByCode() {
 }
 
 function sendEmailToSupport() {
-    let subject = encodeURIComponent(`Покупка подписки Потолок Замер PRO (ID: ${deviceId})`);
+    let subject = encodeURIComponent(`Покупка подписки eMiMax потолки (ID: ${deviceId})`);
     let body = encodeURIComponent(`Здравствуйте! Хочу приобрести доступ PRO.
 Мой ID: ${deviceId}`);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
