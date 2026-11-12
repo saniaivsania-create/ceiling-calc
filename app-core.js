@@ -29,18 +29,30 @@ function showCustomPrompt(title, defaultVal, callback, isNumeric = false) {
     }
 }
 
+// ИСПРАВЛЕНИЕ: Безопасное закрытие и передача пустых данных при отмене
 function closeCustomPrompt() {
     const modal = document.getElementById('customPromptModal');
     if (modal) modal.style.display = 'none';
-    currentPromptCallback = null;
+    
+    if (currentPromptCallback) {
+        let cb = currentPromptCallback;
+        currentPromptCallback = null;
+        cb(null); 
+    }
 }
 
+// ИСПРАВЛЕНИЕ: Правильный порядок (сначала запоминаем функцию, потом стираем, потом вызываем)
 function confirmCustomPrompt() {
     const inputEl = document.getElementById('promptInput');
     if (inputEl && currentPromptCallback) {
         let val = inputEl.value;
-        closeCustomPrompt();
-        currentPromptCallback(val);
+        let cb = currentPromptCallback; 
+        currentPromptCallback = null;
+        
+        const modal = document.getElementById('customPromptModal');
+        if (modal) modal.style.display = 'none';
+        
+        cb(val); 
     }
 }
 
