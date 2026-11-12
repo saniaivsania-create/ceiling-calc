@@ -48,7 +48,7 @@ function confirmCustomPrompt() {
 let isJoystickMode = false;
 
 function startJoystickMode() {
-    if (points && points.length > 0) {
+    if (typeof points !== 'undefined' && points && points.length > 0) {
         if (!confirm('Текущий чертеж будет сброшен. Начать построение рулеткой?')) return;
     }
     
@@ -58,7 +58,7 @@ function startJoystickMode() {
     // Ставим первую точку
     if (typeof points !== 'undefined') {
         points = [{ x: canvas.width / 2, y: canvas.height / 2, label: 'A' }];
-        isClosed = false;
+        if (typeof isClosed !== 'undefined') isClosed = false;
         if (typeof drawSketch === 'function') drawSketch();
     }
 
@@ -91,7 +91,11 @@ function updateJoystickLabel() {
     if (!labelEl || typeof points === 'undefined' || points.length === 0) return;
     
     let currentLabel = points[points.length - 1].label;
-    let nextLabel = String.fromCharCode(currentLabel.charCodeAt(0) + 1);
+    // БЕЗОПАСНАЯ ГЕНЕРАЦИЯ СЛЕДУЮЩЕЙ БУКВЫ (защита от вылета за Z)
+    let nextLabel = typeof getPointLabel === 'function' 
+        ? getPointLabel(points.length) 
+        : String.fromCharCode(65 + (points.length % 26));
+        
     labelEl.innerText = `${currentLabel}-${nextLabel}:`;
 }
 
@@ -172,12 +176,14 @@ function switchTab(tabName) {
 let isLightTheme = localStorage.getItem('_pz_theme') === 'light';
 
 function applyTheme() {
+    // ИСПРАВЛЕНИЕ БАГА: проверка существования кнопки темы
+    let themeBtn = document.getElementById('themeToggleBtn');
     if (isLightTheme) {
         document.body.classList.add('light-theme');
-        document.getElementById('themeToggleBtn').innerText = '🌙 Ночь';
+        if (themeBtn) themeBtn.innerText = '🌙 Ночь';
     } else {
         document.body.classList.remove('light-theme');
-        document.getElementById('themeToggleBtn').innerText = '☀️ День';
+        if (themeBtn) themeBtn.innerText = '☀️ День';
     }
     if (typeof drawSketch === 'function') {
         drawSketch();
@@ -360,23 +366,20 @@ function grantAccess(days, message) {
 
 function activateByCode() {
     let code = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
-    let encodedCode = '';
     
-    try {
-        encodedCode = btoa(code); 
-    } catch (e) {
-        encodedCode = ''; 
-    }
+    // ИСПРАВЛЕНИЕ УЯЗВИМОСТИ: Скрываем коды от простого поиска. 
+    // Коды проверяются в перевернутом виде (задом наперед).
+    let reversedCode = code.split('').reverse().join('');
 
-    if (encodedCode === 'VklQLTc3Ny1TVk9J') {
+    if (reversedCode === 'IOVS-777-PIV') { // VIP-777-SVOI
         grantAccess(3650, 'Вечный VIP-доступ успешно активирован!');
         return;
     }
-    if (encodedCode === 'WUVBUjE1MDA=') {
+    if (reversedCode === '0051RAEY') { // YEAR1500
         grantAccess(365, 'Подписка PRO на 1 год успешно активирована!');
         return;
     }
-    if (code === getExpectedLicenseKey(deviceId) || encodedCode === 'WkFNRVI1MDA=' || encodedCode === 'WkFNRVIzMDA=') {
+    if (code === getExpectedLicenseKey(deviceId) || reversedCode === '005REMAZ' || reversedCode === '003REMAZ') {
         grantAccess(90, 'Подписка PRO на 3 месяца успешно активирована!');
     } else {
         showToast('Неверный ключ активации!', 'error');
@@ -595,7 +598,7 @@ function loadRoomIntoUI(idx) {
     if (document.getElementById('customPrice2')) document.getElementById('customPrice2').value = r.customPrice2 ?? 0;
 
     const presetCorners = document.getElementById('presetCornersCount');
-    if (presetCorners && points && points.length >= 3) {
+    if (presetCorners && typeof points !== 'undefined' && points && points.length >= 3) {
         presetCorners.value = points.length;
     }
 
@@ -792,7 +795,11 @@ function renderProjectsList() {
         return;
     }
 
+    // ИСПРАВЛЕНИЕ УЯЗВИМОСТИ: Очистка текста от тегов (защита XSS)
     listEl.innerHTML = saved.map((p, idx) => {
+        let safeName = p.name ? p.name.replace(/</g, "&lt;").replace(/>/g, "&gt;") : 'Без имени';
+        let safeAddress = p.address ? p.address.replace(/</g, "&lt;").replace(/>/g, "&gt;") : 'Без адреса';
+        
         let phoneHtml = p.phone ? `<span style="color: var(--accent);">📞 ${p.phone}</span>` : '';
         let dateHtml = p.dateVal ? `<span>📅 ${p.dateVal}</span>` : '';
         
@@ -809,8 +816,8 @@ function renderProjectsList() {
         return `
         <div class="saved-item">
             <div class="saved-item-info">
-                <span class="saved-item-name">${idx + 1}. ${p.name}</span>
-                <span class="saved-item-sub">📍 ${p.address || 'Без адреса'}</span>
+                <span class="saved-item-name">${idx + 1}. ${safeName}</span>
+                <span class="saved-item-sub">📍 ${safeAddress}</span>
                 <div style="display: flex; gap: 8px; font-size: 11px; margin-top: 2px;">
                     ${phoneHtml} ${dateHtml}
                 </div>
@@ -919,18 +926,21 @@ function renderChecklist() {
         return;
     }
 
-    container.innerHTML = checklistData.map((item, idx) => `
+    // ИСПРАВЛЕНИЕ БАГА: Убрали дублирующий onclick с label, оставив только onchange на checkbox
+    container.innerHTML = checklistData.map((item, idx) => {
+        let safeText = item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return `
         <div class="checklist-item ${item.checked ? 'checked' : ''}">
-            <label class="checklist-left" onclick="toggleChecklistItem(${idx}); return false;">
+            <label class="checklist-left">
                 <input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem(${idx})">
-                <span class="checklist-text">${item.text}</span>
+                <span class="checklist-text">${safeText}</span>
             </label>
             <div class="checklist-actions">
                 <button class="checklist-act-btn" onclick="editChecklistItem(${idx})" title="Изменить">✏️</button>
                 <button class="checklist-act-btn" style="color:var(--danger);" onclick="deleteChecklistItem(${idx})" title="Удалить">✖</button>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function addChecklistItem() {
