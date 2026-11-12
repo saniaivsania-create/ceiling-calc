@@ -124,7 +124,7 @@ function loadProjectFromLocalStorage() {
             drawSketch();
         }
         
-        // ИСПРАВЛЕНИЕ: Восстанавливаем имя, адрес, телефон и дату клиента (ранее данные пропадали при автосохранении)
+        // ИСПРАВЛЕНИЕ: Восстанавливаем имя, адрес, телефон и дату клиента
         let nameInput = document.getElementById('clientName');
         if (nameInput && data.name) nameInput.value = data.name;
         let addrInput = document.getElementById('clientAddress');
@@ -1019,6 +1019,7 @@ function drawSketch() {
     ctx.textAlign = 'start'; ctx.restore();
 }
 
+// ИСПРАВЛЕНИЕ: Используем showCustomPrompt вместо prompt
 function createInteractiveBinding(targetType, targetIdx) {
     if (!activeBindSource) return;
     let el = innerElements[activeBindSource.innerIdx];
@@ -1033,33 +1034,39 @@ function createInteractiveBinding(targetType, targetIdx) {
         curDistCm = Math.round(Math.hypot(proj.x - pBox.x, proj.y - pBox.y) * cmPerPixel);
         bindTitle = `Угол короба ${activeBindSource.vertexIdx + 1} ➔ Стена ${pA.label}–${pB.label}`;
     }
-    let userVal = prompt(`📏 ${bindTitle}\nВведите расстояние (см):`, curDistCm);
-    if (userVal !== null) {
-        let targetCm = parseInt(userVal.replace(/\D/g, ''), 10);
-        if (targetCm && targetCm >= 1 && targetCm <= 5000) {
-            saveState(); if (!el.customBindings) el.customBindings = [];
-            let bindObj = { vertexIdx: activeBindSource.vertexIdx, distCm: targetCm };
-            if (targetType === 'corner') bindObj.targetCornerIdx = targetIdx; else bindObj.targetWallIdx = targetIdx;
-            el.customBindings.push(bindObj); applySingleBindingShift(el, bindObj, targetCm);
-            renderInnerElementsList(); drawSketch(); if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-            showToast(`Привязка зафиксирована: ${targetCm} см`, 'success');
-        } else { showToast('Некорректное значение расстояния', 'error'); }
-    }
-    activeBindSource = null; updateHint(); drawSketch();
+    
+    let currentSource = activeBindSource; 
+    showCustomPrompt(`📏 ${bindTitle}<br>Введите расстояние (см):`, curDistCm, (userVal) => {
+        if (userVal !== null && userVal.trim() !== '') {
+            let targetCm = parseInt(userVal.replace(/\D/g, ''), 10);
+            if (targetCm && targetCm >= 1 && targetCm <= 5000) {
+                saveState(); if (!el.customBindings) el.customBindings = [];
+                let bindObj = { vertexIdx: currentSource.vertexIdx, distCm: targetCm };
+                if (targetType === 'corner') bindObj.targetCornerIdx = targetIdx; else bindObj.targetWallIdx = targetIdx;
+                el.customBindings.push(bindObj); applySingleBindingShift(el, bindObj, targetCm);
+                renderInnerElementsList(); drawSketch(); if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+                showToast(`Привязка зафиксирована: ${targetCm} см`, 'success');
+            } else { showToast('Некорректное значение расстояния', 'error'); }
+        }
+        activeBindSource = null; updateHint(); drawSketch();
+    }, true);
 }
 
+// ИСПРАВЛЕНИЕ: Используем showCustomPrompt вместо prompt
 function editCreatedBinding(hit) {
     let el = innerElements[hit.elIdx];
     if (!el || !el.customBindings || !el.customBindings[hit.bindIdx]) return;
     let b = el.customBindings[hit.bindIdx];
-    let userVal = prompt(`📏 Изменить размер привязки (см) или введите 0 для удаления:`, b.distCm);
-    if (userVal !== null) {
-        let targetCm = parseInt(userVal.replace(/\D/g, ''), 10);
-        saveState();
-        if (targetCm === 0) { el.customBindings.splice(hit.bindIdx, 1); showToast('Привязка удалена'); }
-        else if (targetCm && targetCm >= 1 && targetCm <= 5000) { b.distCm = targetCm; applySingleBindingShift(el, b, targetCm); showToast(`Привязка обновлена: ${b.distCm} см`, 'success'); }
-        renderInnerElementsList(); drawSketch(); if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    }
+    
+    showCustomPrompt(`📏 Изменить размер привязки (см)<br>или введите 0 для удаления:`, b.distCm, (userVal) => {
+        if (userVal !== null && userVal.trim() !== '') {
+            let targetCm = parseInt(userVal.replace(/\D/g, ''), 10);
+            saveState();
+            if (targetCm === 0) { el.customBindings.splice(hit.bindIdx, 1); showToast('Привязка удалена'); }
+            else if (targetCm && targetCm >= 1 && targetCm <= 5000) { b.distCm = targetCm; applySingleBindingShift(el, b, targetCm); showToast(`Привязка обновлена: ${b.distCm} см`, 'success'); }
+            renderInnerElementsList(); drawSketch(); if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
+        }
+    }, true);
 }
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -1083,6 +1090,7 @@ canvas.addEventListener('pointerdown', (e) => {
     const pos = getCanvasPointerPos(e), x = pos.x, y = pos.y;
     const iZ = 1 / zoomLevel;
 
+    // ИСПРАВЛЕНИЕ: Используем showCustomPrompt вместо prompt в рисовании диагоналей
     if (editMode === 'aim_diag') {
         for (let i = 0; i < points.length; i++) {
             if (Math.hypot(points[i].x - x, points[i].y - y) < 50 * iZ) { 
@@ -1097,13 +1105,17 @@ canvas.addEventListener('pointerdown', (e) => {
                     }
                     let pA = points[diagStartPointIdx], pB = points[i];
                     let curDistCm = Math.round(Math.hypot(pB.x - pA.x, pB.y - pA.y) * cmPerPixel);
-                    let userVal = prompt(`📐 Диагональ ${pA.label}–${pB.label}\nВведите длину с рулетки (см):`, curDistCm);
-                    if (userVal !== null) {
-                        let cm = parseInt(userVal.replace(/\D/g, ''), 10);
-                        if (cm && cm >= 1 && cm <= 5000) applyDiagonalLength(diagStartPointIdx, i, cm);
-                        else showToast('Введена некорректная длина!', 'error');
-                    }
-                    diagStartPointIdx = null; updateHint(); drawSketch();
+                    let startIdx = diagStartPointIdx; 
+                    let endIdx = i;
+                    
+                    showCustomPrompt(`📐 Диагональ ${pA.label}–${pB.label}<br>Введите длину с рулетки (см):`, curDistCm, (userVal) => {
+                        if (userVal !== null && userVal.trim() !== '') {
+                            let cm = parseInt(userVal.replace(/\D/g, ''), 10);
+                            if (cm && cm >= 1 && cm <= 5000) applyDiagonalLength(startIdx, endIdx, cm);
+                            else showToast('Введена некорректная длина!', 'error');
+                        }
+                        diagStartPointIdx = null; updateHint(); drawSketch();
+                    }, true);
                 }
                 return;
             }
@@ -1403,25 +1415,37 @@ function createFromTablePreset() {
     if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState(); showToast(`Создан шаблон на ${count} угл.`, 'success');
 }
 
+// ИСПРАВЛЕНИЕ: Используем showCustomPrompt вместо prompt
 function openWallEditSheet(wallIdx) {
     editingWallIdx = wallIdx; editingDiagObj = null;
     let p1 = points[wallIdx], p2 = points[(wallIdx + 1) % points.length]; if (!p1 || !p2) return;
-    let inp = document.getElementById(`wall-input-${wallIdx}`), curVal = inp ? inp.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
-    let userVal = prompt(`📏 Длина стены ${p1.label}–${p2.label} (см):`, curVal);
-    if (userVal !== null) {
-        let val = parseInt(userVal.replace(/\D/g, ''), 10);
-        if (val && val >= 1 && val <= 5000) { if (inp) inp.value = val; onWallLengthEdit(wallIdx, val); showToast(`Стена обновлена: ${val} см`, 'success'); }
-    }
+    let inp = document.getElementById(`wall-input-${wallIdx}`);
+    let curVal = inp ? inp.value : Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) * cmPerPixel);
+    
+    showCustomPrompt(`📏 Длина стены ${p1.label}–${p2.label} (см):`, curVal, (userVal) => {
+        if (userVal !== null && userVal.trim() !== '') {
+            let val = parseInt(userVal.replace(/\D/g, ''), 10);
+            if (val && val >= 1 && val <= 5000) { 
+                if (inp) inp.value = val; 
+                onWallLengthEdit(wallIdx, val); 
+                showToast(`Стена обновлена: ${val} см`, 'success'); 
+            }
+        }
+        closeWallEditSheet();
+    }, true);
 }
 
+// ИСПРАВЛЕНИЕ: Используем showCustomPrompt вместо prompt
 function openDiagonalEditSheet(dBox) {
     editingWallIdx = null; editingDiagObj = dBox;
-    let userVal = prompt(`📐 Введите длину диагонали ${dBox.name} (см):`, Math.round(dBox.lenCm));
-    if (userVal !== null) {
-        let val = parseInt(userVal.replace(/\D/g, ''), 10);
-        if (val && val >= 1 && val <= 5000) applyDiagonalLength(dBox.fromIdx, dBox.toIdx, val);
-        else showToast('Некорректное значение диагонали', 'error');
-    }
+    showCustomPrompt(`📐 Введите длину диагонали ${dBox.name} (см):`, Math.round(dBox.lenCm), (userVal) => {
+        if (userVal !== null && userVal.trim() !== '') {
+            let val = parseInt(userVal.replace(/\D/g, ''), 10);
+            if (val && val >= 1 && val <= 5000) applyDiagonalLength(dBox.fromIdx, dBox.toIdx, val);
+            else showToast('Некорректное значение диагонали', 'error');
+        }
+        closeWallEditSheet();
+    }, true);
 }
 
 function closeWallEditSheet() { const el = document.getElementById('wallEditSheetOverlay'); if (el) el.classList.remove('open'); editingWallIdx = null; editingDiagObj = null; }
