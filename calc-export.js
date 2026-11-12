@@ -348,7 +348,10 @@ function calculateActiveRoomDetails(globalTotal) {
     if (cPipes > 0) lastBreakdownItems.push({ title: 'Обход труб', sub: `${cPipes} шт. × ${pPipe} ₽`, val: `${costPipes.toLocaleString()} ₽` });
     if (cLightLines > 0) lastBreakdownItems.push({ title: 'Световые линии', sub: `${cLightLines} м.п. × ${pLightLines} ₽`, val: `${costLightLines.toLocaleString()} ₽` });
     if (cTrack > 0) lastBreakdownItems.push({ title: 'Трековая система', sub: `${cTrack} м.п. × ${pTrack} ₽`, val: `${costTrack.toLocaleString()} ₽` });
-    if (cNiche > 0) lastBreakdownItems.push({ title: 'Скрытая ниша ПК-5', sub: `${cNiche} м.п. × ${pNiche} ₽`, val: `${cNiche > 0 ? costNiche.toLocaleString() : '0'} ₽` });
+    
+    // ИСПРАВЛЕНИЕ БАГА: Убрали опечатку, на которую жаловался гугл-анализатор
+    if (cNiche > 0) lastBreakdownItems.push({ title: 'Скрытая ниша ПК-5', sub: `${cNiche} м.п. × ${pNiche} ₽`, val: `${costNiche.toLocaleString()} ₽` });
+    
     if (cShadow > 0) lastBreakdownItems.push({ title: 'Теневой / Парящий профиль', sub: `${cShadow} м.п. × ${pShadow} ₽`, val: `${costShadow.toLocaleString()} ₽` });
     if (custom1 > 0) lastBreakdownItems.push({ title: name1, sub: 'Доп. работа', val: `${custom1.toLocaleString()} ₽` });
     if (custom2 > 0) lastBreakdownItems.push({ title: name2, sub: 'Доп. работа', val: `${custom2.toLocaleString()} ₽` });
@@ -1100,6 +1103,11 @@ function buildGlobalSummary() {
     let cLights = 0, cChand = 0, cCornice = 0, cPipes = 0;
     let cLines = 0, cTrack = 0, cNiche = 0, cShadow = 0;
     let tAngles = 0, tHatchAngles = 0;
+    
+    // ИСПРАВЛЕНИЕ: Добавили переменные для сбора доп. работ со всех комнат
+    let tCustom1 = 0, tCustom2 = 0;
+    let nameCustom1 = 'Доп. работа 1', nameCustom2 = 'Доп. работа 2';
+    
     let totalObjCost = 0;
     
     let roomsDetails = [];
@@ -1153,6 +1161,14 @@ function buildGlobalSummary() {
         cNiche += (parseFloat(r.countNiche) || 0);
         cShadow += (parseFloat(r.countShadow) || 0);
 
+        // ИСПРАВЛЕНИЕ: Суммируем доп. работы со всех комнат и сохраняем их названия
+        let c1 = parseFloat(r.customPrice1) || 0;
+        let c2 = parseFloat(r.customPrice2) || 0;
+        tCustom1 += c1;
+        tCustom2 += c2;
+        if (c1 > 0 && r.customName1) nameCustom1 = r.customName1;
+        if (c2 > 0 && r.customName2) nameCustom2 = r.customName2;
+
         let roomCost = calculateRoomCostInBackground(r);
         totalObjCost += roomCost;
         
@@ -1177,6 +1193,10 @@ function buildGlobalSummary() {
     if (cTrack > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Треки</span></div><div class="breakdown-val">${cTrack.toFixed(1)} м.п.</div></div>`;
     if (cNiche > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Ниши ПК-5</span></div><div class="breakdown-val">${cNiche.toFixed(1)} м.п.</div></div>`;
     if (cShadow > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>Теневой профиль</span></div><div class="breakdown-val">${cShadow.toFixed(1)} м.п.</div></div>`;
+    
+    // ИСПРАВЛЕНИЕ: Выводим доп. работы в итоговую верстку Сводки
+    if (tCustom1 > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>${nameCustom1}</span></div><div class="breakdown-val">${tCustom1.toLocaleString()} ₽</div></div>`;
+    if (tCustom2 > 0) html += `<div class="breakdown-row"><div class="breakdown-label"><span>${nameCustom2}</span></div><div class="breakdown-val">${tCustom2.toLocaleString()} ₽</div></div>`;
 
     document.getElementById('globalSummaryContainer').innerHTML = html;
     
@@ -1209,6 +1229,11 @@ function buildGlobalSummary() {
         (cTrack > 0 ? `• Треки: ${cTrack.toFixed(1)} м.п.\n` : '') +
         (cNiche > 0 ? `• Ниши ПК-5: ${cNiche.toFixed(1)} м.п.\n` : '') +
         (cShadow > 0 ? `• Теневой: ${cShadow.toFixed(1)} м.п.\n` : '') +
+        
+        // ИСПРАВЛЕНИЕ: Добавляем доп. работы в текст для Telegram
+        (tCustom1 > 0 ? `• ${nameCustom1}: ${tCustom1.toLocaleString()} ₽\n` : '') +
+        (tCustom2 > 0 ? `• ${nameCustom2}: ${tCustom2.toLocaleString()} ₽\n` : '') +
+        
         `──────────────────\n` +
         `🚪 ПОМЕЩЕНИЯ (${roomsDetails.length} шт):\n` +
         roomsDetails.join('\n') + `\n` +
