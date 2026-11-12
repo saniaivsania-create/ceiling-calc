@@ -77,15 +77,26 @@ function formatLaserShift(rawVal) {
     return rawVal.toString().replace(/\D/g, ''); 
 }
 
+// ИСПРАВЛЕНИЕ: Теперь данные клиента тоже сохраняются в черновик
 function saveProjectToLocalStorage() {
+    let nameInput = document.getElementById('clientName');
+    let addrInput = document.getElementById('clientAddress');
+    let phoneInput = document.getElementById('clientPhone');
+    let dateInput = document.getElementById('clientDate');
+
     const projectData = {
         points: points,
         isClosed: isClosed,
         innerElements: innerElements,
         customDiagonals: customDiagonals,
         cmPerPixel: cmPerPixel,
-        rooms: typeof rooms !== 'undefined' ? rooms : []
+        rooms: typeof rooms !== 'undefined' ? rooms : [],
+        name: nameInput ? nameInput.value : '',
+        address: addrInput ? addrInput.value : '',
+        phone: phoneInput ? phoneInput.value : '',
+        dateVal: dateInput ? dateInput.value : ''
     };
+    
     try {
         localStorage.setItem('ceiling_calc_active_project', JSON.stringify(projectData));
     } catch (e) {}
@@ -112,16 +123,24 @@ function loadProjectFromLocalStorage() {
             renderInnerElementsList();
             drawSketch();
         }
+        
+        // ИСПРАВЛЕНИЕ: Восстанавливаем имя, адрес, телефон и дату клиента (ранее данные пропадали при автосохранении)
         let nameInput = document.getElementById('clientName');
         if (nameInput && data.name) nameInput.value = data.name;
         let addrInput = document.getElementById('clientAddress');
         if (addrInput && data.address) addrInput.value = data.address;
+        let phoneInput = document.getElementById('clientPhone');
+        if (phoneInput && data.phone) phoneInput.value = data.phone;
+        let dateInput = document.getElementById('clientDate');
+        if (dateInput && data.dateVal) dateInput.value = data.dateVal;
+
         return true;
     } catch (e) {
         return false;
     }
 }
 
+// ИСПРАВЛЕНИЕ: Оставлена только одна версия loadRoomIntoUI, удален дубликат
 function loadRoomIntoUI(idx) {
     if (typeof activeRoomIdx !== 'undefined') activeRoomIdx = idx;
     let r = typeof rooms !== 'undefined' ? rooms[idx] : null;
@@ -323,6 +342,7 @@ function closePolygon() {
     if (isClosed) showToast('Контур замкнут!', 'success');
 }
 
+// ИСПРАВЛЕНИЕ: Оставлена только одна версия snapOrthogonal
 function snapOrthogonal() {
     saveState();
     
@@ -1420,70 +1440,6 @@ function applyWallSheetValue() {
         }
         closeWallEditSheet();
     }
-}
-
-function snapOrthogonal() {
-    saveState();
-    
-    // Блокировка, чтобы 90 градусов не ломало ручные диагонали
-    if (customDiagonals.length > 0) {
-        showToast('Отключено: Ручные диагонали задают жесткую форму, 90° её сломает!', 'error');
-        return;
-    }
-
-    if (editMode === 'inner' && innerElements.length > 0) {
-        let el = (selectedInnerIdx !== null && innerElements[selectedInnerIdx]) ? innerElements[selectedInnerIdx] : innerElements[innerElements.length - 1];
-        if (el && el.type === 'poly' && el.pts && el.pts.length >= 3) {
-            let n = el.pts.length;
-            if (n === 4) {
-                let p0 = el.pts[0], p1 = el.pts[1], p2 = el.pts[2], p3 = el.pts[3];
-                let h = Math.hypot(p1.x - p0.x, p1.y - p0.y), w = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let cx = (p0.x + p1.x + p2.x + p3.x) / 4, cy = (p0.y + p1.y + p2.y + p3.y) / 4;
-                el.pts[0] = { x: cx - w/2, y: cy + h/2 }; el.pts[1] = { x: cx - w/2, y: cy - h/2 };
-                el.pts[2] = { x: cx + w/2, y: cy - h/2 }; el.pts[3] = { x: cx + w/2, y: cy + h/2 };
-            } else {
-                for (let iter = 0; iter < 2; iter++) {
-                    for (let i = 0; i < n; i++) {
-                        let curr = el.pts[i], next = el.pts[(i + 1) % n];
-                        if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) { curr.y = next.y = (curr.y + next.y) / 2; }
-                        else { curr.x = next.x = (curr.x + next.x) / 2; }
-                    }
-                }
-            }
-            let sx = 0, sy = 0; el.pts.forEach(p => { sx += p.x; sy += p.y; }); el.x = sx / el.pts.length; el.y = sy / el.pts.length;
-            renderInnerElementsList(); drawSketch();
-            if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-            showToast('Углы короба выровнены под 90°', 'success'); return;
-        }
-    }
-
-    if (isSketchLocked || points.length < 3) return;
-
-    let nPts = points.length;
-    if (nPts === 4 && isClosed) {
-        let pA = points[0], pB = points[1], pC = points[2], pD = points[3];
-        let inpAB = document.getElementById('wall-input-0'), valAB = inpAB ? parseInt(inpAB.value, 10) : 0;
-        let hPx = valAB > 0 ? valAB / cmPerPixel : Math.hypot(pB.x - pA.x, pB.y - pA.y);
-        let inpBC = document.getElementById('wall-input-1'), valBC = inpBC ? parseInt(inpBC.value, 10) : 0;
-        let wPx = valBC > 0 ? valBC / cmPerPixel : Math.hypot(pC.x - pB.x, pC.y - pB.y);
-        let cx = (pA.x + pB.x + pC.x + pD.x) / 4, cy = (pA.y + pB.y + pC.y + pD.y) / 4;
-        points[0] = { x: cx - wPx/2, y: cy + hPx/2, label: 'A' }; points[1] = { x: cx - wPx/2, y: cy - hPx/2, label: 'B' };
-        points[2] = { x: cx + wPx/2, y: cy - hPx/2, label: 'C' }; points[3] = { x: cx + wPx/2, y: cy + hPx/2, label: 'D' };
-        fitToScreen(false); syncInputsValuesOnly(); rebuildWallInputs(); rebuildDiagonalInputs(); drawSketch();
-        if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-        showToast('Прямоугольник построен строго по стенам A-B и B-C', 'success'); return;
-    }
-    for (let iter = 0; iter < 2; iter++) {
-        for (let i = 0; i < nPts; i++) {
-            if (!isClosed && i === nPts - 1) continue;
-            let curr = points[i], next = points[(i + 1) % nPts];
-            if (Math.abs(next.x - curr.x) >= Math.abs(next.y - curr.y)) { curr.y = next.y = (curr.y + next.y) / 2; }
-            else { curr.x = next.x = (curr.x + next.x) / 2; }
-        }
-    }
-    fitToScreen(false); syncInputsValuesOnly(); drawSketch();
-    if (typeof syncCurrentRoomState === 'function') syncCurrentRoomState();
-    showToast('Углы выровнены под 90°', 'success');
 }
 
 // --- РЕЖИМ ДЖОЙСТИКА (ПОШАГОВЫЙ ВВОД С РУЛЕТКИ) ---
