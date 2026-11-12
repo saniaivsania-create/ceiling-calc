@@ -15,6 +15,10 @@ function showCustomPrompt(title, defaultVal, callback, isNumeric = false) {
         titleEl.innerHTML = title;
         inputEl.value = defaultVal || '';
         inputEl.setAttribute('inputmode', isNumeric ? 'numeric' : 'text');
+        
+        // Отключаем автозаполнение, чтобы браузер не предлагал банковские карты
+        inputEl.setAttribute('autocomplete', 'off'); 
+        
         inputEl.style.textAlign = isNumeric ? 'center' : 'left';
         
         modal.style.display = 'flex';
@@ -29,11 +33,11 @@ function showCustomPrompt(title, defaultVal, callback, isNumeric = false) {
     }
 }
 
-// ИСПРАВЛЕНИЕ: Безопасное закрытие и передача пустых данных при отмене
 function closeCustomPrompt() {
     const modal = document.getElementById('customPromptModal');
     if (modal) modal.style.display = 'none';
     
+    // Если нажали отмену, безопасно передаем пустой результат для сброса состояния
     if (currentPromptCallback) {
         let cb = currentPromptCallback;
         currentPromptCallback = null;
@@ -41,17 +45,20 @@ function closeCustomPrompt() {
     }
 }
 
-// ИСПРАВЛЕНИЕ: Правильный порядок (сначала запоминаем функцию, потом стираем, потом вызываем)
 function confirmCustomPrompt() {
     const inputEl = document.getElementById('promptInput');
     if (inputEl && currentPromptCallback) {
         let val = inputEl.value;
+        
+        // Сначала запоминаем функцию передачи
         let cb = currentPromptCallback; 
         currentPromptCallback = null;
         
+        // Закрываем окно
         const modal = document.getElementById('customPromptModal');
         if (modal) modal.style.display = 'none';
         
+        // Передаем введенную длину (напр. 190) в чертеж
         cb(val); 
     }
 }
